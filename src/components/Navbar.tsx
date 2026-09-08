@@ -3,6 +3,15 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X, User, LogOut, Wallet } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 
+/** 站点主导航：桌面横向链接 + 移动端汉堡菜单共用 */
+const NAV_ITEMS = [
+  { label: '工作台', path: '/workspace' },
+  { label: '知识库', path: '/knowledge' },
+  { label: '色彩社区', path: '/community' },
+  { label: '品牌色库', path: '/color-library' },
+  { label: '趋势报告', path: '/trend-report' },
+] as const;
+
 /** 四色套印标：C/M/Y/K 四块，呼应品牌色彩研究基因 */
 function BrandMark({ className = '' }: { className?: string }) {
   return (
@@ -45,6 +54,9 @@ export default function Navbar() {
   const goWallet = () => navigate('/wallet');
   const goLogin = () => navigate('/login');
 
+  const isActive = (path: string) =>
+    location.pathname === path || location.pathname.startsWith(`${path}/`);
+
   const handleLogout = () => {
     logout();
     setUserMenuOpen(false);
@@ -53,7 +65,7 @@ export default function Navbar() {
 
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+      className={`fixed top-0 left-0 right-0 z-50 pt-safe transition-all duration-300 ${
         scrolled
           ? 'bg-white/90 backdrop-blur-xl border-b border-brand-line shadow-[0_1px_0_rgba(23,35,44,0.02),0_8px_24px_-16px_rgba(23,35,44,0.25)]'
           : 'bg-white/70 backdrop-blur-md border-b border-transparent'
@@ -66,6 +78,23 @@ export default function Navbar() {
             曲泉AI
           </span>
         </Link>
+
+        {/* 桌面主导航 */}
+        <nav className="hidden lg:flex items-center gap-1" aria-label="站点导航">
+          {NAV_ITEMS.map((item) => (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
+                isActive(item.path)
+                  ? 'text-brand-primary bg-brand-primary/10'
+                  : 'text-brand-muted hover:text-brand-ink hover:bg-brand-ink/[0.05]'
+              }`}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
 
         <div className="flex items-center gap-2.5">
           {/* 登录 / 用户菜单（工作台入口由首页「立即体验」承担，避免重复 CTA） */}
@@ -138,10 +167,27 @@ export default function Navbar() {
       {mobileMenuOpen && (
         <div className="lg:hidden border-t border-brand-line bg-white/95 backdrop-blur-xl">
           <div className="container px-4 py-4 flex flex-col gap-1">
+            {NAV_ITEMS.map((item) => (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex items-center justify-between px-3 py-3 rounded-lg text-[15px] font-medium transition-colors ${
+                  isActive(item.path)
+                    ? 'text-brand-primary bg-brand-primary/10'
+                    : 'text-brand-ink hover:bg-brand-ink/[0.05]'
+                }`}
+              >
+                {item.label}
+                {isActive(item.path) && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand-primary" aria-hidden="true" />
+                )}
+              </Link>
+            ))}
+
             {!isAuthenticated && (
               <button
                 onClick={goLogin}
-                className="sm:hidden btn-secondary !py-2 !px-5 text-sm inline-flex items-center justify-center gap-1.5"
+                className="sm:hidden btn-secondary !py-2 !px-5 text-sm inline-flex items-center justify-center gap-1.5 mt-2"
               >
                 <User className="w-4 h-4" />
                 登录 / 注册

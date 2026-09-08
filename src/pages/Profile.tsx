@@ -29,7 +29,7 @@ export default function Profile() {
     .reduce((s, t) => s + t.amount, 0);
 
   return (
-    <div className="min-h-screen pb-20 relative">
+    <div className="min-h-dvh pb-20 relative">
       {/* 顶部 CMYK 套色条（品牌标识） */}
       <div className="absolute top-0 inset-x-0 h-[3px] bg-cmyk-strip" />
 

@@ -359,7 +359,7 @@ function ApplyModal({
         className="absolute inset-0 bg-brand-darker/80 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="glass-card relative w-full sm:max-w-md max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl p-5 sm:p-6">
+      <div className="glass-card relative w-full sm:max-w-md max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 pb-safe">
         <button
           onClick={onClose}
           className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-white/10 text-brand-muted hover:text-white transition-colors"
@@ -644,7 +644,7 @@ function ChatModal({
         className="absolute inset-0 bg-brand-darker/80 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="glass-card relative w-full sm:max-w-lg max-h-[90vh] flex flex-col rounded-t-2xl sm:rounded-2xl overflow-hidden">
+      <div className="glass-card relative w-full sm:max-w-lg max-h-[90vh] flex flex-col rounded-t-2xl sm:rounded-2xl overflow-hidden pb-safe">
         {/* 头部 */}
         <div className="flex items-center gap-3 p-4 border-b border-white/10">
           <div
@@ -934,7 +934,7 @@ export default function PartnerCooperation() {
   /* ============ 申请成功 Toast ============ */
   if (successInfo) {
     return (
-      <div className="relative min-h-screen flex items-center justify-center px-4">
+      <div className="relative min-h-dvh flex items-center justify-center px-4">
         <div className="fixed inset-0 bg-noise-texture pointer-events-none opacity-40" />
         <div
           className="fixed inset-0 pointer-events-none"
@@ -970,7 +970,7 @@ export default function PartnerCooperation() {
   }
 
   return (
-    <div className="relative min-h-screen pb-20">
+    <div className="relative min-h-dvh pb-20">
       {/* 背景 */}
       <div className="fixed inset-0 bg-noise-texture pointer-events-none opacity-40" />
       <div

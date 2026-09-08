@@ -159,7 +159,7 @@ export default function PhoneCorrection() {
   ];
 
   return (
-    <div className="relative z-10 min-h-screen bg-brand-darker bg-noise-texture py-12 px-4">
+    <div className="relative z-10 min-h-dvh bg-brand-darker bg-noise-texture py-12 px-4">
       <div className="container">
         <header className="text-center mb-10 animate-fade-in-up">
           <h1 className="font-serif font-bold mb-4 spectrum-text" style={{ fontSize: 'clamp(2.5rem, 5vw, 3.25rem)' }}>
@@ -220,7 +220,7 @@ export default function PhoneCorrection() {
               />
             </div>
             <div className="text-brand-text/90 font-medium mb-1.5">
-              拖拽图片到此处，或<span className="text-brand-accent underline underline-offset-2 mx-1">点击上传</span>
+              点击<span className="text-brand-accent underline underline-offset-2 mx-1">上传图片</span>
             </div>
             <div className="text-brand-muted text-xs">支持 JPG / PNG / WEBP 格式</div>
           </div>

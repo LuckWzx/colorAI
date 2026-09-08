@@ -254,7 +254,7 @@ export default function ImageCorrection() {
   };
 
   return (
-    <div className="min-h-screen bg-brand-darker bg-noise-texture py-12 px-4">
+    <div className="min-h-dvh bg-brand-darker bg-noise-texture py-12 px-4">
       <div className="container max-w-5xl">
         <PageHeader
           title="图片一键校正"
@@ -291,7 +291,7 @@ export default function ImageCorrection() {
                 </div>
                 <div>
                   <p className="font-semibold text-brand-text text-lg mb-1">
-                    拖拽或点击上传
+                    点击上传
                   </p>
                   <p className="text-sm text-brand-muted">支持 JPG / PNG / WEBP</p>
                 </div>

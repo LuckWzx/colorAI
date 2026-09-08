@@ -183,7 +183,7 @@ export default function ColorConverterPage() {
   const eyeDropperSupported = typeof window !== "undefined" && "EyeDropper" in window;
 
   return (
-    <div className="min-h-screen bg-brand-paper py-12 px-4">
+    <div className="min-h-dvh bg-brand-paper py-12 px-4">
       <Toast message={toastMsg} visible={showToast} />
       <div className="container max-w-5xl">
         <PageHeader

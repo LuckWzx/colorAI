@@ -132,7 +132,7 @@ export default function MerchantOnboarding() {
   /* ============ 提交成功态 ============ */
   if (submitted) {
     return (
-      <div className="relative min-h-screen flex items-center justify-center px-4">
+      <div className="relative min-h-dvh flex items-center justify-center px-4">
         <div className="fixed inset-0 bg-noise-texture pointer-events-none opacity-40" />
         <div
           className="fixed inset-0 pointer-events-none"
@@ -181,7 +181,7 @@ export default function MerchantOnboarding() {
 
   /* ============ 表单 ============ */
   return (
-    <div className="relative min-h-screen pb-20">
+    <div className="relative min-h-dvh pb-20">
       {/* 背景 */}
       <div className="fixed inset-0 bg-noise-texture pointer-events-none opacity-40" />
       <div

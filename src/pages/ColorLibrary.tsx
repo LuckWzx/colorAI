@@ -520,7 +520,7 @@ function BrandColorList({
                 className="aspect-square rounded-xl mb-3 relative overflow-hidden border border-white/10 shadow-inner"
                 style={{ background: c.correctedHex }}
               >
-                <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                 {beforeDiff && (
                   <div className="absolute bottom-2 left-2 text-[9px] bg-brand-darker/70 backdrop-blur px-1.5 py-0.5 rounded text-brand-accentLight border border-brand-accent/30">
                     AI 校正
@@ -775,7 +775,7 @@ export default function ColorLibrary() {
   };
 
   return (
-    <div className="relative min-h-screen pb-20">
+    <div className="relative min-h-dvh pb-20">
       {/* 背景 */}
       <div className="fixed inset-0 bg-noise-texture pointer-events-none opacity-40" />
       <div

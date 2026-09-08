@@ -220,7 +220,7 @@ export default function ColorPicker() {
   }, [imageUrl]);
 
   return (
-    <div className="min-h-screen bg-brand-darker bg-noise-texture py-12 px-4">
+    <div className="min-h-dvh bg-brand-darker bg-noise-texture py-12 px-4">
       <Toast message={toastMsg} visible={showToast} />
       <div className="container max-w-6xl">
         <PageHeader

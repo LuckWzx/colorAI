@@ -100,7 +100,7 @@ export default function Login() {
     tab === 'login' ? phoneValid && pwdValid : phoneValid && pwdValid && nameValid;
 
   return (
-    <div className="min-h-screen flex flex-col bg-brand-paper relative overflow-hidden">
+    <div className="min-h-dvh flex flex-col bg-brand-paper relative overflow-hidden">
       {/* 顶部 CMYK 套色条（品牌标识） */}
       <div className="absolute top-0 inset-x-0 h-[3px] bg-cmyk-strip" />
 

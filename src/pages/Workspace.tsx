@@ -747,7 +747,7 @@ export default function Workspace() {
   })();
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden flex flex-col bg-brand-paper">
+    <div className="relative h-dvh w-screen overflow-hidden flex flex-col bg-brand-paper">
       <header className="relative z-20 shrink-0 flex items-center justify-between px-4 lg:px-8 h-14 sm:h-16 border-b border-brand-line bg-white/85 backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <button

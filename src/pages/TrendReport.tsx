@@ -625,7 +625,7 @@ export default function TrendReport() {
   };
 
   return (
-    <div className="relative min-h-screen pb-20">
+    <div className="relative min-h-dvh pb-20">
       {/* 背景 */}
       <div className="fixed inset-0 bg-noise-texture pointer-events-none opacity-40" />
       <div

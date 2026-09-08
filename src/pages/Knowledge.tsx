@@ -445,7 +445,7 @@ export default function Knowledge() {
   }, [filteredIssues]);
 
   return (
-    <div className="min-h-screen bg-brand-paper py-12 px-4">
+    <div className="min-h-dvh bg-brand-paper py-12 px-4">
       <div className="container">
         <header className="text-center mb-10 animate-fade-in-up">
           <p className="eyebrow justify-center">

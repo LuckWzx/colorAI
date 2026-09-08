@@ -48,7 +48,7 @@ export default function Wallet() {
   }, [orders, orderFilter]);
 
   return (
-    <div className="min-h-screen pb-20 relative">
+    <div className="min-h-dvh pb-20 relative">
       {/* 顶部 CMYK 套色条（品牌标识） */}
       <div className="absolute top-0 inset-x-0 h-[3px] bg-cmyk-strip" />
 
@@ -713,7 +713,7 @@ function ModalShell({
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-brand-ink/45 backdrop-blur-sm" onClick={onClose} />
-      <div className="glass-card relative w-full sm:max-w-md max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 animate-fade-in-up">
+      <div className="glass-card relative w-full sm:max-w-md max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 pb-safe animate-fade-in-up">
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-lg font-semibold text-brand-ink">{title}</h3>
           <button

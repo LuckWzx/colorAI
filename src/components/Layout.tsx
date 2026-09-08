@@ -8,11 +8,11 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   return (
-    <div className="relative min-h-screen flex flex-col">
+    <div className="relative min-h-dvh flex flex-col">
       <Navbar />
       <main
         className="relative z-10 flex-1 pt-16"
-        style={{ minHeight: 'calc(100vh - 140px)' }}
+        style={{ minHeight: 'calc(100dvh - 140px)' }}
       >
         {children}
       </main>

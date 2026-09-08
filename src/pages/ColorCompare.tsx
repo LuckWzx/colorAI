@@ -124,7 +124,7 @@ function UploadSlot({ label, accent, file, previewUrl, onSelect }: UploadSlotPro
               />
             </div>
             <div>
-              <p className="font-medium text-brand-text mb-1">拖拽或点击上传</p>
+              <p className="font-medium text-brand-text mb-1">点击上传</p>
               <p className="text-sm text-brand-muted">支持 JPG / PNG / WEBP</p>
             </div>
           </div>
@@ -274,7 +274,7 @@ export default function ColorCompare() {
   ];
 
   return (
-    <div className="min-h-screen bg-brand-darker bg-noise-texture py-12 px-4">
+    <div className="min-h-dvh bg-brand-darker bg-noise-texture py-12 px-4">
       <div className="container max-w-6xl">
         <PageHeader
           title="颜色相似度对比"
