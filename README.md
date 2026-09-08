@@ -98,7 +98,7 @@ ColorAI/
 │   ├── utils/              # 工具函数（色彩转换等）
 │   └── shared/             # 共享类型定义
 ├── public/uploads/         # 上传图片存储目录
-├── .trae/documents/        # PRD 与技术架构文档
+├── doc/                    # 文档（PRD、移动端评估等）
 └── vite.config.ts          # Vite 配置（含 /api 代理）
 ```
 
@@ -125,6 +125,5 @@ ColorAI/
 
 ## 相关文档
 
-- 产品需求文档：[PRD-曲泉AI产品需求文档](.trae/documents/PRD-曲泉AI产品需求文档.md)
-- 技术架构文档：[技术架构文档](.trae/documents/技术架构文档.md)
+- 产品需求文档：[颜色视觉AI智能体PRD](doc/颜色视觉AI智能体PRD.md)
 - 移动端与 App 化评估：[移动端与App化评估](doc/移动端与App化评估.md)
