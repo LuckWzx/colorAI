@@ -3,16 +3,17 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X, User, LogOut, Wallet } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 
-const navLinks = [
-  { name: '首页', path: '/' },
-  { name: '一键校正', path: '/image-correction' },
-  { name: '智能取色', path: '/color-picker' },
-  { name: '色彩转换', path: '/color-converter' },
-  { name: '颜色对比', path: '/color-compare' },
-  { name: '手机校色', path: '/phone-correction' },
-  { name: '知识问答', path: '/knowledge' },
-  { name: '色研社区', path: '/community' },
-];
+/** 四色套印标：C/M/Y/K 四块，呼应品牌色彩研究基因 */
+function BrandMark({ className = '' }: { className?: string }) {
+  return (
+    <span className={`grid grid-cols-2 gap-[3px] ${className}`} aria-hidden="true">
+      <span className="w-[9px] h-[9px] rounded-[2.5px] bg-[#0E6F9C]" />
+      <span className="w-[9px] h-[9px] rounded-[2.5px] bg-[#E4007E]" />
+      <span className="w-[9px] h-[9px] rounded-[2.5px] bg-[#FFD200]" />
+      <span className="w-[9px] h-[9px] rounded-[2.5px] bg-[#26323B]" />
+    </span>
+  );
+}
 
 export default function Navbar() {
   const scrolled = useScrolled();
@@ -40,8 +41,8 @@ export default function Navbar() {
     return () => document.removeEventListener('mousedown', handler);
   }, [userMenuOpen]);
 
-  const goWorkspace = () => navigate('/workspace');
   const goProfile = () => navigate('/profile');
+  const goWallet = () => navigate('/wallet');
   const goLogin = () => navigate('/login');
 
   const handleLogout = () => {
@@ -54,84 +55,59 @@ export default function Navbar() {
     <nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         scrolled
-          ? 'bg-brand-darker/90 backdrop-blur-xl border-b border-white/5'
-          : 'bg-brand-darker/40 backdrop-blur-md'
+          ? 'bg-white/90 backdrop-blur-xl border-b border-brand-line shadow-[0_1px_0_rgba(23,35,44,0.02),0_8px_24px_-16px_rgba(23,35,44,0.25)]'
+          : 'bg-white/70 backdrop-blur-md border-b border-transparent'
       }`}
     >
       <div className="container flex items-center justify-between h-16 px-4 lg:px-8">
         <Link to="/" className="flex items-center gap-3 group">
-          <div className="w-8 h-8 rounded-lg bg-spectrum-gradient bg-[length:200%_200%] animate-gradient-shift shadow-glow" />
-          <span className="font-serif text-xl font-bold tracking-wide bg-gradient-to-r from-brand-cream via-brand-accent to-brand-teal bg-clip-text text-transparent">
+          <BrandMark />
+          <span className="font-serif text-xl font-bold text-brand-ink tracking-wide">
             曲泉AI
           </span>
         </Link>
 
-        <div className="hidden lg:flex items-center gap-1">
-          {navLinks.map((link) => (
-            <Link
-              key={link.path}
-              to={link.path}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                location.pathname === link.path
-                  ? 'text-white bg-white/10'
-                  : 'text-brand-text/80 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              {link.name}
-            </Link>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={goWorkspace}
-            className="hidden sm:inline-flex btn-primary !py-2 !px-5 text-sm"
-          >
-            开始使用
-          </button>
-
-          {/* 登录 / 用户菜单 */}
+        <div className="flex items-center gap-2.5">
+          {/* 登录 / 用户菜单（工作台入口由首页「立即体验」承担，避免重复 CTA） */}
           {isAuthenticated && user ? (
             <div className="relative" ref={userMenuRef}>
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                className="flex items-center gap-2 pl-2 pr-1 py-1.5 rounded-lg hover:bg-brand-ink/[0.05] transition-colors"
                 aria-label="用户菜单"
               >
-                <div className="w-7 h-7 rounded-lg bg-spectrum-gradient bg-[length:200%_200%] animate-gradient-shift flex items-center justify-center shadow-glow shrink-0">
-                  <span className="text-xs font-bold text-white">
-                    {user.username.slice(0, 1).toUpperCase()}
-                  </span>
-                </div>
-                <span className="hidden sm:inline text-sm text-brand-text max-w-[80px] truncate">
+                <span className="w-7 h-7 rounded-md bg-brand-primary flex items-center justify-center text-white text-xs font-semibold shrink-0">
+                  {user.username.slice(0, 1).toUpperCase()}
+                </span>
+                <span className="hidden sm:inline text-sm text-brand-ink max-w-[80px] truncate">
                   {user.username}
                 </span>
               </button>
 
               {userMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-56 glass-card p-2 animate-fade-in-up shadow-glow-accent">
-                  <div className="px-3 py-2 border-b border-white/5 mb-1">
-                    <div className="text-sm font-medium text-brand-text truncate">{user.username}</div>
+                <div className="absolute right-0 top-full mt-2 w-56 bg-brand-surface border border-brand-line rounded-xl shadow-lift p-2 animate-fade-in-up">
+                  <div className="px-3 py-2 border-b border-brand-line mb-1">
+                    <div className="text-sm font-medium text-brand-ink truncate">{user.username}</div>
                     <div className="text-[11px] text-brand-muted">个人中心</div>
                   </div>
                   <button
                     onClick={goProfile}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-brand-text hover:bg-white/5 transition-colors"
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-brand-ink hover:bg-brand-ink/[0.05] transition-colors"
                   >
                     <User className="w-4 h-4 text-brand-muted" />
                     个人主页
                   </button>
                   <button
-                    onClick={() => { goProfile(); }}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-brand-text hover:bg-white/5 transition-colors"
+                    onClick={() => { goWallet(); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-brand-ink hover:bg-brand-ink/[0.05] transition-colors"
                   >
                     <Wallet className="w-4 h-4 text-brand-muted" />
                     我的钱包
                   </button>
-                  <div className="border-t border-white/5 my-1" />
+                  <div className="border-t border-brand-line my-1" />
                   <button
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-rose-300 hover:bg-rose-500/10 transition-colors"
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-rose-600 hover:bg-rose-50 transition-colors"
                   >
                     <LogOut className="w-4 h-4" />
                     退出登录
@@ -142,7 +118,7 @@ export default function Navbar() {
           ) : (
             <button
               onClick={goLogin}
-              className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-brand-text border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all"
+              className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-brand-ink border border-brand-lineStrong hover:border-brand-primary/50 hover:text-brand-primary hover:bg-white transition-all"
             >
               <User className="w-4 h-4" />
               登录
@@ -151,7 +127,7 @@ export default function Navbar() {
 
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden p-2 rounded-lg text-brand-text/80 hover:text-white hover:bg-white/10 transition-colors"
+            className="lg:hidden p-2 rounded-lg text-brand-muted hover:text-brand-ink hover:bg-brand-ink/[0.05] transition-colors"
             aria-label="切换菜单"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -160,31 +136,12 @@ export default function Navbar() {
       </div>
 
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-white/5 bg-brand-darker/95 backdrop-blur-xl">
+        <div className="lg:hidden border-t border-brand-line bg-white/95 backdrop-blur-xl">
           <div className="container px-4 py-4 flex flex-col gap-1">
-            {navLinks.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
-                className={`px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  location.pathname === link.path
-                    ? 'text-white bg-white/10'
-                    : 'text-brand-text/80 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                {link.name}
-              </Link>
-            ))}
-            <button
-              onClick={goWorkspace}
-              className="sm:hidden btn-primary !py-2 !px-5 text-sm mt-2"
-            >
-              开始使用
-            </button>
             {!isAuthenticated && (
               <button
                 onClick={goLogin}
-                className="sm:hidden btn-secondary !py-2 !px-5 text-sm mt-2 inline-flex items-center justify-center gap-1.5"
+                className="sm:hidden btn-secondary !py-2 !px-5 text-sm inline-flex items-center justify-center gap-1.5"
               >
                 <User className="w-4 h-4" />
                 登录 / 注册

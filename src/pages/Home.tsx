@@ -1,313 +1,213 @@
+import { useState } from 'react';
+import ColorDots from '@/components/ColorDots';
 import { useNavigate } from 'react-router-dom';
-import {
-  Image as ImageIcon,
-  Pipette,
-  Palette,
-  GitCompare,
-  Smartphone,
-  HelpCircle,
-  Camera,
-  MapPin,
-  Package2,
-  ArrowRight,
-  Info,
-} from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 
-interface FeatureCard {
-  id: number;
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  path: string;
-  gradient: string;
+/**
+ * 首页 Hero 展示素材（演示占位）。
+ * TODO: 后续替换正式素材时，仅需更新 SAMPLES 数组的 src 与 name。
+ */
+const SAMPLES = [
+  { src: '/uploads/Ln4ZouX2zsnGiHiZVUBJaW4vd4Bzj3USoXCbbMXVFgd2SQLgf_ZTCyFe0ERXtZCyrV2TtxTJhrfLS69eVj5cX7sG2Z718ZBm5QE4u4luYgrmRODx8-bg7jevFkvnr-PGoBR3UhbkGpDHVSgz5C-ZwsPpxCn422N_M1bCrYjH8L0phNJb-eWW5HJZjP1UuMOx.jpg', name: '演示样张 01' },
+  { src: '/uploads/oY3f1YptJgsPelrGGggpiyWLxdNaHXSIrrT3GLi_fLuUtbLDpxM5TFL8hxi_xYcggix20JGkDU0GdRG8MZCYVdVbSvqpRDXutNcbi03I-5XrnNuFHa9lgoUHK_bg4DvmqxVUx7nktqiUqBGGU2TY1M-NV-3ymqFJGsuA8w2rSRBjEu0SdYk965IhJRWdbS1f.jpg', name: '演示样张 02' },
+  { src: '/uploads/E9DfNEiOJ8PkrAqheZMa-zUfcHI5PCOrXsIAy_yfRTfntTszlAR_Jn2uADHbwyLTsexPw-SViakbkOjHnl0MkNjbTaY8I7ns9tA_Nt8QEOY7Aip9exrsKf5Lhc0n76tfR-zSHT7i6005M3RD3GzN9p2Jk7E6nOFyQDv_STBC924.jpg', name: '演示样张 03' },
+  { src: '/uploads/RXEYgMKddYNLbmRi6ehlpU9cZJ3H5I0rM7qIrvnkMDes8z3rnNwnxWzyVIXBBPbLP35Hd5jsFuRI9SXeAG7QD4jQATM7sNujcSX6xTCcbmSjwaGQ2xbA__1ZP_E695eZ6Lsp_0zhLeSiLsF7gJaR_PCV3WEu4OU7TWqikpu6TAg.jpg', name: '演示样张 04' },
+];
+
+/** 预载目标图，保证翻阅转场时新图已就绪 */
+function preload(src: string) {
+  const img = new Image();
+  img.src = src;
 }
-
-const featureCards: FeatureCard[] = [
-  {
-    id: 1,
-    title: '图片一键校正',
-    description: 'AI自动识别场景，智能调整白平衡、对比度、饱和度，还原真实色彩',
-    icon: ImageIcon,
-    path: '/image-correction',
-    gradient: 'from-[#FF6B35] to-[#F7C59F]',
-  },
-  {
-    id: 2,
-    title: '智能取色器',
-    description: '点击图片任意位置获取精准颜色值，支持RGB/HEX/HSL/CMYK等多格式转换',
-    icon: Pipette,
-    path: '/color-picker',
-    gradient: 'from-[#4ECDC4] to-[#0E4D64]',
-  },
-  {
-    id: 3,
-    title: '色彩空间转换',
-    description: '全色彩空间互转：RGB/HEX/HSL/HSV/CMYK/LAB，专业级转换算法精准可靠',
-    icon: Palette,
-    path: '/color-converter',
-    gradient: 'from-[#A855F7] to-[#EC4899]',
-  },
-  {
-    id: 4,
-    title: '颜色相似度对比',
-    description: '上传两张图片进行色彩差异分析，DeltaE量化评分，生成专业对比报告',
-    icon: GitCompare,
-    path: '/color-compare',
-    gradient: 'from-[#3B82F6] to-[#8B5CF6]',
-  },
-  {
-    id: 5,
-    title: '手机拍摄校色',
-    description: '针对主流手机机型和拍摄场景，一键校正自动白平衡偏差，还原真实色调',
-    icon: Smartphone,
-    path: '/phone-correction',
-    gradient: 'from-[#10B981] to-[#059669]',
-  },
-  {
-    id: 6,
-    title: '拍照偏色解答',
-    description: '常见偏色问题知识库：室内偏黄、户外过曝、肤色偏红等难题的专业解答',
-    icon: HelpCircle,
-    path: '/knowledge?tab=issues',
-    gradient: 'from-[#F59E0B] to-[#D97706]',
-  },
-  {
-    id: 7,
-    title: '拍照真实技巧',
-    description: '黄金时刻用光、构图法则、产品布光等实操技巧，助你拍出专业作品',
-    icon: Camera,
-    path: '/knowledge?tab=tips',
-    gradient: 'from-[#EF4444] to-[#DC2626]',
-  },
-  {
-    id: 8,
-    title: '附近色胶商铺',
-    description: '附近专业冲印店、胶片社、艺术微喷工作室地图导航，实地校正无忧',
-    icon: MapPin,
-    path: '/knowledge?tab=shops',
-    gradient: 'from-[#06B6D4] to-[#0891B2]',
-  },
-  {
-    id: 9,
-    title: '工业胶品牌',
-    description: '专业胶卷、相纸、校色设备品牌图鉴：柯达、富士、伊尔福、爱普生等',
-    icon: Package2,
-    path: '/knowledge?tab=brands',
-    gradient: 'from-[#6366F1] to-[#4F46E5]',
-  },
-];
-
-const colorRingColors = [
-  '#FF6B35',
-  '#F7C59F',
-  '#4ECDC4',
-  '#1A6B88',
-  '#A855F7',
-  '#EC4899',
-  '#10B981',
-  '#F59E0B',
-];
 
 export default function Home() {
   const navigate = useNavigate();
+  const total = SAMPLES.length;
+  /** exit：正在滑出模糊的旧图索引；dir：翻阅方向（1 前进 / -1 后退） */
+  const [view, setView] = useState<{ cur: number; exit: number | null; dir: 1 | -1 }>({
+    cur: 0,
+    exit: null,
+    dir: 1,
+  });
 
-  const scrollToFeatures = () => {
-    const el = document.getElementById('features-section');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+  const go = (dir: 1 | -1) => {
+    // 事件处理器内直接读当前视图，切换即时可靠
+    const cur = view.cur;
+    const next = (cur + dir + total) % total;
+    // 预载翻页后相邻的两张，保证连续翻阅流畅
+    preload(SAMPLES[(next + 1) % total].src);
+    preload(SAMPLES[(next - 1 + total) % total].src);
+    setView({ cur: next, exit: cur, dir });
+    clearExitAfter(cur);
+  };
+
+  const jumpTo = (i: number) => {
+    const cur = view.cur;
+    if (i === cur) return;
+    const fwd = (i - cur + total) % total;
+    setView({ cur: i, exit: cur, dir: fwd <= total / 2 ? 1 : -1 });
+    clearExitAfter(cur);
+  };
+
+  /**
+   * 退出图动画结束后定时移除（不依赖 animationend 事件，
+   * 避免页面被节流/后台时事件丢失导致旧图残留覆盖新图）
+   */
+  const clearExitAfter = (exitIdx: number) => {
+    window.setTimeout(() => {
+      setView((v) => (v.exit === exitIdx ? { ...v, exit: null } : v));
+    }, 550);
   };
 
   return (
-    <div className="relative min-h-screen bg-brand-dark overflow-hidden">
-      <div className="fixed inset-0 bg-noise-texture pointer-events-none opacity-50" />
-
-      <section id="hero-section" className="relative pt-28 pb-24 px-6 lg:px-12">
+    <div className="min-h-screen bg-brand-paper">
+      {/* ==================== Hero ==================== */}
+      <section className="relative overflow-hidden">
+        {/* 坐标纸底纹（向下渐隐） */}
         <div
-          className="absolute top-10 -left-32 w-[500px] h-[500px] rounded-full opacity-30 blur-3xl pointer-events-none"
+          className="graph-grid absolute inset-0 pointer-events-none"
           style={{
-            background:
-              'radial-gradient(circle, #FF6B35 0%, #F7C59F 25%, #4ECDC4 50%, transparent 70%)',
-          }}
-        />
-        <div
-          className="absolute top-40 -right-40 w-[600px] h-[600px] rounded-full opacity-20 blur-3xl pointer-events-none"
-          style={{
-            background:
-              'radial-gradient(circle, #1A6B88 0%, #4ECDC4 30%, #A855F7 60%, transparent 80%)',
+            maskImage: 'linear-gradient(to bottom, black 40%, transparent 90%)',
+            WebkitMaskImage: 'linear-gradient(to bottom, black 40%, transparent 90%)',
           }}
         />
 
-        <div className="relative z-10 max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
+        <div className="relative container grid lg:grid-cols-[1.05fr_0.95fr] gap-16 items-center pt-24 md:pt-28 pb-16 md:pb-24 px-4 lg:px-8">
+          {/* 左侧文案 */}
           <div className="text-left">
-            <p
-              className="inline-block text-sm md:text-base font-medium mb-6 bg-clip-text text-transparent bg-spectrum-gradient bg-[length:200%_auto] animate-gradient-shift tracking-wider"
-            >
-              让色彩更精准 · 让真实更可见
+            <p className="eyebrow">
+              <ColorDots size={8} />
+              Ququan Color Lab
             </p>
 
             <h1
-              className="font-serif font-bold leading-tight mb-8 bg-clip-text text-transparent bg-spectrum-gradient bg-[length:200%_auto] animate-gradient-shift"
-              style={{ fontSize: 'clamp(64px, 10vw, 80px)' }}
+              className="font-serif font-bold text-brand-ink leading-[1.12] mt-6 mb-6"
+              style={{ fontSize: 'clamp(48px, 7.5vw, 76px)' }}
             >
               曲泉AI
             </h1>
 
-            <p className="text-brand-muted text-lg md:text-xl leading-relaxed mb-10 max-w-xl">
-              专业色彩处理智能体，提供一键校色、智能取色、色彩转换、相似度对比、手机视觉校色等功能，让专业色彩触手可及
+            <p className="text-brand-muted text-lg md:text-xl leading-relaxed max-w-xl mb-4">
+              为设计师与摄影师的色彩实验室——一键校色、精准取色、
+              六维色彩空间互转、ΔE 色差量化，
+              <span className="text-brand-ink font-medium">
+                让屏幕里的每一帧颜色，都被准确看见
+              </span>
             </p>
 
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-wrap gap-4 mt-9">
               <button
                 onClick={() => navigate('/workspace')}
-                className="group relative inline-flex items-center gap-2 px-8 py-4 rounded-xl font-semibold text-white overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-glow-accent"
+                className="btn-primary !px-8 !py-3.5 text-[15px]"
               >
-                <span
-                  className="absolute inset-0 bg-spectrum-gradient bg-[length:200%_auto] animate-gradient-shift"
-                />
-                <span className="relative flex items-center gap-2">
-                  立即体验
-                  <ArrowRight className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" />
-                </span>
+                立即体验
+                <ArrowRight className="w-4 h-4" />
               </button>
-
-              <button
-                onClick={() => navigate('/knowledge')}
-                className="inline-flex items-center gap-2 px-8 py-4 rounded-xl font-semibold text-brand-text border border-brand-border bg-brand-card backdrop-blur-sm transition-all duration-300 hover:border-brand-teal hover:text-brand-teal hover:shadow-glow"
-              >
-                <Info className="w-5 h-5" />
-                了解更多
+              <button onClick={() => navigate('/community')} className="btn-secondary !px-8 !py-3.5 text-[15px]">
+                色研社区
               </button>
             </div>
+
+            {/* 研究数据带 */}
+            <dl className="mt-14 pt-7 border-t border-brand-line grid grid-cols-3 gap-6 max-w-lg">
+              {[
+                { num: 'ΔE ≤ 2.0', label: '专业级色差判定' },
+                { num: '6', label: '色彩空间同步互转' },
+                { num: 'CMYK·Lab', label: '印刷级色彩标准' },
+              ].map((s) => (
+                <div key={s.label}>
+                  <dt className="sr-only">{s.label}</dt>
+                  <dd className="font-mono text-xl md:text-[22px] font-semibold text-brand-ink tabular-nums">
+                    {s.num}
+                  </dd>
+                  <dd className="text-xs text-brand-faint mt-1.5 leading-snug">{s.label}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
 
-          <div className="relative flex items-center justify-center h-[480px]">
+          {/* 右侧：色彩样张翻阅（向左滑出模糊转场） */}
+          <div className="relative max-w-[420px] w-full mx-auto lg:mx-0 lg:justify-self-end py-6">
             <div
-              className="absolute w-80 h-80 rounded-full border border-brand-border animate-pulse-slow"
-              style={{ animationDuration: '8s' }}
-            />
-            <div
-              className="absolute w-64 h-64 rounded-full border border-brand-border opacity-50 animate-pulse-slow"
-              style={{ animationDuration: '6s' }}
-            />
-
-            <div
-              className="relative w-80 h-80 animate-[spin_30s_linear_infinite]"
-              style={{ animationDuration: '30s' }}
-            >
-              {colorRingColors.map((color, index) => {
-                const angle = (360 / colorRingColors.length) * index;
-                const rad = (angle * Math.PI) / 180;
-                const radius = 140;
-                const x = Math.cos(rad) * radius;
-                const y = Math.sin(rad) * radius;
-                return (
-                  <div
-                    key={index}
-                    className="absolute top-1/2 left-1/2 w-12 h-12 rounded-full shadow-lg transition-transform duration-300 hover:scale-125 animate-float"
-                    style={{
-                      backgroundColor: color,
-                      transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`,
-                      animationDelay: `${index * 0.3}s`,
-                      boxShadow: `0 0 30px ${color}80`,
-                    }}
-                  />
-                );
-              })}
-            </div>
-
-            <div
-              className="absolute w-32 h-32 rounded-full bg-spectrum-gradient bg-[length:200%_auto] animate-gradient-shift shadow-2xl animate-float"
-              style={{
-                boxShadow:
-                  '0 0 60px rgba(78, 205, 196, 0.4), 0 0 100px rgba(255, 107, 53, 0.3)',
+              role="group"
+              aria-roledescription="色彩样张"
+              aria-label={`正在展示第 ${view.cur + 1} 张，共 ${total} 张`}
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowRight') go(1);
+                else if (e.key === 'ArrowLeft') go(-1);
               }}
-            />
-          </div>
-        </div>
-      </section>
+              className="relative aspect-[4/5] w-full rounded-2xl overflow-hidden border border-brand-line bg-brand-surface shadow-card outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40 select-none"
+            >
+              {/* 旧图：向左（或向右）滑出并模糊。
+                  opacity-0 兜底：若动画未执行（系统减少动效/后台节流），旧图直接隐藏，新图立即可见 */}
+              {view.exit !== null && (
+                <img
+                  key={`out-${view.exit}`}
+                  src={SAMPLES[view.exit].src}
+                  alt=""
+                  draggable={false}
+                  className={`absolute inset-0 w-full h-full object-cover opacity-0 ${view.dir === 1 ? 'plate-out-l' : 'plate-out-r'}`}
+                />
+              )}
+              {/* 当前图：从右侧（或左侧）滑入并清晰 */}
+              <img
+                key={`cur-${view.cur}`}
+                src={SAMPLES[view.cur].src}
+                alt={SAMPLES[view.cur].name}
+                draggable={false}
+                className={`absolute inset-0 w-full h-full object-cover ${
+                  view.exit !== null ? (view.dir === 1 ? 'plate-in-r' : 'plate-in-l') : ''
+                }`}
+              />
+              {/* 右上角编号签 */}
+              <span className="absolute top-3 right-3 pointer-events-none font-mono text-[10px] tracking-[0.2em] text-brand-ink/70 bg-white/85 border border-brand-line/70 rounded-md px-2 py-1">
+                PLATE {String(view.cur + 1).padStart(2, '0')}
+              </span>
+            </div>
 
-      <section id="features-section" className="relative py-24 px-6 lg:px-12">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16 animate-fade-in-up">
-            <h2 className="font-serif text-4xl md:text-5xl font-bold text-white mb-4">
-              九大功能
-            </h2>
-            <p className="text-brand-muted text-lg max-w-2xl mx-auto">
-              从专业校色到色彩知识，一站式解决你所有色彩相关需求
-            </p>
-            <div
-              className="mx-auto mt-6 h-1 w-32 rounded-full bg-spectrum-gradient bg-[length:200%_auto] animate-gradient-shift"
-            />
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-            {featureCards.map((card, index) => {
-              const Icon = card.icon;
-              return (
-                <button
-                  key={card.id}
-                  onClick={() => navigate(card.path)}
-                  className="group text-left relative p-8 rounded-2xl bg-brand-card border border-brand-border backdrop-blur-md transition-all duration-500 hover:-translate-y-1 overflow-hidden animate-fade-in-up"
-                  style={{ animationDelay: `${index * 50}ms` }}
-                >
-                  <div
-                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                    style={{
-                      background: `linear-gradient(135deg, ${card.gradient.includes('from') ? '' : card.gradient})`,
-                      boxShadow: 'inset 0 0 60px rgba(255,255,255,0.03)',
-                    }}
-                  />
-                  <div
-                    className="absolute -inset-px rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                    style={{
-                      background: `linear-gradient(135deg, ${card.gradient
-                        .replace('from-[', '')
-                        .replace('] to-[', ', ')
-                        .replace(']', '')})`,
-                      padding: '1px',
-                      WebkitMask:
-                        'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-                      WebkitMaskComposite: 'xor',
-                      maskComposite: 'exclude',
-                    }}
-                  />
-
-                  <div className="relative z-10">
-                    <div
-                      className={`w-14 h-14 rounded-xl bg-gradient-to-br ${card.gradient} flex items-center justify-center mb-6 shadow-lg transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3`}
-                    >
-                      <Icon className="w-7 h-7 text-white drop-shadow-md" />
-                    </div>
-
-                    <h3 className="text-xl font-bold text-white mb-3 transition-colors duration-300 group-hover:text-white">
-                      {card.title}
-                    </h3>
-
-                    <p className="text-brand-muted text-sm leading-relaxed mb-5 transition-colors duration-300 group-hover:text-brand-text/80">
-                      {card.description}
-                    </p>
-
-                    <div className="flex items-center gap-2 text-brand-teal text-sm font-medium opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-0 group-hover:translate-x-1">
-                      立即使用
-                      <ArrowRight className="w-4 h-4" />
-                    </div>
-                  </div>
-
-                  <div
-                    className="absolute -bottom-16 -right-16 w-48 h-48 rounded-full blur-3xl opacity-0 group-hover:opacity-30 transition-opacity duration-700 pointer-events-none bg-gradient-to-br"
-                    style={{
-                      backgroundImage: `linear-gradient(to bottom right, var(--tw-gradient-stops))`,
-                    }}
+            {/* 翻阅工具条：上一张 / 位置点 / 下一张 */}
+            <div className="mt-4 flex items-center gap-1">
+              <button
+                onClick={() => go(-1)}
+                aria-label="上一张"
+                className="p-1.5 -ml-1.5 rounded-lg text-brand-muted hover:text-brand-primary hover:bg-brand-paper transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <div className="flex-1 flex items-center justify-center gap-1.5">
+                {SAMPLES.map((s, i) => (
+                  <button
+                    key={s.src}
+                    onClick={() => jumpTo(i)}
+                    aria-label={`查看第 ${i + 1} 张`}
+                    aria-current={i === view.cur}
+                    title={s.name}
+                    className="group flex items-center justify-center p-1.5"
                   >
-                    <div
-                      className={`w-full h-full bg-gradient-to-br ${card.gradient}`}
+                    <span
+                      className={`block h-1.5 rounded-full transition-all duration-300 group-hover:scale-[1.8] ${
+                        i === view.cur
+                          ? 'w-5 bg-brand-primary'
+                          : 'w-1.5 bg-brand-lineStrong/70 group-hover:bg-brand-faint'
+                      }`}
                     />
-                  </div>
-                </button>
-              );
-            })}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => go(1)}
+                aria-label="下一张"
+                className="p-1.5 -mr-1.5 rounded-lg text-brand-muted hover:text-brand-primary hover:bg-brand-paper transition-colors"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* 标本图注 */}
+            <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.3em] text-brand-faint text-center">
+              Plate {String(view.cur + 1).padStart(2, '0')} · {SAMPLES[view.cur].name}
+            </p>
           </div>
         </div>
       </section>

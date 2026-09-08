@@ -22,6 +22,24 @@ import { cn } from '@/lib/utils';
 
 type Tab = 'login' | 'register';
 
+/** 2×2 CMYK 四色块（品牌标识） */
+function CmykMark({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'grid grid-cols-2 overflow-hidden rounded-xl ring-1 ring-brand-line/70 shadow-card',
+        className
+      )}
+    >
+      <span className="bg-[#009EE0]" />
+      <span className="bg-[#E4007E]" />
+      <span className="bg-[#FFD200]" />
+      <span className="bg-[#1F1F1F]" />
+    </span>
+  );
+}
+
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -46,6 +64,16 @@ export default function Login() {
   useEffect(() => {
     setTimeout(() => phoneRef.current?.focus(), 100);
   }, []);
+
+  // 切换 Tab 时重置整个表单，避免登录/注册字段互相承接（否则注册框会带着登录态的手机号密码）
+  const switchTab = (next: Tab) => {
+    setTab(next);
+    setError('');
+    setUsername('');
+    setPhone('');
+    setPassword('');
+    setShowPwd(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,21 +100,13 @@ export default function Login() {
     tab === 'login' ? phoneValid && pwdValid : phoneValid && pwdValid && nameValid;
 
   return (
-    <div className="min-h-screen flex flex-col bg-brand-darker relative overflow-hidden">
-      {/* 背景装饰 */}
-      <div className="absolute inset-0 bg-noise-texture pointer-events-none opacity-40" />
-      <div
-        className="absolute -top-20 -left-20 w-[480px] h-[480px] rounded-full opacity-25 blur-3xl pointer-events-none"
-        style={{ background: 'radial-gradient(circle, #FF6B35 0%, transparent 60%)' }}
-      />
-      <div
-        className="absolute -bottom-20 -right-20 w-[480px] h-[480px] rounded-full opacity-20 blur-3xl pointer-events-none"
-        style={{ background: 'radial-gradient(circle, #4ECDC4 0%, transparent 60%)' }}
-      />
+    <div className="min-h-screen flex flex-col bg-brand-paper relative overflow-hidden">
+      {/* 顶部 CMYK 套色条（品牌标识） */}
+      <div className="absolute top-0 inset-x-0 h-[3px] bg-cmyk-strip" />
 
       <button
         onClick={() => navigate('/')}
-        className="absolute top-6 left-6 z-20 flex items-center gap-1.5 px-3 py-2 rounded-lg text-brand-muted hover:text-white hover:bg-white/5 transition-colors text-sm"
+        className="absolute top-6 left-6 z-20 flex items-center gap-1.5 px-3 py-2 rounded-lg text-brand-muted hover:text-brand-primary hover:bg-brand-surface transition-colors text-sm"
       >
         <ChevronLeft className="w-4 h-4" />
         返回首页
@@ -97,8 +117,8 @@ export default function Login() {
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center gap-3 mb-3">
-              <div className="w-12 h-12 rounded-xl bg-spectrum-gradient bg-[length:200%_200%] animate-gradient-shift shadow-glow" />
-              <span className="font-serif text-3xl font-bold tracking-wide bg-gradient-to-r from-brand-cream via-brand-accent to-brand-teal bg-clip-text text-transparent">
+              <CmykMark className="w-12 h-12" />
+              <span className="font-serif text-3xl font-bold tracking-wide text-brand-ink">
                 曲泉AI
               </span>
             </div>
@@ -108,33 +128,33 @@ export default function Login() {
           {/* 卡片 */}
           <div className="glass-card p-6 sm:p-8">
             {/* Tab */}
-            <div className="flex p-1 rounded-xl bg-white/5 mb-6">
+            <div className="flex p-1 rounded-xl bg-brand-paper border border-brand-line mb-6">
               <button
-                onClick={() => { setTab('login'); setError(''); }}
+                onClick={() => switchTab('login')}
                 className={cn(
                   'flex-1 py-2.5 rounded-lg text-sm font-medium transition-all',
                   tab === 'login'
-                    ? 'bg-brand-accent text-white shadow-glow-accent'
-                    : 'text-brand-muted hover:text-white'
+                    ? 'bg-brand-primary text-white shadow-sm'
+                    : 'text-brand-muted hover:text-brand-ink'
                 )}
               >
                 登录
               </button>
               <button
-                onClick={() => { setTab('register'); setError(''); }}
+                onClick={() => switchTab('register')}
                 className={cn(
                   'flex-1 py-2.5 rounded-lg text-sm font-medium transition-all',
                   tab === 'register'
-                    ? 'bg-brand-accent text-white shadow-glow-accent'
-                    : 'text-brand-muted hover:text-white'
+                    ? 'bg-brand-primary text-white shadow-sm'
+                    : 'text-brand-muted hover:text-brand-ink'
                 )}
               >
                 注册
               </button>
             </div>
 
-            <h2 className="text-xl font-semibold text-brand-text mb-1">
-              {tab === 'login' ? '欢迎回来 👋' : '加入曲泉AI ✨'}
+            <h2 className="text-xl font-semibold text-brand-ink mb-1">
+              {tab === 'login' ? '欢迎回来' : '加入曲泉AI'}
             </h2>
             <p className="text-xs text-brand-muted mb-6">
               {tab === 'login'
@@ -142,7 +162,13 @@ export default function Login() {
                 : '注册后即送 ¥1000 体验余额，畅享色彩服务'}
             </p>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            {/* autoComplete 组合用于阻止浏览器凭据自动填充：
+                表单级 off + 密码框 new-password（Chrome 对已保存凭据的登录表单会强制填充，仅靠 off 不够） */}
+            <form
+              onSubmit={handleSubmit}
+              autoComplete="off"
+              className="space-y-4"
+            >
               {tab === 'register' && (
                 <Field
                   icon={<UserIcon className="w-4 h-4" />}
@@ -150,11 +176,12 @@ export default function Login() {
                 >
                   <input
                     type="text"
+                    autoComplete="off"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="至少 2 个字符"
                     maxLength={20}
-                    className="w-full bg-transparent text-sm text-brand-text placeholder:text-brand-muted/60 focus:outline-none"
+                    className="w-full bg-transparent text-sm text-brand-ink placeholder:text-brand-faint focus:outline-none"
                   />
                 </Field>
               )}
@@ -163,10 +190,11 @@ export default function Login() {
                 <input
                   ref={phoneRef}
                   type="tel"
+                  autoComplete="off"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
                   placeholder="请输入 11 位手机号"
-                  className="w-full bg-transparent text-sm text-brand-text placeholder:text-brand-muted/60 focus:outline-none"
+                  className="w-full bg-transparent text-sm text-brand-ink placeholder:text-brand-faint focus:outline-none"
                 />
               </Field>
 
@@ -174,24 +202,33 @@ export default function Login() {
                 <div className="flex items-center">
                   <input
                     type={showPwd ? 'text' : 'password'}
+                    autoComplete="new-password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value.slice(0, 32))}
+                    onChange={(e) => {
+                      const v = e.target.value.slice(0, 32);
+                      setPassword(v);
+                      // 清空密码时同步复位为密文模式（眼睛按钮已隐藏，避免明文残留）
+                      if (!v) setShowPwd(false);
+                    }}
                     placeholder="至少 6 位"
-                    className="flex-1 bg-transparent text-sm text-brand-text placeholder:text-brand-muted/60 focus:outline-none"
+                    className="flex-1 bg-transparent text-sm text-brand-ink placeholder:text-brand-faint focus:outline-none"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPwd(!showPwd)}
-                    className="p-1 text-brand-muted hover:text-white transition-colors"
-                    aria-label={showPwd ? '隐藏密码' : '显示密码'}
-                  >
-                    {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                  {/* 未输入密码时隐藏眼睛按钮（无可查看内容） */}
+                  {password.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowPwd(!showPwd)}
+                      className="p-1 text-brand-muted hover:text-brand-primary transition-colors"
+                      aria-label={showPwd ? '隐藏密码' : '显示密码'}
+                    >
+                      {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  )}
                 </div>
               </Field>
 
               {error && (
-                <div className="px-3 py-2 rounded-lg bg-rose-500/10 border border-rose-400/30 text-rose-300 text-xs animate-fade-in-up">
+                <div className="px-3 py-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 text-xs animate-fade-in-up">
                   {error}
                 </div>
               )}
@@ -200,10 +237,10 @@ export default function Login() {
                 type="submit"
                 disabled={loading || !canSubmit}
                 className={cn(
-                  'w-full py-3 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2',
+                  'w-full py-3 rounded-xl text-sm font-semibold transition-all duration-150 flex items-center justify-center gap-2',
                   canSubmit && !loading
-                    ? 'bg-spectrum-gradient text-white shadow-glow-accent hover:scale-[1.02] active:scale-95'
-                    : 'bg-white/5 text-brand-muted cursor-not-allowed'
+                    ? 'bg-brand-primary text-white shadow-sm hover:bg-brand-primaryLight hover:shadow-card active:scale-[0.99]'
+                    : 'bg-brand-line text-brand-faint cursor-not-allowed'
                 )}
               >
                 {loading ? (
@@ -220,17 +257,17 @@ export default function Login() {
             </form>
 
             {/* 安全提示 */}
-            <div className="mt-6 pt-5 border-t border-white/5 flex items-center gap-2 text-[11px] text-brand-muted">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <div className="mt-6 pt-5 border-t border-brand-line flex items-center gap-2 text-[11px] text-brand-muted">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
               所有数据均本地加密存储，不会上传服务器
             </div>
           </div>
 
           <p className="text-center text-xs text-brand-muted mt-6">
             登录即代表同意
-            <Link to="/" className="text-brand-accentLight hover:underline mx-1">《用户协议》</Link>
+            <Link to="/" className="text-brand-primary hover:underline mx-1">《用户协议》</Link>
             与
-            <Link to="/" className="text-brand-accentLight hover:underline mx-1">《隐私政策》</Link>
+            <Link to="/" className="text-brand-primary hover:underline mx-1">《隐私政策》</Link>
           </p>
         </div>
       </div>
@@ -251,7 +288,10 @@ function Field({
   return (
     <div>
       <label className="text-xs text-brand-muted mb-1.5 px-1 block">{label}</label>
-      <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 focus-within:border-brand-accent/40 transition-colors">
+      <div
+        style={{ '--autofill-bg': '#F4F5F3' } as React.CSSProperties}
+        className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-brand-paper border border-brand-line focus-within:border-brand-primary/60 focus-within:ring-2 focus-within:ring-brand-primary/15 transition-all"
+      >
         <span className="text-brand-muted shrink-0">{icon}</span>
         {children}
       </div>

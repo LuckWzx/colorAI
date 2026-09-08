@@ -16,6 +16,7 @@ import TrendReport from "@/pages/TrendReport";
 import StartDiscussion from "@/pages/StartDiscussion";
 import Login from "@/pages/Login";
 import Profile from "@/pages/Profile";
+import Wallet from "@/pages/Wallet";
 import { useAuthStore } from "@/store/authStore";
 
 /** 路由保护：未登录访问受保护页面时跳转到 /login */
@@ -40,6 +41,16 @@ export default function App() {
             <RequireAuth>
               <Layout>
                 <Profile />
+              </Layout>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/wallet"
+          element={
+            <RequireAuth>
+              <Layout>
+                <Wallet />
               </Layout>
             </RequireAuth>
           }

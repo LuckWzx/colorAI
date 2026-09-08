@@ -14,53 +14,63 @@ export default {
     extend: {
       colors: {
         brand: {
-          primary: "#0E4D64",
-          primaryLight: "#1A6B88",
-          accent: "#FF6B35",
-          accentLight: "#FF8F66",
-          teal: "#4ECDC4",
-          cream: "#F7C59F",
-          dark: "#1A1A2E",
-          darker: "#111120",
-          card: "rgba(255,255,255,0.04)",
-          border: "rgba(255,255,255,0.08)",
-          text: "#E8E8F0",
-          muted: "#8A8AA0",
+          // —— 品牌专色 ——
+          primary: "#0E4D64", // 曲泉之水：主色 / 实心按钮 / 链接
+          primaryLight: "#17708F",
+          accent: "#E4572E", // 印刷暖橙：仅作点缀强调
+          accentLight: "#F08C63",
+          teal: "#2FA8A0",
+          cream: "#E9A23B",
+          // —— 纸面色谱系统 ——
+          paper: "#F4F5F3", // 页面底色（冷调纸白）
+          ink: "#24333D", // 墨青主文字
+          muted: "#5F6D77", // 次级文字（纸面上 ≥5:1）
+          faint: "#7B8892", // 弱化说明 / 占位符 / 装饰标注
+          surface: "#FFFFFF", // 卡片 / 抬升面
+          line: "#E4E8E6", // 细边框
+          lineStrong: "#D2D8D5", // 强调分隔 / 悬停边框
+          // —— 旧深色键兼容（页面迁移完成后移除）——
+          dark: "#F4F5F3",
+          darker: "#FFFFFF",
+          card: "#FFFFFF",
+          border: "#E4E8E6",
+          text: "#24333D",
         },
       },
       fontFamily: {
         serif: ['"Noto Serif SC"', "Georgia", "serif"],
         sans: ['"Noto Sans SC"', "-apple-system", "sans-serif"],
+        mono: [
+          "ui-monospace",
+          "SFMono-Regular",
+          '"Cascadia Code"',
+          '"JetBrains Mono"',
+          "Consolas",
+          "monospace",
+        ],
       },
       boxShadow: {
-        glow: "0 0 40px rgba(78, 205, 196, 0.15)",
-        "glow-accent": "0 0 30px rgba(255, 107, 53, 0.3)",
-        card: "0 8px 32px rgba(0,0,0,0.3)",
+        // 柔和纸感投影（低透明度 + 细轮廓）
+        card: "0 1px 2px rgba(23,35,44,0.05), 0 8px 20px -8px rgba(23,35,44,0.10)",
+        lift: "0 2px 4px rgba(23,35,44,0.06), 0 16px 32px -12px rgba(23,35,44,0.16)",
+        // 旧 glow 键兼容：改为柔和投影（迁移完成后移除）
+        glow: "0 1px 2px rgba(23,35,44,0.05), 0 6px 16px -6px rgba(23,35,44,0.10)",
+        "glow-accent": "0 6px 16px -6px rgba(228, 87, 46, 0.25)",
       },
       backgroundImage: {
+        // CMYK 套色条：印刷四色硬边等分，取代原流动彩虹渐变
+        "cmyk-strip":
+          "linear-gradient(90deg, #009EE0 0 25%, #E4007E 25% 50%, #FFD200 50% 75%, #1F1F1F 75% 100%)",
         "spectrum-gradient":
-          "linear-gradient(135deg, #FF6B35 0%, #F7C59F 33%, #0E4D64 66%, #4ECDC4 100%)",
-        "noise-texture":
-          "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E\")",
+          "linear-gradient(90deg, #009EE0 0 25%, #E4007E 25% 50%, #FFD200 50% 75%, #1F1F1F 75% 100%)",
       },
       animation: {
-        "gradient-shift": "gradientShift 8s ease infinite",
-        "fade-in-up": "fadeInUp 0.6s ease-out both",
-        "float": "float 6s ease-in-out infinite",
-        "pulse-slow": "pulse 4s ease-in-out infinite",
+        "fade-in-up": "fadeInUp 0.45s ease-out both",
       },
       keyframes: {
-        gradientShift: {
-          "0%, 100%": { backgroundPosition: "0% 50%" },
-          "50%": { backgroundPosition: "100% 50%" },
-        },
         fadeInUp: {
-          "0%": { opacity: "0", transform: "translateY(20px)" },
+          "0%": { opacity: "0", transform: "translateY(12px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
-        },
-        float: {
-          "0%, 100%": { transform: "translateY(0px)" },
-          "50%": { transform: "translateY(-12px)" },
         },
       },
     },

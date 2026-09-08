@@ -17,8 +17,13 @@ import {
   Check,
   ArrowLeft,
   ChevronRight,
+  ChevronDown,
   Home,
   ArrowRight,
+  HelpCircle,
+  MapPin,
+  Package2,
+  LayoutGrid,
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -79,6 +84,87 @@ const FEATURES: Array<{
     gradient: 'from-[#10B981] to-[#059669]',
     accent: '#10B981',
   },
+];
+
+/** 工具坞条目：聊天内处理（chat）或页面跳转（page） */
+interface DockItem {
+  id: string;
+  kind: 'chat' | 'page';
+  key: string;
+  path?: string;
+  title: string;
+  desc: string;
+  icon: any;
+  color: string;
+}
+
+/** 知识问答 4 类页签工具 */
+const KNOWLEDGE_TOOLS: Array<{
+  key: string;
+  path: string;
+  title: string;
+  desc: string;
+  icon: any;
+  color: string;
+}> = [
+  {
+    key: 'issues',
+    path: '/knowledge?tab=issues',
+    title: '拍照偏色解答',
+    desc: '偏色原因专业解答',
+    icon: HelpCircle,
+    color: '#6FAE55',
+  },
+  {
+    key: 'tips',
+    path: '/knowledge?tab=tips',
+    title: '拍照真实技巧',
+    desc: '用光构图实操技巧',
+    icon: Camera,
+    color: '#2FA8A0',
+  },
+  {
+    key: 'shops',
+    path: '/knowledge?tab=shops',
+    title: '附近色胶商铺',
+    desc: '冲印微喷店铺地图',
+    icon: MapPin,
+    color: '#6B5BCD',
+  },
+  {
+    key: 'brands',
+    path: '/knowledge?tab=brands',
+    title: '工业胶品牌',
+    desc: '胶卷相纸品牌图鉴',
+    icon: Package2,
+    color: '#8A5FD0',
+  },
+];
+
+/** 聊天处理的 5 个核心工具（常驻工具坞） */
+const DOCK_CHAT: DockItem[] = FEATURES.map((f) => ({
+  id: f.key,
+  kind: 'chat' as const,
+  key: f.key,
+  title: f.title,
+  desc: f.desc,
+  icon: f.icon,
+  color: f.accent,
+}));
+
+/** 全部 9 个工具（更多面板） */
+const DOCK_ALL: DockItem[] = [
+  ...DOCK_CHAT,
+  ...KNOWLEDGE_TOOLS.map((t) => ({
+    id: t.key,
+    kind: 'page' as const,
+    key: t.key,
+    path: t.path,
+    title: t.title,
+    desc: t.desc,
+    icon: t.icon,
+    color: t.color,
+  })),
 ];
 
 interface BaseMessage {
@@ -146,6 +232,8 @@ export default function Workspace() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
+  const [moreToolsOpen, setMoreToolsOpen] = useState(false);
+
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const secondFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -198,6 +286,17 @@ export default function Workspace() {
     setChatHistory([]);
     setTimeout(() => textareaRef.current?.focus(), 50);
   }, []);
+
+  /** 工具坞/更多面板选择：聊天类进入对话流程，页面类直接跳转 */
+  const handleDockSelect = useCallback((item: DockItem) => {
+    setMoreToolsOpen(false);
+    if (item.kind === 'chat') {
+      setSelectedFeature(item.key as FeatureKey);
+      setTimeout(() => textareaRef.current?.focus(), 50);
+    } else if (item.path) {
+      navigate(item.path);
+    }
+  }, [navigate]);
 
   /**
    * 取色流程核心逻辑（可复用）
@@ -648,31 +747,21 @@ export default function Workspace() {
   })();
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden flex flex-col bg-brand-darker">
-      <div className="absolute inset-0 bg-noise-texture pointer-events-none opacity-50" />
-      <div
-        className="absolute top-0 left-0 w-[500px] h-[500px] rounded-full opacity-20 blur-3xl pointer-events-none"
-        style={{ background: 'radial-gradient(circle, #FF6B35 0%, transparent 60%)' }}
-      />
-      <div
-        className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full opacity-20 blur-3xl pointer-events-none"
-        style={{ background: 'radial-gradient(circle, #4ECDC4 0%, transparent 60%)' }}
-      />
-
-      <header className="relative z-20 shrink-0 flex items-center justify-between px-4 lg:px-8 h-14 sm:h-16 border-b border-white/5 bg-brand-darker/50 backdrop-blur-xl">
+    <div className="relative h-screen w-screen overflow-hidden flex flex-col bg-brand-paper">
+      <header className="relative z-20 shrink-0 flex items-center justify-between px-4 lg:px-8 h-14 sm:h-16 border-b border-brand-line bg-white/85 backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/')}
-            className="p-2 rounded-lg text-brand-muted hover:text-white hover:bg-white/10 transition-colors"
+            className="p-2 rounded-lg text-brand-muted hover:text-brand-primary hover:bg-brand-paper transition-colors"
             aria-label="返回首页"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="w-9 h-9 rounded-xl bg-spectrum-gradient bg-[length:200%_200%] animate-gradient-shift shadow-glow" />
+          <div className="w-9 h-9 rounded-xl bg-cmyk-strip shadow-card" />
           <div>
             <div className="flex items-center gap-2">
               <span className="font-serif font-bold text-base sm:text-lg spectrum-text">曲泉AI</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-accent/15 text-brand-accent border border-brand-accent/30">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-primary/10 text-brand-primary border border-brand-primary/25">
                 色彩智能体
               </span>
             </div>
@@ -706,15 +795,15 @@ export default function Workspace() {
         </div>
       </main>
 
-      <footer className="relative z-20 shrink-0 border-t border-white/5 bg-brand-darker/85 backdrop-blur-2xl overflow-hidden max-h-[62vh]">
+      <footer className="relative z-20 shrink-0 border-t border-brand-line bg-brand-paper overflow-hidden max-h-[62vh]">
         <div className="mx-auto max-w-4xl px-3 sm:px-4 pt-3 sm:pt-5 pb-3 sm:pb-4 overflow-y-auto max-h-[62vh]" style={{ scrollbarWidth: 'thin' }}>
           {featureHint && (
-            <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-brand-accent/10 border border-brand-accent/20 text-brand-accentLight text-xs animate-fade-in-up">
+            <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-brand-accent/10 border border-brand-accent/25 text-brand-accent text-xs animate-fade-in-up">
               <Sparkles className="w-4 h-4" />
               {featureHint}
               <button
                 onClick={() => setSelectedFeature(null)}
-                className="ml-auto text-brand-muted hover:text-white"
+                className="ml-auto text-brand-muted hover:text-brand-accent"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -728,15 +817,15 @@ export default function Workspace() {
                   <img
                     src={src}
                     alt=""
-                    className="w-16 h-16 sm:w-20 sm:h-20 object-contain rounded-xl border border-white/10 bg-white/[0.02] p-0.5"
+                    className="w-16 h-16 sm:w-20 sm:h-20 object-contain rounded-xl border border-brand-line bg-brand-surface p-0.5"
                   />
                   <button
                     onClick={() => removePendingImage(i)}
-                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-black/70 text-white border border-white/20 flex items-center justify-center hover:bg-black"
+                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white text-brand-muted border border-brand-lineStrong shadow-card flex items-center justify-center hover:text-brand-accent hover:border-brand-accent/50 transition-colors"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
-                  <span className="absolute bottom-1 left-1 text-[9px] px-1.5 py-0.5 rounded bg-black/60 text-white">
+                  <span className="absolute bottom-1 left-1 text-[9px] px-1.5 py-0.5 rounded bg-brand-primary text-white font-mono">
                     图{i + 1}
                   </span>
                 </div>
@@ -745,7 +834,7 @@ export default function Workspace() {
                 pendingPreview.length < 2 && (
                   <button
                     onClick={() => secondFileInputRef.current?.click()}
-                    className="flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-xl border-2 border-dashed border-white/15 hover:border-brand-teal/50 text-brand-muted hover:text-brand-teal flex flex-col items-center justify-center transition-colors"
+                    className="flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-xl border-2 border-dashed border-brand-lineStrong/70 hover:border-brand-primary/60 text-brand-muted hover:text-brand-primary flex flex-col items-center justify-center transition-colors"
                   >
                     <ImagePlus className="w-4 h-4 sm:w-5 sm:h-5 mb-0.5 sm:mb-1" />
                     <span className="text-[9px] sm:text-[10px]">添加图片</span>
@@ -754,67 +843,103 @@ export default function Workspace() {
             </div>
           )}
 
-          {messages.length === 1 && !selectedFeature && (
-            <div className="mb-3 sm:mb-4 animate-fade-in-up">
-            <div className="flex items-center gap-2 mb-2 sm:mb-3">
-              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-brand-teal" />
-              <p className="text-xs font-medium text-brand-muted">选择一个功能，立即开始处理</p>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3">
-              {FEATURES.map((f) => {
-                const Icon = f.icon;
-                return (
-                  <button
-                    key={f.key}
-                    onClick={() => setSelectedFeature(f.key)}
-                    className="group relative overflow-hidden text-left p-2.5 sm:p-3 md:p-4 rounded-2xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] transition-all hover:-translate-y-0.5"
-                  >
-                    <div
-                      className={cn(
-                        'absolute -inset-px rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none'
-                      )}
-                      style={{
-                        background: `linear-gradient(135deg, ${f.accent}30, transparent 60%)`,
-                        padding: '1px',
-                        WebkitMask:
-                          'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-                        WebkitMaskComposite: 'xor',
-                        maskComposite: 'exclude',
-                      }}
-                    />
-                    <div className="relative">
-                      <div
-                        className={cn(
-                          'w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center mb-2 sm:mb-3 bg-gradient-to-br',
-                          f.gradient,
-                          'shadow-lg'
-                        )}
-                      >
-                        <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                      </div>
-                      <div className="font-semibold text-brand-text text-xs sm:text-sm mb-0.5 leading-tight">{f.title}</div>
-                      <div className="text-[10px] sm:text-[11px] text-brand-muted leading-snug line-clamp-2">{f.desc}</div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+          {/* 工具坞：5 个核心处理工具常驻聊天框上方 */}
+          <div
+            className="mb-2.5 flex items-center gap-1.5 overflow-x-auto pb-0.5 animate-fade-in-up"
+            style={{ scrollbarWidth: 'thin' }}
+          >
+            {DOCK_CHAT.map((item) => {
+              const Icon = item.icon;
+              const active = selectedFeature === item.key;
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => handleDockSelect(item)}
+                  className={cn(
+                    'shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors',
+                    active
+                      ? 'border-brand-primary bg-brand-primary text-white shadow-sm'
+                      : 'border-brand-line bg-brand-surface text-brand-muted hover:text-brand-ink hover:border-brand-lineStrong'
+                  )}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {item.title}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => setMoreToolsOpen((v) => !v)}
+              className={cn(
+                'shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors',
+                moreToolsOpen
+                  ? 'border-brand-primary bg-brand-primary text-white shadow-sm'
+                  : 'border-brand-line bg-brand-surface text-brand-muted hover:text-brand-ink hover:border-brand-lineStrong'
+              )}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              更多
+              <ChevronDown
+                className={cn('w-3.5 h-3.5 transition-transform duration-200', moreToolsOpen && 'rotate-180')}
+              />
+            </button>
           </div>
+
+          {/* 上拉面板：全部 9 个工具（含知识问答 4 类页签） */}
+          {moreToolsOpen && (
+            <div className="mb-2.5 rounded-2xl border border-brand-line bg-brand-surface p-2.5 shadow-lift animate-fade-in-up">
+              <div className="flex items-center justify-between px-1.5 py-1 mb-1">
+                <p className="text-[11px] font-medium text-brand-muted">全部色彩工具</p>
+                <span className="font-mono text-[10px] uppercase tracking-wider text-brand-faint">
+                  9 tools
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                {DOCK_ALL.map((item) => {
+                  const Icon = item.icon;
+                  const active = item.kind === 'chat' && selectedFeature === item.key;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleDockSelect(item)}
+                      className={cn(
+                        'flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors',
+                        active ? 'bg-brand-accent/10 ring-1 ring-inset ring-brand-accent/30' : 'hover:bg-brand-paper'
+                      )}
+                    >
+                      <span
+                        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: `${item.color}26`, color: item.color }}
+                      >
+                        <Icon className="w-4 h-4" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-[13px] font-medium text-brand-ink leading-tight truncate">
+                          {item.title}
+                        </span>
+                        <span className="block text-[10px] text-brand-faint leading-tight mt-0.5 truncate">
+                          {item.desc}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           )}
 
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-2 shadow-2xl">
+          <div className="rounded-2xl border border-brand-line bg-brand-surface p-2 shadow-card">
             <div className="flex items-end gap-2">
               <div className="flex items-center gap-1 p-1">
                 <button
                   onClick={openCamera}
-                  className="p-2.5 rounded-xl text-brand-muted hover:text-white hover:bg-white/10 transition-colors"
+                  className="p-2.5 rounded-xl text-brand-muted hover:text-brand-primary hover:bg-brand-paper transition-colors"
                   title="拍照"
                 >
                   <Camera className="w-5 h-5" />
                 </button>
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="p-2.5 rounded-xl text-brand-muted hover:text-white hover:bg-white/10 transition-colors"
+                  className="p-2.5 rounded-xl text-brand-muted hover:text-brand-primary hover:bg-brand-paper transition-colors"
                   title="上传图片"
                 >
                   <ImagePlus className="w-5 h-5" />
@@ -836,7 +961,7 @@ export default function Workspace() {
                 />
               </div>
 
-              <div className="h-8 w-px bg-white/10 mx-1" />
+              <div className="h-8 w-px bg-brand-line mx-1" />
 
               <div className="flex-1 min-w-0">
                 <textarea
@@ -857,7 +982,7 @@ export default function Workspace() {
                       ? `已选【${FEATURES.find((x) => x.key === selectedFeature)?.title}】— 上传图片后发送...`
                       : '告诉曲泉AI你想做什么，或上传图片直接开始处理...'
                   }
-                  className="w-full resize-none bg-transparent px-3 py-3 text-sm text-brand-text placeholder:text-brand-muted/70 focus:outline-none"
+                  className="w-full resize-none bg-transparent px-3 py-3 text-sm text-brand-ink placeholder:text-brand-faint focus:outline-none"
                   style={{ minHeight: '44px', maxHeight: '160px' }}
                 />
               </div>
@@ -866,10 +991,10 @@ export default function Workspace() {
                 onClick={handleSend}
                 disabled={!input.trim() && pendingImages.length === 0 && !selectedFeature}
                 className={cn(
-                  'p-2.5 rounded-xl transition-all shrink-0 ml-1',
+                  'p-2.5 rounded-xl shrink-0 ml-1 transition-all duration-150 active:scale-95',
                   !input.trim() && pendingImages.length === 0 && !selectedFeature
-                    ? 'bg-white/5 text-brand-muted cursor-not-allowed'
-                    : 'bg-spectrum-gradient bg-[length:200%_200%] animate-gradient-shift text-white hover:shadow-glow hover:scale-105'
+                    ? 'bg-brand-line text-brand-faint cursor-not-allowed'
+                    : 'bg-brand-primary text-white shadow-sm hover:bg-brand-primaryLight hover:shadow-card'
                 )}
               >
                 <Send className="w-5 h-5" />
@@ -885,15 +1010,15 @@ export default function Workspace() {
 
       {cameraOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur flex items-center justify-center p-4 animate-fade-in-up">
-          <div className="w-full max-w-2xl bg-brand-dark rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
-            <div className="flex items-center justify-between p-4 border-b border-white/10">
+          <div className="w-full max-w-2xl bg-brand-surface rounded-3xl border border-brand-line overflow-hidden shadow-lift">
+            <div className="flex items-center justify-between p-4 border-b border-brand-line">
               <div className="flex items-center gap-2">
                 <Video className="w-5 h-5 text-brand-accent" />
                 <h3 className="font-semibold">拍照上传</h3>
               </div>
               <button
                 onClick={closeCamera}
-                className="p-2 rounded-lg hover:bg-white/10 text-brand-muted hover:text-white"
+                className="p-2 rounded-lg text-brand-muted hover:text-brand-primary hover:bg-brand-paper transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -926,8 +1051,8 @@ export default function Workspace() {
 
       {toast && (
         <div className="fixed top-20 right-4 z-50 animate-fade-in-up">
-          <div className="glass-card px-4 py-2.5 flex items-center gap-2 text-sm shadow-glow">
-            <div className="w-6 h-6 rounded-full bg-spectrum-gradient flex items-center justify-center">
+          <div className="glass-card px-4 py-2.5 flex items-center gap-2 text-sm shadow-lift">
+            <div className="w-6 h-6 rounded-full bg-brand-primary flex items-center justify-center">
               <Check className="w-3.5 h-3.5 text-white" />
             </div>
             <span>{toast}</span>
@@ -983,7 +1108,7 @@ function MessageBubble({
     }
     if (!primary) return null;
     return (
-      <div className="mt-5 pt-4 border-t border-white/10 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+      <div className="mt-5 pt-4 border-t border-brand-line flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
         <div className="text-xs text-brand-muted font-medium mr-0 sm:mr-2 px-1">本次操作已完成，接下来：</div>
         <div className="flex gap-2 flex-1">
           <button
@@ -1017,21 +1142,21 @@ function MessageBubble({
                   key={i}
                   src={src}
                   alt=""
-                  className="max-w-full max-h-[320px] w-auto h-auto object-contain rounded-2xl border border-white/10 shadow-card"
+                  className="max-w-full max-h-[320px] w-auto h-auto object-contain rounded-2xl border border-brand-line shadow-card"
                 />
               ))}
             </div>
           )}
           {msg.feature && (
             <div className="mb-1.5 text-right">
-              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-brand-accent/15 text-brand-accent border border-brand-accent/30">
+              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-brand-primary/10 text-brand-primary border border-brand-primary/25">
                 <Sparkles className="w-3 h-3" />
                 {FEATURES.find((f) => f.key === msg.feature)?.title}
               </span>
             </div>
           )}
           {msg.text && (
-            <div className="inline-block px-5 py-3 rounded-2xl rounded-br-md bg-spectrum-gradient text-white text-sm leading-relaxed shadow-glow-accent">
+            <div className="inline-block px-5 py-3 rounded-2xl rounded-br-md bg-brand-primary text-white text-sm leading-relaxed shadow-card">
               {msg.text}
             </div>
           )}
@@ -1044,8 +1169,11 @@ function MessageBubble({
     return (
       <div className="flex justify-center py-3 sm:py-6 animate-fade-in-up">
         <div className="text-center max-w-lg">
-          <div className="relative mx-auto w-14 h-14 sm:w-20 sm:h-20 mb-3 sm:mb-5 rounded-2xl sm:rounded-3xl bg-spectrum-gradient bg-[length:200%_200%] animate-gradient-shift flex items-center justify-center shadow-2xl">
-            <Sparkles className="w-7 h-7 sm:w-10 sm:h-10 text-white" />
+          <div className="relative mx-auto w-14 h-14 sm:w-20 sm:h-20 mb-3 sm:mb-5 rounded-2xl sm:rounded-3xl overflow-hidden shadow-card ring-1 ring-brand-line grid grid-cols-2">
+            <span className="bg-[#009EE0]" />
+            <span className="bg-[#E4007E]" />
+            <span className="bg-[#FFD200]" />
+            <span className="bg-[#1F1F1F]" />
           </div>
           <h1 className="font-serif text-2xl sm:text-4xl font-bold mb-2 sm:mb-3 spectrum-text">你好，我是曲泉AI</h1>
           <p className="text-brand-muted text-sm sm:text-base leading-relaxed mb-2 sm:mb-4 px-2 sm:px-0">
@@ -1064,7 +1192,7 @@ function MessageBubble({
   }
 
   const Avatar = () => (
-    <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-spectrum-gradient bg-[length:200%_200%] animate-gradient-shift flex items-center justify-center shadow-glow mr-3" />
+    <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-cmyk-strip shadow-card mr-3" />
   );
 
   if (msg.type === 'loading') {
@@ -1106,7 +1234,7 @@ function MessageBubble({
           <div className="grid md:grid-cols-2 gap-3 mb-4">
             <div>
               <div className="text-[11px] text-brand-muted mb-1.5">原图</div>
-              <div className="w-full rounded-xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] flex items-center justify-center overflow-hidden">
+              <div className="w-full rounded-xl border border-brand-line bg-brand-paper/60 flex items-center justify-center overflow-hidden">
                 <img src={res.originalImage} className="max-w-full max-h-[420px] object-contain w-full h-auto rounded-xl" />
               </div>
             </div>
@@ -1114,7 +1242,7 @@ function MessageBubble({
               <div className="text-[11px] text-brand-muted mb-1.5 flex items-center gap-1">
                 校正后 <span className="text-brand-teal">·推荐下载</span>
               </div>
-              <div className="w-full rounded-xl border border-brand-teal/30 bg-gradient-to-br from-brand-teal/10 to-white/[0.02] flex items-center justify-center overflow-hidden shadow-inner">
+              <div className="w-full rounded-xl border border-brand-teal/40 bg-brand-teal/5 flex items-center justify-center overflow-hidden shadow-inner">
                 <img src={res.correctedImage} className="max-w-full max-h-[420px] object-contain w-full h-auto rounded-xl" />
               </div>
             </div>
@@ -1123,12 +1251,12 @@ function MessageBubble({
             <StatChip label="亮度" value={res.metadata.brightness} suffix="%" />
             <StatChip label="对比度" value={res.metadata.contrast} suffix="%" />
             <StatChip label="饱和度" value={res.metadata.saturation} suffix="%" />
-            <div className="px-3 py-2 rounded-xl bg-white/5 border border-white/10">
+            <div className="px-3 py-2 rounded-xl bg-brand-paper/70 border border-brand-line">
               <div className="text-brand-muted text-[11px] mb-0.5">白平衡</div>
               <div className={cn(
                 'font-semibold',
-                res.metadata.whiteBalance === 'warm' && 'text-orange-300',
-                res.metadata.whiteBalance === 'cool' && 'text-sky-300',
+                res.metadata.whiteBalance === 'warm' && 'text-amber-600',
+                res.metadata.whiteBalance === 'cool' && 'text-sky-700',
                 res.metadata.whiteBalance === 'neutral' && 'text-brand-text'
               )}>
                 {res.metadata.whiteBalance === 'warm' ? '偏暖校正' : res.metadata.whiteBalance === 'cool' ? '偏冷校正' : '中性白平衡'}
@@ -1161,22 +1289,22 @@ function MessageBubble({
           </div>
           <img
             src={msg.correctResult.correctedImage}
-            className="w-full max-h-64 object-contain rounded-xl border border-white/10 mb-4"
+            className="w-full max-h-64 object-contain rounded-xl border border-brand-line mb-4"
           />
           <div className="flex flex-col sm:flex-row gap-4 items-start">
             <div
-              className="w-24 h-24 rounded-2xl border border-white/10 shrink-0"
-              style={{ background: color.hex, boxShadow: `0 0 40px ${color.hex}50` }}
+              className="w-24 h-24 rounded-2xl border border-brand-line shadow-card shrink-0"
+              style={{ background: color.hex }}
             />
             <div className="flex-1 w-full">
               <div className="font-serif text-2xl font-bold spectrum-text mb-1">{colorName}</div>
               <div className="space-y-1.5">
                 {(['hex', 'rgb', 'hsl', 'cmyk', 'lab', 'hsv'] as const).map((k) => (
-                  <div key={k} className="flex items-center gap-3 bg-white/5 rounded-lg px-3 py-2 border border-white/10">
+                  <div key={k} className="flex items-center gap-3 bg-brand-paper/60 rounded-lg px-3 py-2 border border-brand-line">
                     <span className="text-[11px] uppercase text-brand-muted w-14">{k}</span>
                     <span className="font-mono text-sm flex-1 min-w-0 truncate">{formatColorValue(k, color as any)}</span>
                     <button onClick={() => onCopy?.(formatColorValue(k, color as any), `${k.toUpperCase()} 已复制`)}>
-                      <Copy className="w-4 h-4 text-brand-muted hover:text-white" />
+                      <Copy className="w-4 h-4 text-brand-muted hover:text-brand-primary" />
                     </button>
                   </div>
                 ))}
@@ -1198,13 +1326,13 @@ function MessageBubble({
         <Avatar />
         <div className="glass-card p-5 rounded-2xl rounded-tl-md max-w-full w-full sm:max-w-[90%]">
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-2 h-2 rounded-full bg-indigo-400" />
+            <div className="w-2 h-2 rounded-full bg-indigo-500" />
             <h4 className="font-semibold">颜色相似度对比</h4>
           </div>
           <div className="flex items-center justify-center py-6 mb-4">
             <div className="relative text-center">
               <svg width={200} height={200}>
-                <circle cx="100" cy="100" r="85" stroke="rgba(255,255,255,0.06)" strokeWidth={14} fill="none" />
+                <circle cx="100" cy="100" r="85" stroke="rgba(36,51,61,0.08)" strokeWidth={14} fill="none" />
                 <circle
                   cx="100"
                   cy="100"
@@ -1216,13 +1344,12 @@ function MessageBubble({
                   strokeDasharray={2 * Math.PI * 85}
                   strokeDashoffset={2 * Math.PI * 85 * (1 - res.similarity / 100)}
                   transform="rotate(-90 100 100)"
-                  style={{ filter: 'drop-shadow(0 0 10px rgba(78,205,196,0.4))' }}
                 />
                 <defs>
                   <linearGradient id="compRingGrad" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor="#FF6B35" />
+                    <stop offset="0%" stopColor="#E4572E" />
                     <stop offset="50%" stopColor="#0E4D64" />
-                    <stop offset="100%" stopColor="#4ECDC4" />
+                    <stop offset="100%" stopColor="#2FA8A0" />
                   </linearGradient>
                 </defs>
               </svg>
@@ -1238,7 +1365,7 @@ function MessageBubble({
               <div className="text-[11px] text-brand-muted mb-1.5">实物图A 主色</div>
               <div className="space-y-1.5">
                 {res.imageA.dominantColors.map((c, i) => (
-                  <div key={i} className="flex items-center gap-2 rounded-lg bg-white/5 p-2 border border-white/10">
+                  <div key={i} className="flex items-center gap-2 rounded-lg bg-brand-paper/60 p-2 border border-brand-line">
                     <div className="w-8 h-8 rounded-md" style={{ background: c.hex }} />
                     <span className="font-mono text-xs">{c.hex}</span>
                     <span className="ml-auto text-[10px] text-brand-muted">{Math.round(c.ratio * 100)}%</span>
@@ -1250,7 +1377,7 @@ function MessageBubble({
               <div className="text-[11px] text-brand-muted mb-1.5">实物图B 主色</div>
               <div className="space-y-1.5">
                 {res.imageB.dominantColors.map((c, i) => (
-                  <div key={i} className="flex items-center gap-2 rounded-lg bg-white/5 p-2 border border-white/10">
+                  <div key={i} className="flex items-center gap-2 rounded-lg bg-brand-paper/60 p-2 border border-brand-line">
                     <div className="w-8 h-8 rounded-md" style={{ background: c.hex }} />
                     <span className="font-mono text-xs">{c.hex}</span>
                     <span className="ml-auto text-[10px] text-brand-muted">{Math.round(c.ratio * 100)}%</span>
@@ -1280,27 +1407,27 @@ function MessageBubble({
         <Avatar />
         <div className="glass-card p-5 rounded-2xl rounded-tl-md max-w-full w-full sm:max-w-[90%]">
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-2 h-2 rounded-full bg-purple-400" />
+            <div className="w-2 h-2 rounded-full bg-purple-500" />
             <h4 className="font-semibold">色彩空间转换完成</h4>
             <span className="text-xs text-brand-muted">
               识别格式：{String(res.detectedFormat).toUpperCase()} · 输入：
-              <span className="font-mono text-purple-300">{res.input}</span>
+              <span className="font-mono text-purple-700">{res.input}</span>
             </span>
           </div>
           <div className="flex flex-col sm:flex-row gap-4 items-start mb-4">
             <div
-              className="w-24 h-24 rounded-2xl border border-white/10 shrink-0"
-              style={{ background: res.color.hex, boxShadow: `0 0 40px ${res.color.hex}50` }}
+              className="w-24 h-24 rounded-2xl border border-brand-line shadow-card shrink-0"
+              style={{ background: res.color.hex }}
             />
             <div className="flex-1 w-full">
               <div className="font-serif text-2xl font-bold spectrum-text mb-1">{res.colorName}</div>
               <div className="space-y-1.5">
                 {SPACES.map(({ key, label }) => (
-                  <div key={key} className="flex items-center gap-3 bg-white/5 rounded-lg px-3 py-2 border border-white/10">
+                  <div key={key} className="flex items-center gap-3 bg-brand-paper/60 rounded-lg px-3 py-2 border border-brand-line">
                     <span className="text-[11px] uppercase text-brand-muted w-14">{label}</span>
                     <span className="font-mono text-sm flex-1 min-w-0 truncate">{formatColorValue(key as any, res.color as any)}</span>
                     <button onClick={() => onCopy?.(formatColorValue(key as any, res.color as any), `${label} 已复制`)}>
-                      <Copy className="w-4 h-4 text-brand-muted hover:text-white" />
+                      <Copy className="w-4 h-4 text-brand-muted hover:text-brand-primary" />
                     </button>
                   </div>
                 ))}
@@ -1333,12 +1460,12 @@ function MessageBubble({
           <div className="grid md:grid-cols-3 gap-3 mb-4">
             <div>
               <div className="text-[11px] text-brand-muted mb-1.5">手机直出</div>
-              <div className="w-full rounded-xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] flex items-center justify-center overflow-hidden">
+              <div className="w-full rounded-xl border border-brand-line bg-brand-paper/60 flex items-center justify-center overflow-hidden">
                 <img src={res.originalUrl} className="max-w-full max-h-[340px] object-contain w-full h-auto rounded-xl" />
               </div>
             </div>
-            <div className="ring-2 ring-amber-400/50 rounded-xl overflow-hidden relative bg-gradient-to-br from-amber-400/10 to-white/[0.02]">
-              <div className="absolute top-1.5 left-1.5 z-10 text-[10px] px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-200 border border-amber-400/40">
+            <div className="ring-2 ring-amber-400/60 rounded-xl overflow-hidden relative bg-amber-50/90">
+              <div className="absolute top-1.5 left-1.5 z-10 text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300">
                 推荐 ⭐ 视觉真实
               </div>
               <div className="text-[11px] text-brand-muted mt-7 px-1 mb-1.5">视觉校色结果</div>
@@ -1348,7 +1475,7 @@ function MessageBubble({
             </div>
             <div>
               <div className="text-[11px] text-brand-muted mb-1.5">标准校正基线</div>
-              <div className="w-full rounded-xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] flex items-center justify-center overflow-hidden">
+              <div className="w-full rounded-xl border border-brand-line bg-brand-paper/60 flex items-center justify-center overflow-hidden">
                 <img src={res.standardUrl} className="max-w-full max-h-[340px] object-contain w-full h-auto rounded-xl" />
               </div>
             </div>
@@ -1379,9 +1506,9 @@ function MessageBubble({
 function StatChip({ label, value, suffix = '' }: { label: string; value: number; suffix?: string }) {
   const pos = value > 0;
   return (
-    <div className="px-3 py-2 rounded-xl bg-white/5 border border-white/10">
+    <div className="px-3 py-2 rounded-xl bg-brand-paper/70 border border-brand-line">
       <div className="text-brand-muted text-[11px] mb-0.5">{label}</div>
-      <div className={cn('font-semibold', pos ? 'text-emerald-300' : value < 0 ? 'text-orange-300' : 'text-brand-text')}>
+      <div className={cn('font-semibold', pos ? 'text-emerald-600' : value < 0 ? 'text-orange-600' : 'text-brand-text')}>
         {pos ? '+' : ''}{value.toFixed(1)}{suffix}
         {pos ? ' ↑' : value < 0 ? ' ↓' : ''}
       </div>
@@ -1393,7 +1520,7 @@ function AdjustBar({ label, value, suffix = '', color }: { label: string; value:
   const pct = Math.max(-100, Math.min(100, value * 5));
   const width = Math.abs(pct);
   return (
-    <div className="px-3 py-2 rounded-xl bg-white/5 border border-white/10">
+    <div className="px-3 py-2 rounded-xl bg-brand-paper/70 border border-brand-line">
       <div className="flex items-center justify-between text-[11px] mb-1.5">
       <span className="text-brand-muted">{label}</span>
       <span className="font-mono font-semibold" style={{ color }}>
@@ -1401,8 +1528,8 @@ function AdjustBar({ label, value, suffix = '', color }: { label: string; value:
         {value.toFixed(1)}{suffix}
       </span>
     </div>
-    <div className="relative h-1.5 rounded-full bg-white/5 overflow-hidden">
-      <div className="absolute inset-y-0 left-1/2 w-px bg-white/15" />
+    <div className="relative h-1.5 rounded-full bg-brand-line/70 overflow-hidden">
+      <div className="absolute inset-y-0 left-1/2 w-px bg-brand-ink/20" />
       <div
         className="absolute top-0 bottom-0 rounded-r-full transition-all"
         style={{

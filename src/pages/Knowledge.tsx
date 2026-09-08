@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import ColorDots from '@/components/ColorDots';
 import { knowledgeService } from '@/services/knowledgeService';
 import type { QAItem, Shop, Brand } from '@/shared/types';
 
@@ -25,28 +26,28 @@ const TABS: { key: TabKey; label: string }[] = [
 ];
 
 const CATEGORY_STYLES: Record<string, string> = {
-  发红: 'bg-red-500/15 text-red-300 border-red-400/30',
-  发黄: 'bg-amber-500/15 text-amber-300 border-amber-400/30',
-  发蓝: 'bg-blue-500/15 text-blue-300 border-blue-400/30',
-  发暗: 'bg-slate-500/20 text-slate-300 border-slate-400/30',
-  发白: 'bg-white/10 text-white/90 border-white/20',
-  其他: 'bg-purple-500/15 text-purple-300 border-purple-400/30',
+  发红: 'bg-red-50 text-red-700 border-red-200',
+  发黄: 'bg-amber-50 text-amber-700 border-amber-200',
+  发蓝: 'bg-blue-50 text-blue-700 border-blue-200',
+  发暗: 'bg-slate-100 text-slate-600 border-slate-200',
+  发白: 'bg-white text-brand-ink border-brand-line',
+  其他: 'bg-violet-50 text-violet-700 border-violet-200',
 };
 
 const TAG_COLORS = [
-  'bg-brand-accent/15 text-brand-accentLight border-brand-accent/30',
-  'bg-brand-teal/15 text-brand-teal border-brand-teal/30',
-  'bg-amber-500/15 text-amber-300 border-amber-400/30',
-  'bg-purple-500/15 text-purple-300 border-purple-400/30',
-  'bg-blue-500/15 text-blue-300 border-blue-400/30',
-  'bg-emerald-500/15 text-emerald-300 border-emerald-400/30',
-  'bg-rose-500/15 text-rose-300 border-rose-400/30',
+  'bg-orange-50 text-orange-700 border-orange-200',
+  'bg-teal-50 text-teal-700 border-teal-200',
+  'bg-amber-50 text-amber-700 border-amber-200',
+  'bg-violet-50 text-violet-700 border-violet-200',
+  'bg-blue-50 text-blue-700 border-blue-200',
+  'bg-emerald-50 text-emerald-700 border-emerald-200',
+  'bg-rose-50 text-rose-700 border-rose-200',
 ];
 
 const LEVEL_STYLES: Record<number, string> = {
-  1: 'bg-emerald-500/15 text-emerald-300 border-emerald-400/30',
-  2: 'bg-blue-500/15 text-blue-300 border-blue-400/30',
-  3: 'bg-purple-500/15 text-purple-300 border-purple-400/30',
+  1: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  2: 'bg-blue-50 text-blue-700 border-blue-200',
+  3: 'bg-violet-50 text-violet-700 border-violet-200',
 };
 const LEVEL_LABELS: Record<number, string> = { 1: '入门', 2: '进阶', 3: '专业' };
 
@@ -58,29 +59,40 @@ function tagColor(i: number) {
   return TAG_COLORS[i % TAG_COLORS.length];
 }
 
+const BRAND_COLORS = [
+  '#E4572E',
+  '#E8A23B',
+  '#0E4D64',
+  '#3D7EDB',
+  '#D6538E',
+  '#6FAE55',
+  '#2FA8A0',
+  '#6B5BCD',
+  '#8A5FD0',
+];
+
 function RatingStars({ rating }: { rating: number }) {
   return (
     <div className="flex items-center gap-1">
-      <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-      <span className="font-semibold text-amber-300 tabular-nums text-sm">
+      <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+      <span className="font-semibold text-amber-600 tabular-nums text-sm">
         {rating.toFixed(1)}
       </span>
     </div>
   );
 }
 
-function BrandGradBg({ initial }: { initial: string }) {
+function BrandSwatch({ initial, name }: { initial: string; name: string }) {
+  const color =
+    BRAND_COLORS[
+      [...name].reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % BRAND_COLORS.length
+    ];
   return (
     <div
-      className="w-[120px] h-[80px] rounded-xl flex items-center justify-center border border-white/10 shadow-lg"
-      style={{
-        background:
-          'linear-gradient(135deg, rgba(255,107,53,0.35) 0%, rgba(78,205,196,0.35) 50%, rgba(168,85,247,0.35) 100%)',
-      }}
+      className="w-[120px] h-[80px] rounded-xl flex items-center justify-center border border-black/5 shadow-sm"
+      style={{ backgroundColor: color }}
     >
-      <span className="font-serif font-bold text-4xl text-white drop-shadow-lg">
-        {initial}
-      </span>
+      <span className="font-serif font-bold text-4xl text-white">{initial}</span>
     </div>
   );
 }
@@ -94,9 +106,9 @@ function SkeletonList({ count = 4 }: { count?: number }) {
           className="glass-card p-5 animate-pulse"
           style={{ animationDelay: `${i * 80}ms` }}
         >
-          <div className="h-5 w-2/5 rounded-lg bg-white/8 mb-3" />
-          <div className="h-3 w-full rounded bg-white/5 mb-2" />
-          <div className="h-3 w-4/5 rounded bg-white/5" />
+          <div className="h-5 w-2/5 rounded-lg bg-brand-ink/[0.07] mb-3" />
+          <div className="h-3 w-full rounded bg-brand-ink/[0.05] mb-2" />
+          <div className="h-3 w-4/5 rounded bg-brand-ink/[0.05]" />
         </div>
       ))}
     </div>
@@ -106,10 +118,10 @@ function SkeletonList({ count = 4 }: { count?: number }) {
 function NoResult({ text = '暂无匹配结果' }: { text?: string }) {
   return (
     <div className="glass-card p-12 text-center">
-      <div className="w-16 h-16 mx-auto rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-4">
-        <Search className="w-7 h-7 text-brand-muted/60" />
+      <div className="w-16 h-16 mx-auto rounded-full bg-brand-ink/[0.05] border border-brand-line flex items-center justify-center mb-4">
+        <Search className="w-7 h-7 text-brand-faint" />
       </div>
-      <div className="text-brand-muted">{text}</div>
+      <div className="text-brand-muted text-sm">{text}</div>
     </div>
   );
 }
@@ -129,7 +141,7 @@ function IssueItem({
     <div className="glass-card overflow-hidden">
       <button
         onClick={onToggle}
-        className="w-full flex items-start gap-3 text-left p-5 hover:bg-white/[0.02] transition-colors"
+        className="w-full flex items-start gap-3 text-left p-5 hover:bg-brand-ink/[0.02] transition-colors"
       >
         <span
           className={cn(
@@ -140,7 +152,7 @@ function IssueItem({
           {item.category || '其他'}
         </span>
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-brand-text/95 leading-snug pr-8">
+          <div className="font-medium text-brand-ink leading-snug pr-8">
             {item.question}
           </div>
         </div>
@@ -152,8 +164,8 @@ function IssueItem({
         />
       </button>
       {open && (
-        <div className="px-5 pb-5 pt-0 space-y-3 animate-fade-in-up border-t border-white/5">
-          <div className="pt-4 text-brand-text/85 text-[15px] leading-relaxed whitespace-pre-line">
+        <div className="px-5 pb-5 pt-0 space-y-3 animate-fade-in-up border-t border-brand-line">
+          <div className="pt-4 text-brand-ink text-[15px] leading-relaxed whitespace-pre-line">
             {item.answer}
           </div>
           {item.tags && item.tags.length > 0 && (
@@ -182,27 +194,21 @@ function TipCard({ tip, index }: { tip: QAItem; index: number }) {
   const lvStyle = LEVEL_STYLES[lv] || LEVEL_STYLES[1];
   return (
     <div
-      className="glass-card p-6 hover:border-white/20 transition-all duration-300 animate-fade-in-up"
+      className="glass-card p-6 hover:border-brand-primary/30 transition-all duration-300 animate-fade-in-up"
       style={{ animationDelay: `${index * 60}ms` }}
     >
       <div className="flex items-start justify-between mb-4">
-        <div
-          className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg"
-          style={{
-            background:
-              'linear-gradient(135deg, rgba(78,205,196,0.4) 0%, rgba(14,77,100,0.4) 100%)',
-          }}
-        >
-          <Camera className="w-6 h-6 text-white" />
+        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-brand-primary/[0.08] text-brand-primary">
+          <Camera className="w-6 h-6" strokeWidth={1.8} />
         </div>
         <span className={cn('inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border', lvStyle)}>
           {LEVEL_LABELS[lv] || '入门'}
         </span>
       </div>
-      <h3 className="font-semibold text-brand-text/95 text-lg mb-3 leading-snug">
+      <h3 className="font-semibold text-brand-ink text-lg mb-3 leading-snug">
         {tip.question}
       </h3>
-      <p className="text-brand-text/75 text-sm leading-relaxed whitespace-pre-line">
+      <p className="text-brand-muted text-sm leading-relaxed whitespace-pre-line">
         {tip.answer}
       </p>
     </div>
@@ -212,17 +218,17 @@ function TipCard({ tip, index }: { tip: QAItem; index: number }) {
 function ShopCard({ shop, index }: { shop: Shop; index: number }) {
   return (
     <div
-      className="glass-card p-5 hover:border-white/20 transition-all duration-300 animate-fade-in-up"
+      className="glass-card p-5 hover:border-brand-primary/30 transition-all duration-300 animate-fade-in-up"
       style={{ animationDelay: `${index * 60}ms` }}
     >
       <div className="flex items-start justify-between mb-3">
-        <h3 className="font-bold text-brand-text text-lg leading-tight pr-2">
+        <h3 className="font-bold text-brand-ink text-lg leading-tight pr-2">
           {shop.name}
         </h3>
         <RatingStars rating={shop.rating} />
       </div>
       <div className="space-y-2.5 text-sm">
-        <div className="flex items-start gap-2.5 text-brand-text/80">
+        <div className="flex items-start gap-2.5 text-brand-ink/85">
           <MapPin className="w-4 h-4 text-brand-teal shrink-0 mt-0.5" />
           <span className="leading-snug">
             {shop.address}
@@ -230,17 +236,17 @@ function ShopCard({ shop, index }: { shop: Shop; index: number }) {
           </span>
         </div>
         <div className="flex items-center gap-2.5">
-          <Phone className="w-4 h-4 text-brand-accentLight shrink-0" />
+          <Phone className="w-4 h-4 text-brand-accent shrink-0" />
           <a
             href={`tel:${shop.phone}`}
-            className="text-brand-accentLight hover:underline underline-offset-2"
+            className="text-brand-accent hover:underline underline-offset-2"
           >
             {shop.phone}
           </a>
         </div>
       </div>
       {shop.products?.length > 0 && (
-        <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-white/5">
+        <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-brand-line">
           {shop.products.map((p, i) => (
             <span
               key={p}
@@ -262,14 +268,14 @@ function BrandCard({ brand, index }: { brand: Brand; index: number }) {
   const initial = brand.initial || brand.name.slice(0, 1);
   return (
     <div
-      className="glass-card p-5 hover:border-white/20 transition-all duration-300 animate-fade-in-up flex flex-col"
+      className="glass-card p-5 hover:border-brand-primary/30 transition-all duration-300 animate-fade-in-up flex flex-col"
       style={{ animationDelay: `${index * 60}ms` }}
     >
       <div className="flex items-start gap-4 mb-4">
-        <BrandGradBg initial={initial} />
+        <BrandSwatch initial={initial} name={brand.name} />
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2 mb-1">
-            <h3 className="font-bold text-brand-text leading-tight">{brand.name}</h3>
+            <h3 className="font-bold text-brand-ink leading-tight">{brand.name}</h3>
           </div>
           <RatingStars rating={brand.rating} />
         </div>
@@ -289,10 +295,10 @@ function BrandCard({ brand, index }: { brand: Brand; index: number }) {
           ))}
         </div>
       )}
-      <p className="text-brand-text/75 text-sm leading-relaxed line-clamp-2 mb-4">
+      <p className="text-brand-muted text-sm leading-relaxed line-clamp-2 mb-4">
         {brand.description || ''}
       </p>
-      <div className="mt-auto pt-3 border-t border-white/5">
+      <div className="mt-auto pt-3 border-t border-brand-line">
         {brand.website ? (
           <a
             href={brand.website}
@@ -439,31 +445,36 @@ export default function Knowledge() {
   }, [filteredIssues]);
 
   return (
-    <div className="relative z-10 min-h-screen bg-brand-darker bg-noise-texture py-12 px-4">
+    <div className="min-h-screen bg-brand-paper py-12 px-4">
       <div className="container">
-        <header className="text-center mb-8 animate-fade-in-up">
-          <h1 className="font-serif font-bold mb-4 spectrum-text" style={{ fontSize: 'clamp(2.5rem, 5vw, 3.25rem)' }}>
+        <header className="text-center mb-10 animate-fade-in-up">
+          <p className="eyebrow justify-center">
+            <ColorDots size={7} />
+            Knowledge Base
+          </p>
+          <h1
+            className="font-serif font-bold text-brand-ink mt-4 mb-3"
+            style={{ fontSize: 'clamp(2.5rem, 5vw, 3.25rem)' }}
+          >
             色彩知识问答
           </h1>
-          <p className="text-brand-muted text-lg max-w-2xl mx-auto">
+          <p className="text-brand-muted text-[15px] md:text-base max-w-2xl mx-auto">
             偏色原因解答、拍照技巧、附近商铺、工业胶品牌图鉴
           </p>
         </header>
 
-        <div className="glass-card p-4 mb-6 animate-fade-in-up" style={{ animationDelay: '60ms' }}>
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-muted" />
-            <input
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              type="text"
-              placeholder="搜索问题、品牌、商铺..."
-              className="w-full pl-12 pr-4 py-3 text-brand-text placeholder-brand-muted/60 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:border-brand-accent/50 focus:ring-2 focus:ring-brand-accent/20 transition-all duration-200 backdrop-blur-sm"
-            />
-          </div>
+        <div className="relative max-w-2xl mx-auto mb-8 animate-fade-in-up" style={{ animationDelay: '60ms' }}>
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-faint" />
+          <input
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            type="text"
+            placeholder="搜索问题、品牌、商铺..."
+            className="w-full pl-12 pr-4 py-3.5 text-brand-ink placeholder-brand-faint bg-white border border-brand-line rounded-xl shadow-sm focus:outline-none focus:border-brand-primary/60 focus:ring-2 focus:ring-brand-primary/15 transition-all duration-200"
+          />
         </div>
 
-        <div className="flex flex-wrap gap-2 justify-center mb-8 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+        <div className="flex flex-wrap gap-2.5 justify-center mb-10 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
           {TABS.map((t) => (
             <button
               key={t.key}
@@ -493,7 +504,7 @@ export default function Knowledge() {
                       {cat}
                     </span>
                     <span className="text-brand-muted text-xs">{items.length} 条</span>
-                    <div className="flex-1 h-px bg-white/5" />
+                    <div className="flex-1 h-px bg-brand-line" />
                   </div>
                   <div className="space-y-3">
                     {items.map((it) => (
@@ -530,10 +541,10 @@ export default function Knowledge() {
                   <select
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
-                    className="appearance-none cursor-pointer pl-4 pr-10 py-2.5 rounded-xl text-sm font-medium text-brand-text bg-white/5 border border-white/10 hover:border-white/20 focus:outline-none focus:border-brand-accent/40 focus:ring-2 focus:ring-brand-accent/20 transition-all"
+                    className="appearance-none cursor-pointer pl-4 pr-10 py-2.5 rounded-xl text-sm font-medium text-brand-ink bg-white border border-brand-line hover:border-brand-lineStrong focus:outline-none focus:border-brand-primary/60 focus:ring-2 focus:ring-brand-primary/15 transition-all"
                   >
                     {CITIES.map((c) => (
-                      <option key={c} value={c} className="bg-brand-darker">
+                      <option key={c} value={c} className="bg-white">
                         {c}
                       </option>
                     ))}
@@ -590,7 +601,7 @@ export default function Knowledge() {
 
           {loading && (
             <div className="flex justify-center mt-8">
-              <Loader2 className="w-6 h-6 text-brand-accent animate-spin" />
+              <Loader2 className="w-6 h-6 text-brand-primary animate-spin" />
             </div>
           )}
         </section>

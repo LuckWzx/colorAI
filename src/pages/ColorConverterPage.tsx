@@ -10,6 +10,7 @@ import {
   Minus as MinusIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import ColorDots from "@/components/ColorDots";
 import { useAppStore } from "@/store/appStore";
 import {
   convertFrom,
@@ -25,12 +26,16 @@ interface PageHeaderProps {
 
 function PageHeader({ title, subtitle }: PageHeaderProps) {
   return (
-    <div className="text-center mb-10 animate-fade-in-up">
-      <h1 className="font-serif text-4xl md:text-5xl font-bold mb-3 tracking-tight">
-        <span className="spectrum-text">{title}</span>
+    <header className="text-center mb-10 animate-fade-in-up">
+      <p className="eyebrow justify-center">
+        <ColorDots size={7} />
+        Color Converter
+      </p>
+      <h1 className="font-serif text-4xl md:text-[44px] font-bold text-brand-ink tracking-tight mt-4 mb-3">
+        {title}
       </h1>
-      <p className="text-brand-muted text-lg md:text-xl">{subtitle}</p>
-    </div>
+      <p className="text-brand-muted text-[15px] md:text-base">{subtitle}</p>
+    </header>
   );
 }
 
@@ -38,11 +43,11 @@ function Toast({ message, visible }: { message: string; visible: boolean }) {
   if (!visible) return null;
   return (
     <div className="fixed top-20 right-4 z-50 animate-fade-in-up">
-      <div className="glass-card px-5 py-3 flex items-center gap-2 shadow-glow">
-        <div className="w-7 h-7 rounded-full bg-spectrum-gradient flex items-center justify-center">
+      <div className="bg-white border border-brand-line rounded-xl shadow-lift px-5 py-3 flex items-center gap-2.5">
+        <div className="w-7 h-7 rounded-full bg-brand-primary flex items-center justify-center">
           <Check className="w-4 h-4 text-white" />
         </div>
-        <span className="font-medium text-brand-text">{message}</span>
+        <span className="font-medium text-brand-ink text-sm">{message}</span>
       </div>
     </div>
   );
@@ -71,11 +76,14 @@ function StepperInput({ value, onChange, min, max, step = 1, suffix, label }: St
   return (
     <div>
       <label className="block text-xs font-semibold text-brand-muted mb-2 uppercase tracking-wider">{label}</label>
-      <div className="flex items-stretch rounded-xl overflow-hidden border border-white/10 focus-within:border-brand-teal/50 transition-colors">
+      <div
+        style={{ '--autofill-bg': '#F4F5F3' } as React.CSSProperties}
+        className="flex items-stretch rounded-xl overflow-hidden border border-brand-line bg-brand-paper focus-within:border-brand-primary/60 focus-within:ring-2 focus-within:ring-brand-primary/10 transition-all"
+      >
         <button
           type="button"
           onClick={() => onChange(Math.max(min, value - step))}
-          className="px-3 bg-white/5 hover:bg-white/10 text-brand-muted hover:text-brand-text transition-colors"
+          className="px-3 text-brand-faint hover:text-brand-ink hover:bg-brand-ink/[0.05] transition-colors"
         >
           <MinusIcon className="w-4 h-4" />
         </button>
@@ -86,17 +94,17 @@ function StepperInput({ value, onChange, min, max, step = 1, suffix, label }: St
           max={max}
           step={step}
           onChange={(e) => onChange(Math.max(min, Math.min(max, Number(e.target.value) || 0)))}
-          className="flex-1 w-full bg-white/5 border-x border-white/10 px-4 py-3 text-brand-text font-mono text-lg text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          className="flex-1 w-full bg-transparent border-x border-brand-line/70 px-4 py-3 text-brand-ink font-mono text-lg text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         />
         <button
           type="button"
           onClick={() => onChange(Math.min(max, value + step))}
-          className="px-3 bg-white/5 hover:bg-white/10 text-brand-muted hover:text-brand-text transition-colors"
+          className="px-3 text-brand-faint hover:text-brand-ink hover:bg-brand-ink/[0.05] transition-colors"
         >
           <Plus className="w-4 h-4" />
         </button>
         {suffix && (
-          <div className="px-3 bg-white/8 flex items-center text-brand-muted font-medium border-l border-white/10 text-sm">
+          <div className="px-3 bg-brand-ink/[0.04] flex items-center text-brand-muted font-medium border-l border-brand-line text-sm">
             {suffix}
           </div>
         )}
@@ -175,7 +183,7 @@ export default function ColorConverterPage() {
   const eyeDropperSupported = typeof window !== "undefined" && "EyeDropper" in window;
 
   return (
-    <div className="min-h-screen bg-brand-darker bg-noise-texture py-12 px-4">
+    <div className="min-h-screen bg-brand-paper py-12 px-4">
       <Toast message={toastMsg} visible={showToast} />
       <div className="container max-w-5xl">
         <PageHeader
@@ -187,11 +195,8 @@ export default function ColorConverterPage() {
           <div className="glass-card p-6 md:p-8 animate-fade-in-up">
             <div className="flex justify-center mb-8">
               <div
-                className="w-[200px] h-[200px] rounded-2xl border-4 border-white/10"
-                style={{
-                  background: formats.hex,
-                  boxShadow: `inset 0 4px 20px rgba(0,0,0,0.3), 0 0 80px ${formats.hex}50, 0 0 40px ${formats.hex}30`,
-                }}
+                className="w-[200px] h-[200px] rounded-2xl border border-brand-line shadow-card"
+                style={{ background: formats.hex }}
               />
             </div>
 
@@ -228,8 +233,11 @@ export default function ColorConverterPage() {
               {activeTab === "hex" && (
                 <div>
                   <label className="block text-xs font-semibold text-brand-muted mb-2 uppercase tracking-wider">HEX 色值</label>
-                  <div className="relative flex items-stretch rounded-xl overflow-hidden border border-white/10 focus-within:border-brand-teal/50 transition-colors">
-                    <div className="flex items-center px-4 bg-white/8 border-r border-white/10 text-brand-muted font-mono text-lg">
+                  <div
+                    style={{ '--autofill-bg': '#F4F5F3' } as React.CSSProperties}
+                    className="relative flex items-stretch rounded-xl overflow-hidden border border-brand-line bg-brand-paper focus-within:border-brand-primary/60 focus-within:ring-2 focus-within:ring-brand-primary/10 transition-all"
+                  >
+                    <div className="flex items-center px-4 bg-brand-ink/[0.04] border-r border-brand-line text-brand-muted font-mono text-lg">
                       <Hash className="w-4 h-4" />
                     </div>
                     <input
@@ -244,11 +252,11 @@ export default function ColorConverterPage() {
                         setHexInput(clean);
                       }}
                       placeholder="4ECDC4"
-                      className="flex-1 w-full bg-white/5 px-4 py-3 text-brand-text font-mono text-lg focus:outline-none uppercase"
+                      className="flex-1 w-full bg-transparent px-4 py-3 text-brand-ink font-mono text-lg focus:outline-none uppercase"
                       maxLength={6}
                     />
                     <div
-                      className="w-14 bg-white/8 border-l border-white/10"
+                      className="w-14 border-l border-brand-line"
                       style={{ background: formats.hex }}
                     />
                   </div>
@@ -421,28 +429,37 @@ export default function ColorConverterPage() {
           </div>
 
           <div className="glass-card p-6 md:p-8 animate-fade-in-up">
-            <h3 className="font-semibold text-brand-text mb-5 flex items-center gap-2">
-              <span className="w-1 h-5 rounded-full bg-spectrum-gradient" />
-              转换结果
-            </h3>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-semibold text-brand-ink flex items-center gap-2.5">
+                <span className="flex gap-1">
+                  <span className="w-2 h-2 rounded-full bg-brand-primary" />
+                  <span className="w-2 h-2 rounded-full bg-brand-accent" />
+                  <span className="w-2 h-2 rounded-full bg-brand-teal" />
+                </span>
+                转换结果
+              </h3>
+              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-brand-muted">
+                Click to Copy
+              </span>
+            </div>
             <div className="space-y-2">
               {SPACES.map(({ key, label }) => {
                 const value = formatColorValue(key, formats);
                 return (
                   <div
                     key={key}
-                    className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-xl px-4 py-3 hover:bg-white/8 transition-colors"
+                    className="flex items-center gap-4 bg-brand-paper/60 border border-brand-line rounded-xl px-4 py-3 hover:bg-white hover:border-brand-primary/30 transition-colors"
                   >
                     <div className="w-20 flex-shrink-0">
                       <span className="text-xs font-semibold text-brand-muted uppercase tracking-wider">{label}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="block font-mono text-brand-text truncate">{value}</span>
+                      <span className="block font-mono text-brand-ink truncate">{value}</span>
                     </div>
                     <button
                       type="button"
                       onClick={() => copyToClipboard(value, `${label} 已复制`)}
-                      className="flex-shrink-0 w-9 h-9 rounded-lg bg-white/6 border border-white/10 flex items-center justify-center text-brand-muted hover:text-brand-text hover:bg-white/12 hover:border-white/20 transition-all"
+                      className="flex-shrink-0 w-9 h-9 rounded-lg border border-brand-line flex items-center justify-center text-brand-faint hover:text-brand-primary hover:border-brand-primary/40 hover:bg-brand-primary/[0.04] transition-all"
                       aria-label={`复制${label}`}
                     >
                       <Copy className="w-4 h-4" />
@@ -455,10 +472,10 @@ export default function ColorConverterPage() {
         </div>
 
         <div className="glass-card p-6 animate-fade-in-up">
-          <div className="flex items-center gap-2 mb-5">
-            <History className="w-5 h-5 text-brand-teal" />
-            <h3 className="font-semibold text-brand-text">历史记录</h3>
-            <span className="text-xs text-brand-muted ml-2">点击色块恢复</span>
+          <div className="flex items-center gap-2.5 mb-5">
+            <History className="w-5 h-5 text-brand-faint" />
+            <h3 className="font-semibold text-brand-ink">历史记录</h3>
+            <span className="text-xs text-brand-faint ml-1">点击色块恢复</span>
           </div>
           <div className="flex flex-wrap gap-3">
             {colorHistory.length === 0 ? (
@@ -473,11 +490,8 @@ export default function ColorConverterPage() {
                   title={item.hex}
                 >
                   <div
-                    className="w-10 h-10 rounded-full border-2 border-white/15 shadow-card group-hover:border-white/40 group-hover:shadow-lg transition-all"
-                    style={{
-                      background: item.hex,
-                      boxShadow: `0 2px 12px ${item.hex}40`,
-                    }}
+                    className="w-10 h-10 rounded-full border border-brand-line shadow-sm transition-all hover:scale-110 hover:border-brand-primary/50 hover:shadow-card"
+                    style={{ background: item.hex }}
                   />
                 </button>
               ))

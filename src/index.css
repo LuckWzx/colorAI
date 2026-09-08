@@ -8,102 +8,194 @@
   }
 
   body {
-    @apply bg-brand-darker text-brand-text font-sans antialiased;
-    position: relative;
+    @apply bg-brand-paper text-brand-ink font-sans antialiased;
     min-height: 100vh;
   }
 
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    background-image: var(--tw-gradient-noise, url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E"));
-    opacity: 1;
-  }
-
-  body::after {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    background:
-      radial-gradient(circle at 10% 10%, rgba(255, 107, 53, 0.15) 0%, transparent 45%),
-      radial-gradient(circle at 90% 90%, rgba(78, 205, 196, 0.12) 0%, transparent 50%);
-  }
-
   ::selection {
-    @apply bg-brand-accent/40 text-white;
+    @apply bg-brand-primary/15 text-brand-ink;
   }
 
   *::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
 
   *::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.03);
+    background: transparent;
   }
 
   *::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
-    border-radius: 3px;
+    background: rgba(36, 51, 61, 0.18);
+    border-radius: 4px;
   }
 
   *::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.25);
+    background: rgba(36, 51, 61, 0.3);
+  }
+
+  /* —— 浏览器自动填充底色覆盖（避免在透明输入框上露出蓝/黄色块）——
+     默认覆盖为白底；纸色底输入容器通过 --autofill-bg 变量对齐底色 */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    -webkit-text-fill-color: #24333d;
+    -webkit-box-shadow: 0 0 0 1000px var(--autofill-bg, #ffffff) inset;
+    caret-color: #24333d;
+    transition: background-color 9999s ease-in-out 0s;
   }
 }
 
 @layer components {
+  /* —— 纸面卡片：白面 + 细线 + 柔和投影 —— */
   .glass-card {
-    @apply bg-white/[0.04] backdrop-blur-xl rounded-2xl border border-white/10 shadow-card;
+    @apply bg-brand-surface border border-brand-line rounded-2xl shadow-card;
   }
 
+  /* —— 按钮 —— */
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 px-6 py-3 font-medium text-white
-           rounded-xl transition-all duration-300 ease-out
-           bg-gradient-to-r from-brand-accent via-brand-accentLight to-brand-cream
-           bg-[length:200%_auto] bg-[position:0%_50%]
-           hover:bg-[position:100%_50%] hover:shadow-glow-accent hover:scale-[1.02]
-           active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-brand-accent/50;
+           rounded-xl transition-all duration-200
+           bg-brand-primary hover:bg-brand-primaryLight
+           shadow-sm hover:shadow-card active:scale-[0.98]
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 px-6 py-3 font-medium text-brand-text
-           rounded-xl transition-all duration-300 ease-out
-           bg-white/5 border border-white/10 backdrop-blur-sm
-           hover:bg-white/10 hover:border-white/20 hover:shadow-glow
-           active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-white/20;
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 font-medium text-brand-ink
+           rounded-xl transition-all duration-200
+           bg-brand-surface border border-brand-lineStrong
+           hover:border-brand-primary/50 hover:text-brand-primary hover:bg-white
+           active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/30;
   }
 
   .btn-pill {
     @apply inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium
-           text-brand-text/80 bg-white/5 border border-white/10
-           hover:text-white hover:bg-white/10 hover:border-white/15
-           transition-all duration-200;
+           text-brand-muted bg-brand-surface border border-brand-line
+           hover:text-brand-ink hover:border-brand-lineStrong
+           transition-all duration-150;
   }
 
   .btn-pill-active {
-    @apply text-white bg-gradient-to-r from-brand-accent/30 to-brand-teal/30
-           border-brand-accent/40 shadow-glow;
+    @apply text-white bg-brand-primary border-brand-primary hover:text-white hover:bg-brand-primary;
   }
 
   .input-field {
-    @apply w-full px-4 py-3 text-brand-text placeholder-brand-muted/60
-           bg-white/5 border border-white/10 rounded-xl
-           focus:outline-none focus:border-brand-accent/50 focus:ring-2 focus:ring-brand-accent/20
-           transition-all duration-200 backdrop-blur-sm;
+    @apply w-full px-4 py-3 text-brand-ink placeholder-brand-faint
+           bg-brand-surface border border-brand-line rounded-xl
+           focus:outline-none focus:border-brand-primary/60 focus:ring-2 focus:ring-brand-primary/15
+           transition-all duration-200;
   }
 
+  /* —— CMYK 套色条：印刷四色硬边等分 —— */
   .spectrum-divider {
-    height: 2px;
-    @apply bg-spectrum-gradient bg-[length:200%_200%] animate-gradient-shift;
+    height: 3px;
+    background-image: linear-gradient(
+      90deg,
+      #009ee0 0 25%,
+      #e4007e 25% 50%,
+      #ffd200 50% 75%,
+      #1f1f1f 75% 100%
+    );
   }
 
+  /* 兼容旧类名：由流动渐变改为实色（迁移完成后移除） */
   .spectrum-text {
-    @apply bg-clip-text text-transparent bg-spectrum-gradient bg-[length:200%_auto] animate-gradient-shift;
+    @apply text-brand-primary;
+  }
+
+  /* —— 仪器感小标签：等宽体 + 宽字距 —— */
+  .eyebrow {
+    @apply inline-flex items-center gap-2.5 font-mono text-[11px] font-medium
+           uppercase tracking-[0.24em] text-brand-muted;
+  }
+
+  /* —— 坐标纸底纹（极淡网格，用于局部装饰） —— */
+  .graph-grid {
+    background-image:
+      linear-gradient(rgba(36, 51, 61, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(36, 51, 61, 0.05) 1px, transparent 1px);
+    background-size: 36px 36px;
+  }
+
+  /* —— 样张翻阅转场：旧图滑出模糊，新图滑入清晰 —— */
+  .plate-out-l {
+    animation: plateOutL 0.45s cubic-bezier(0.22, 0.8, 0.36, 1) both;
+  }
+
+  .plate-out-r {
+    animation: plateOutR 0.45s cubic-bezier(0.22, 0.8, 0.36, 1) both;
+  }
+
+  .plate-in-r {
+    animation: plateInR 0.5s cubic-bezier(0.22, 0.8, 0.36, 1) both;
+  }
+
+  .plate-in-l {
+    animation: plateInL 0.5s cubic-bezier(0.22, 0.8, 0.36, 1) both;
+  }
+}
+
+/* 翻阅 keyframes：位移 + 模糊同步渐变 */
+@keyframes plateOutL {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-72px);
+    filter: blur(12px);
+  }
+}
+
+@keyframes plateOutR {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(72px);
+    filter: blur(12px);
+  }
+}
+
+@keyframes plateInR {
+  0% {
+    opacity: 0;
+    transform: translateX(64px);
+    filter: blur(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes plateInL {
+  0% {
+    opacity: 0;
+    transform: translateX(-64px);
+    filter: blur(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+    filter: blur(0);
+  }
+}
+
+/* 系统减少动效：翻阅直接切图 */
+@media (prefers-reduced-motion: reduce) {
+  .plate-out-l,
+  .plate-out-r,
+  .plate-in-r,
+  .plate-in-l {
+    animation-duration: 0.01s;
   }
 }
