@@ -127,3 +127,4 @@ ColorAI/
 
 - 产品需求文档：[PRD-曲泉AI产品需求文档](.trae/documents/PRD-曲泉AI产品需求文档.md)
 - 技术架构文档：[技术架构文档](.trae/documents/技术架构文档.md)
+- 移动端与 App 化评估：[移动端与App化评估](doc/移动端与App化评估.md)
