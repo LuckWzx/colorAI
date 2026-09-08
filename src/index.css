@@ -230,3 +230,33 @@
     opacity: 0;
   }
 }
+
+/* 移动端会话抽屉：从左滑入 */
+@keyframes drawerIn {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* Workspace 聊天壳：内部滚动区保留滚动能力，但隐藏滚动条（沉浸式聊天观感） */
+.workspace-shell,
+.workspace-shell * {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.workspace-shell *::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+/* 输入框占位提示：缩小字号且强制单行裁尾，避免换行撑出 44px 固定框的滚动（实际输入文字仍为 text-sm） */
+.workspace-shell textarea::placeholder {
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

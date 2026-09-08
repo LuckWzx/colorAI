@@ -24,6 +24,10 @@ import {
   MapPin,
   Package2,
   LayoutGrid,
+  MessageSquare,
+  Plus,
+  Trash2,
+  History,
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -31,6 +35,8 @@ import { colorService } from '@/services/colorService';
 import { deepseekService } from '@/services/deepseekService';
 import type { ChatMessage } from '@/services/deepseekService';
 import { useAppStore } from '@/store/appStore';
+import { sessionService } from '@/services/sessionService';
+import type { ChatSessionDTO } from '@/services/sessionService';
 import { convertFrom, getColorName, formatColorValue, parseColor, detectColorFormat } from '@/utils/colorConverter';
 import type { CorrectionResult, CompareResult } from '@/types';
 
@@ -198,6 +204,39 @@ interface AssistantMessage extends BaseMessage {
 
 type Message = UserMessage | AssistantMessage;
 
+/** 欢迎消息工厂（新会话 / 返回首屏 / 初始加载共用） */
+const welcomeMsg = (): AssistantMessage => ({
+  id: uid(),
+  role: 'assistant',
+  type: 'welcome',
+  createdAt: Date.now(),
+});
+
+/** 从消息流推断会话标题：首条用户文字 → 工具名 → 兜底 */
+function titleOf(ms: Message[]): string {
+  const textMsg = ms.find((m) => m.role === 'user' && m.text?.trim());
+  if (textMsg?.text?.trim()) return textMsg.text.trim().slice(0, 26);
+  const featMsg = ms.find((m): m is UserMessage => m.role === 'user' && !!m.feature);
+  if (featMsg?.feature) return FEATURES.find((f) => f.key === featMsg.feature)?.title ?? '图片处理';
+  return '新对话';
+}
+
+/** 列表 state 只保留元数据（不含 messages/history 大对象） */
+function toSessionMeta(s: ChatSessionDTO): ChatSessionDTO {
+  return {
+    id: s.id,
+    title: s.title,
+    createdAt: s.createdAt,
+    updatedAt: s.updatedAt,
+    messageCount: s.messageCount,
+  };
+}
+
+/** 落库前剔除欢迎卡：欢迎卡只属于「空会话首屏」，不写入历史，避免回放旧会话时欢迎卡重复出现 */
+function stripWelcome(ms: Message[]): unknown[] {
+  return ms.filter((m) => !(m.role === 'assistant' && m.type === 'welcome')) as unknown[];
+}
+
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 /**
@@ -219,13 +258,17 @@ export default function Workspace() {
   const setCorrectedImage = useAppStore((s) => s.setCorrectedImage);
   const setPickedColor = useAppStore((s) => s.setPickedColor);
 
-  const [messages, setMessages] = useState<Message[]>([]);
+  // —— 会话历史：列表 / 当前会话 id / 消息与上下文（接口契约见 services/sessionService.ts） ——
+  const [sessions, setSessions] = useState<ChatSessionDTO[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>(() => [welcomeMsg()]);
   const [input, setInput] = useState('');
   const [selectedFeature, setSelectedFeature] = useState<FeatureKey | null>(null);
   const [pendingImages, setPendingImages] = useState<File[]>([]);
   const [pendingPreview, setPendingPreview] = useState<string[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [cameraOpen, setCameraOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -239,14 +282,44 @@ export default function Workspace() {
   const secondFileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
+  /** 自动保存防抖计时器；切换/离开前 flush 清掉 */
+  const saveTimer = useRef<number | null>(null);
+  /** 并发切换会话的序号：只采纳最后一次加载结果 */
+  const openSeq = useRef(0);
+  /** 加载会话期间跳过自动落库，防止中间态（欢迎语/旧内容）误写目标会话 */
+  const skipAutoSaveRef = useRef(false);
+  /** 最新会话现场快照：flush / 卸载兜底读取，避免异步闭包读到过期值 */
+  const liveRef = useRef({
+    activeId: null as string | null,
+    messages: [] as Message[],
+    chatHistory: [] as ChatMessage[],
+  });
+  liveRef.current = { activeId, messages, chatHistory };
+
+  /** 进入页面：拉取会话列表并自动恢复最近一次会话（无历史则停留欢迎首屏） */
   useEffect(() => {
-    const welcome: AssistantMessage = {
-      id: uid(),
-      role: 'assistant',
-      type: 'welcome',
-      createdAt: Date.now(),
+    let alive = true;
+    void (async () => {
+      try {
+        const list = await sessionService.list();
+        if (!alive) return;
+        setSessions(list);
+        if (list.length === 0) return; // 无历史：保持新对话欢迎首屏
+        const recent = list[0];
+        skipAutoSaveRef.current = true; // 载入期间禁止自动落库，防止中间态误写
+        setActiveId(recent.id);
+        const detail = await sessionService.get(recent.id);
+        if (!alive) return;
+        const ms = (detail?.messages ?? []) as Message[];
+        setMessages(ms.length ? ms : [welcomeMsg()]);
+        setChatHistory((detail?.history ?? []) as ChatMessage[]);
+      } catch {
+        /* 拉取失败：保持新对话欢迎首屏 */
+      }
+    })();
+    return () => {
+      alive = false;
     };
-    setMessages([welcome]);
   }, []);
 
   useEffect(() => {
@@ -254,6 +327,52 @@ export default function Workspace() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  /** 消息/上下文变更 → 自动保存当前会话；新对话在发出首条消息后建档（400ms 防抖合并连续更新） */
+  useEffect(() => {
+    if (skipAutoSaveRef.current) {
+      skipAutoSaveRef.current = false;
+      return;
+    }
+    if (activeId === null) {
+      const hasRealContent = messages.some((m) => !(m.role === 'assistant' && m.type === 'welcome'));
+      if (!hasRealContent) return;
+      setActiveId(uid()); // 先建档拿 id，下一轮 effect 携带新 id 落库
+      return;
+    }
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => {
+      saveTimer.current = null;
+      void (async () => {
+        try {
+          const saved = await sessionService.save({
+            id: activeId,
+            title: titleOf(messages),
+            messages: stripWelcome(messages),
+            history: chatHistory,
+          });
+          if (saved) {
+            setSessions((prev) => [toSessionMeta(saved), ...prev.filter((s) => s.id !== saved.id)]);
+          }
+        } catch {
+          /* 保存失败保持内存现场，下次变更重试 */
+        }
+      })();
+    }, 400);
+  }, [messages, chatHistory, activeId]);
+
+  /** 离开页面兜底保存（防抖窗口内跳走也不丢会话） */
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) window.clearTimeout(saveTimer.current);
+      const { activeId: id, messages: ms, chatHistory: hist } = liveRef.current;
+      if (id === null) return;
+      if (!ms.some((m) => !(m.role === 'assistant' && m.type === 'welcome'))) return;
+      void sessionService
+        .save({ id, title: titleOf(ms), messages: stripWelcome(ms), history: hist })
+        .catch(() => undefined);
+    };
+  }, []);
 
   const showToast = (text: string) => {
     setToast(text);
@@ -271,32 +390,122 @@ export default function Workspace() {
     setTimeout(() => textareaRef.current?.focus(), 50);
   }, []);
 
-  const handleReset = useCallback(() => {
-    const welcome: AssistantMessage = {
-      id: uid(),
-      role: 'assistant',
-      type: 'welcome',
-      createdAt: Date.now(),
-    };
-    setMessages([welcome]);
+  /** 立即保存当前会话（切换/新建前调用，防抖窗口内不丢数据；空欢迎会话不建档） */
+  const flushSave = async () => {
+    if (saveTimer.current) {
+      window.clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    const { activeId: id, messages: ms, chatHistory: hist } = liveRef.current;
+    if (id === null) return;
+    if (!ms.some((m) => !(m.role === 'assistant' && m.type === 'welcome'))) return;
+    try {
+      const saved = await sessionService.save({
+        id,
+        title: titleOf(ms),
+        messages: stripWelcome(ms),
+        history: hist,
+      });
+      if (saved) setSessions((prev) => [toSessionMeta(saved), ...prev.filter((s) => s.id !== saved.id)]);
+    } catch {
+      /* 忽略：现场仍在内存 */
+    }
+  };
+
+  /** 切换到指定历史会话：先落库当前内容，再拉取目标详情 */
+  const openSession = async (id: string) => {
+    if (id === activeId) return;
+    await flushSave();
+    const seq = ++openSeq.current;
+    const detail = await sessionService.get(id);
+    if (!detail || seq !== openSeq.current) return; // 期间已切到别处则丢弃本次结果
+    skipAutoSaveRef.current = true; // 载入期间禁止自动落库
+    const ms = (detail.messages ?? []) as Message[];
+    setActiveId(id);
+    setMessages(ms.length ? ms : [welcomeMsg()]);
+    setChatHistory((detail.history ?? []) as ChatMessage[]);
     setSelectedFeature(null);
     setPendingImages([]);
     setPendingPreview([]);
     setInput('');
-    setChatHistory([]);
-    setTimeout(() => textareaRef.current?.focus(), 50);
-  }, []);
+  };
 
-  /** 工具坞/更多面板选择：聊天类进入对话流程，页面类直接跳转 */
-  const handleDockSelect = useCallback((item: DockItem) => {
-    setMoreToolsOpen(false);
-    if (item.kind === 'chat') {
-      setSelectedFeature(item.key as FeatureKey);
-      setTimeout(() => textareaRef.current?.focus(), 50);
-    } else if (item.path) {
-      navigate(item.path);
+  /** 删除会话：删除当前会话时丢弃其未落库草稿，并自动切到最近会话；删除他会话前先落库当前 */
+  const handleDeleteSession = async (id: string) => {
+    if (id === activeId) {
+      if (saveTimer.current) {
+        window.clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+    } else {
+      await flushSave();
     }
-  }, [navigate]);
+    try {
+      await sessionService.remove(id);
+    } catch {
+      showToast('会话删除失败，请重试');
+      return;
+    }
+    const rest = sessions.filter((s) => s.id !== id);
+    setSessions(rest);
+    if (id === activeId) {
+      const next = rest[0];
+      skipAutoSaveRef.current = true;
+      if (next) {
+        const detail = await sessionService.get(next.id);
+        const ms = ((detail?.messages ?? []) as Message[]);
+        setActiveId(next.id);
+        setMessages(ms.length ? ms : [welcomeMsg()]);
+        setChatHistory(((detail?.history ?? []) as ChatMessage[]));
+      } else {
+        setActiveId(null);
+        setMessages([welcomeMsg()]);
+        setChatHistory([]);
+      }
+      setSelectedFeature(null);
+      setPendingImages([]);
+      setPendingPreview([]);
+      setInput('');
+      setSidebarOpen(false);
+    }
+  };
+
+  /** 开启全新对话：先保存当前会话（若有内容），再回到欢迎首屏 */
+  const startNewChat = async () => {
+    await flushSave();
+    setActiveId(null);
+    setMessages([welcomeMsg()]);
+    setChatHistory([]);
+    setSelectedFeature(null);
+    setPendingImages([]);
+    setPendingPreview([]);
+    setInput('');
+    setSidebarOpen(false);
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  };
+
+  /** 「返回首屏」按钮：等价于开启新对话（当前会话已自动入历史） */
+  const handleReset = () => {
+    void startNewChat();
+  };
+
+  /** 工具坞/更多面板选择：聊天类进入对话流程，页面类直接跳转；再次点击已选中的工具则取消选择 */
+  const handleDockSelect = useCallback(
+    (item: DockItem) => {
+      setMoreToolsOpen(false);
+      if (item.kind === 'chat') {
+        if (selectedFeature === item.key) {
+          setSelectedFeature(null); // 再点一次 = 退出该工具，回到自由对话
+          return;
+        }
+        setSelectedFeature(item.key as FeatureKey);
+        setTimeout(() => textareaRef.current?.focus(), 50);
+      } else if (item.path) {
+        navigate(item.path);
+      }
+    },
+    [navigate, selectedFeature]
+  );
 
   /**
    * 取色流程核心逻辑（可复用）
@@ -738,8 +947,17 @@ export default function Workspace() {
     setInput('');
   };
 
+  /** 当前所选功能需要几张图（0 = 不需要图）；图片备齐后隐藏引导横幅 */
+  const needImages =
+    selectedFeature === 'compare'
+      ? 2
+      : ['correct', 'pick', 'phone'].includes(selectedFeature || '')
+        ? 1
+        : 0;
+
   const featureHint = (() => {
     if (!selectedFeature) return null;
+    if (needImages > 0 && pendingPreview.length >= needImages) return null;
     if (selectedFeature === 'compare') return '请上传 2 张图片进行颜色对比';
     if (selectedFeature === 'convert') return '请在输入框中输入任意格式色值（如 #FF6B35 / rgb(10,20,30) / hsl(200,80%,50%)）';
     if (['correct', 'pick', 'phone'].includes(selectedFeature)) return '请上传 1 张图片进行处理';
@@ -747,8 +965,21 @@ export default function Workspace() {
   })();
 
   return (
-    <div className="relative h-dvh w-screen overflow-hidden flex flex-col bg-brand-paper">
-      <header className="relative z-20 shrink-0 flex items-center justify-between px-4 lg:px-8 h-14 sm:h-16 border-b border-brand-line bg-white/85 backdrop-blur-xl">
+    <div className="workspace-shell relative h-dvh w-screen overflow-hidden flex bg-brand-paper">
+      {/* —— 桌面端：会话历史侧栏（常驻） —— */}
+      <aside className="hidden lg:flex flex-col w-[280px] shrink-0 border-r border-brand-line bg-brand-surface/50">
+        <ChatSidebar
+          sessions={sessions}
+          activeId={activeId}
+          onNew={() => void startNewChat()}
+          onOpen={(id) => void openSession(id)}
+          onDelete={(id) => void handleDeleteSession(id)}
+        />
+      </aside>
+
+      {/* 聊天主区：顶栏 + 消息流 + 工具坞输入区 */}
+      <div className="flex-1 min-w-0 flex flex-col">
+        <header className="relative z-20 shrink-0 flex items-center justify-between px-4 lg:px-8 h-14 sm:h-16 border-b border-brand-line bg-white/85 backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/')}
@@ -768,16 +999,25 @@ export default function Workspace() {
             <p className="text-[11px] text-brand-muted hidden sm:block">随时为你处理专业色彩任务</p>
           </div>
         </div>
-        <div className="hidden md:flex items-center gap-2 text-xs text-brand-muted">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          服务在线 · DeepSeek AI 已连接
+        <div className="flex items-center gap-1">
+          <div className="hidden md:flex items-center gap-2 text-xs text-brand-muted">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            服务在线 · DeepSeek AI 已连接
+          </div>
+          {/* 移动端：会话历史入口 */}
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="lg:hidden p-2 rounded-lg text-brand-muted hover:text-brand-primary hover:bg-brand-paper transition-colors"
+            aria-label="会话历史"
+          >
+            <History className="w-5 h-5" />
+          </button>
         </div>
       </header>
 
       <main
         ref={scrollRef}
         className="relative z-10 flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 py-3 sm:py-5"
-        style={{ scrollbarWidth: 'thin' }}
       >
         <div className="mx-auto max-w-4xl space-y-4 sm:space-y-6">
           {messages.map((msg) => (
@@ -796,7 +1036,7 @@ export default function Workspace() {
       </main>
 
       <footer className="relative z-20 shrink-0 border-t border-brand-line bg-brand-paper overflow-hidden max-h-[62vh]">
-        <div className="mx-auto max-w-4xl px-3 sm:px-4 pt-3 sm:pt-5 pb-3 sm:pb-4 overflow-y-auto max-h-[62vh]" style={{ scrollbarWidth: 'thin' }}>
+        <div className="mx-auto max-w-4xl px-3 sm:px-4 pt-3 sm:pt-5 pb-3 sm:pb-4 overflow-y-auto max-h-[62vh]">
           {featureHint && (
             <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-brand-accent/10 border border-brand-accent/25 text-brand-accent text-xs animate-fade-in-up">
               <Sparkles className="w-4 h-4" />
@@ -846,7 +1086,6 @@ export default function Workspace() {
           {/* 工具坞：5 个核心处理工具常驻聊天框上方 */}
           <div
             className="mb-2.5 flex items-center gap-1.5 overflow-x-auto pb-0.5 animate-fade-in-up"
-            style={{ scrollbarWidth: 'thin' }}
           >
             {DOCK_CHAT.map((item) => {
               const Icon = item.icon;
@@ -977,7 +1216,7 @@ export default function Workspace() {
                   rows={1}
                   placeholder={
                     selectedFeature === 'convert'
-                      ? '已选【色彩空间转换】— 请输入色值，如 #FF6B35 / rgb(10,20,30) / hsl(200,80%,50%)...'
+                      ? '已选【色彩空间转换】— 输入色值后发送'
                       : selectedFeature
                       ? `已选【${FEATURES.find((x) => x.key === selectedFeature)?.title}】— 上传图片后发送...`
                       : '告诉曲泉AI你想做什么，或上传图片直接开始处理...'
@@ -1007,6 +1246,43 @@ export default function Workspace() {
           </p>
         </div>
       </footer>
+      </div>
+
+      {/* —— 移动端：会话历史抽屉（顶栏 History 入口打开） —— */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div
+            className="absolute inset-0 bg-brand-ink/30 backdrop-blur-[2px] animate-fade-in-up"
+            onClick={() => setSidebarOpen(false)}
+            aria-hidden="true"
+          />
+          <aside className="absolute inset-y-0 left-0 w-[min(84%,320px)] flex flex-col bg-brand-paper border-r border-brand-line shadow-lift animate-[drawerIn_0.24s_ease-out]">
+            <div className="flex items-center justify-between px-4 h-14 shrink-0 border-b border-brand-line">
+              <p className="text-sm font-semibold text-brand-ink">会话历史</p>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="p-2 rounded-lg text-brand-muted hover:text-brand-primary hover:bg-brand-paper transition-colors"
+                aria-label="关闭会话历史"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 min-h-0">
+              <ChatSidebar
+                compact
+                sessions={sessions}
+                activeId={activeId}
+                onNew={() => void startNewChat()}
+                onOpen={(id) => {
+                  setSidebarOpen(false);
+                  void openSession(id);
+                }}
+                onDelete={(id) => void handleDeleteSession(id)}
+              />
+            </div>
+          </aside>
+        </div>
+      )}
 
       {cameraOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur flex items-center justify-center p-4 animate-fade-in-up">
@@ -1059,6 +1335,155 @@ export default function Workspace() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** 会话时间显示：今天 → HH:MM；昨天 → 昨天；今年 → M月D日；更早 → YYYY/M/D */
+function fmtTime(ts: number): string {
+  const d = new Date(ts);
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  if (d.toDateString() === now.toDateString()) return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return '昨天';
+  if (d.getFullYear() === now.getFullYear()) return `${d.getMonth() + 1}月${d.getDate()}日`;
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+/**
+ * 会话历史侧栏：桌面端常驻（aside 内嵌）；移动端抽屉复用（compact 时只显示新建按钮，标题/关闭在抽屉头）
+ * 新建对话 / 点击切换 / 垃圾桶两步确认删除
+ */
+function ChatSidebar({
+  sessions,
+  activeId,
+  onNew,
+  onOpen,
+  onDelete,
+  compact = false,
+}: {
+  sessions: ChatSessionDTO[];
+  activeId: string | null;
+  onNew: () => void;
+  onOpen: (id: string) => void;
+  onDelete: (id: string) => void;
+  compact?: boolean;
+}) {
+  /** 待确认删除的会话 id：点垃圾桶进入确认态（变红再点一次才删），点别处取消 */
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      {/* 头部：品牌标识（非紧凑） + 新建对话 */}
+      <div className={cn('shrink-0', compact ? 'px-2.5 pt-2.5 pb-1.5' : 'px-4 pt-5 pb-3')}>
+        {!compact && (
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-cmyk-strip shadow-card" />
+            <div>
+              <p className="font-serif font-bold text-brand-ink leading-none">曲泉AI</p>
+              <p className="text-[10px] text-brand-muted mt-1">会话历史</p>
+            </div>
+          </div>
+        )}
+        <button
+          onClick={onNew}
+          className={cn(
+            'w-full flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary text-white text-sm font-medium hover:bg-brand-primaryLight transition-colors active:scale-[0.98]',
+            compact ? 'py-1.5' : 'mt-4 py-2'
+          )}
+        >
+          <Plus className="w-4 h-4" />
+          新建对话
+        </button>
+      </div>
+
+      {/* 会话列表 */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-2.5 pb-3 space-y-1">
+        {sessions.length === 0 ? (
+          <div className="pt-8 pb-6 flex flex-col items-center text-center px-4">
+            <MessageSquare className="w-8 h-8 text-brand-lineStrong mb-2" />
+            <p className="text-xs text-brand-muted leading-relaxed">
+              暂无历史会话
+              <br />
+              开启一段对话后会自动记录在这里
+            </p>
+          </div>
+        ) : (
+          sessions.map((s) => {
+            const active = s.id === activeId;
+            const confirming = confirmId === s.id;
+            return (
+              <div
+                key={s.id}
+                className={cn(
+                  'group relative flex items-center gap-2.5 pl-3 pr-2 py-2.5 rounded-xl cursor-pointer transition-colors',
+                  active ? 'bg-brand-primary/10' : 'hover:bg-brand-paper'
+                )}
+                onClick={() => {
+                  setConfirmId(null);
+                  onOpen(s.id);
+                }}
+              >
+                <MessageSquare
+                  className={cn(
+                    'w-4 h-4 shrink-0',
+                    active ? 'text-brand-primary' : 'text-brand-muted group-hover:text-brand-primary'
+                  )}
+                />
+                <div className="flex-1 min-w-0">
+                  <p
+                    className={cn(
+                      'text-[13px] truncate leading-tight',
+                      active ? 'text-brand-primary font-semibold' : 'text-brand-ink'
+                    )}
+                  >
+                    {s.title || '新对话'}
+                  </p>
+                  <p className="text-[10px] text-brand-faint mt-0.5">
+                    {fmtTime(s.updatedAt)} · {s.messageCount} 条消息
+                  </p>
+                </div>
+                {confirming ? (
+                  <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => {
+                        setConfirmId(null);
+                        onDelete(s.id);
+                      }}
+                      className="px-2 py-1 rounded-lg bg-red-500 text-white text-[11px] font-medium hover:bg-red-600 transition-colors"
+                    >
+                      删除
+                    </button>
+                    <button
+                      onClick={() => setConfirmId(null)}
+                      className="px-2 py-1 rounded-lg text-brand-muted text-[11px] hover:bg-brand-line/60 transition-colors"
+                    >
+                      取消
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfirmId(s.id);
+                    }}
+                    className={cn(
+                      'p-1.5 rounded-lg shrink-0 transition-colors',
+                      active ? 'text-brand-muted' : 'text-brand-faint',
+                      !active && 'opacity-100 lg:opacity-0 lg:group-hover:opacity-100'
+                    )}
+                    aria-label="删除会话"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }
