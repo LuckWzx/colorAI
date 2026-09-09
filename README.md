@@ -19,7 +19,9 @@
 | 品牌色库 | 品牌色号检索与详情浏览 | `/color-library` |
 | 商家入驻 / 合作 | 商家入驻与合作伙伴入口 | `/merchant-onboarding`、`/partner-cooperation` |
 | 趋势报告 | 色彩趋势资讯 | `/trend-report` |
-| 登录 / 个人中心 | 用户认证（开发中）与个人资料 | `/login`、`/profile` |
+| AI 聊天工作台 | AI 色彩对话，会话历史管理 | `/workspace` |
+| 登录 / 个人中心 | 用户认证与个人资料 | `/login`、`/profile` |
+| 钱包 | 账户余额、消费账单（需登录） | `/wallet` |
 
 ## 技术栈
 
@@ -31,6 +33,7 @@
 - **图标**：Lucide React
 - **后端**：Express 4 + TypeScript（API 服务，默认端口 `3001`）
 - **AI 能力**：DeepSeek API（服务端代理，Key 不暴露给前端）
+- **PWA**：vite-plugin-pwa（支持离线访问与桌面安装）
 - **部署**：支持 Vercel Serverless（`api/index.ts` 为入口）
 
 ## 快速开始
@@ -91,8 +94,8 @@ ColorAI/
 │   └── index.ts            # Vercel Serverless 部署入口
 ├── src/                    # React 前端
 │   ├── components/         # 通用组件（Layout / Navbar / Footer 等）
-│   ├── pages/              # 页面组件
-│   ├── services/           # API 服务层（axios 封装）
+│   ├── pages/              # 页面组件（含 Wallet 钱包页）
+│   ├── services/           # API 服务层（color / knowledge / deepseek / session）
 │   ├── store/              # Zustand 状态管理（auth / app / wallet）
 │   ├── hooks/              # 自定义 Hooks（useTheme 等）
 │   ├── utils/              # 工具函数（色彩转换等）
@@ -126,4 +129,7 @@ ColorAI/
 ## 相关文档
 
 - 产品需求文档：[颜色视觉AI智能体PRD](doc/颜色视觉AI智能体PRD.md)
+- 颜色视觉智能体设计：[颜色视觉智能体](doc/颜色视觉智能体.md)
+- H5 改造方案：[H5改造实施方案](doc/H5改造实施方案.md)
 - 移动端与 App 化评估：[移动端与App化评估](doc/移动端与App化评估.md)
+- Python 工具方协议：[python工具方协议](doc/python工具方协议.md)
