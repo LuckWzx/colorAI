@@ -29,7 +29,7 @@ import {
   Trash2,
   History,
 } from 'lucide-react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { colorService } from '@/services/colorService';
 import { deepseekService } from '@/services/deepseekService';
@@ -255,6 +255,8 @@ function dataUrlToFile(dataUrl: string, filename = 'corrected.jpg'): File {
 
 export default function Workspace() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const startNew = (location.state as { newChat?: boolean } | null)?.newChat === true;
   const setCorrectedImage = useAppStore((s) => s.setCorrectedImage);
   const setPickedColor = useAppStore((s) => s.setPickedColor);
 
@@ -296,7 +298,7 @@ export default function Workspace() {
   });
   liveRef.current = { activeId, messages, chatHistory };
 
-  /** 进入页面：拉取会话列表并自动恢复最近一次会话（无历史则停留欢迎首屏） */
+  /** 进入页面：拉取会话列表；newChat 模式只拉列表不恢复，直接停在欢迎首屏 */
   useEffect(() => {
     let alive = true;
     void (async () => {
@@ -304,9 +306,9 @@ export default function Workspace() {
         const list = await sessionService.list();
         if (!alive) return;
         setSessions(list);
-        if (list.length === 0) return; // 无历史：保持新对话欢迎首屏
+        if (startNew || list.length === 0) return; // 新对话或无历史：保持欢迎首屏
         const recent = list[0];
-        skipAutoSaveRef.current = true; // 载入期间禁止自动落库，防止中间态误写
+        skipAutoSaveRef.current = true;
         setActiveId(recent.id);
         const detail = await sessionService.get(recent.id);
         if (!alive) return;

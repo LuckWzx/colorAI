@@ -305,7 +305,7 @@ export default function Home() {
     if (Math.abs(dx) > 48) go(dx < 0 ? 1 : -1);
   };
 
-  const goWorkspace = () => navigate('/workspace');
+  const goWorkspace = () => navigate('/workspace', { state: { newChat: true } });
   const goCommunity = () => navigate('/community');
 
   return (

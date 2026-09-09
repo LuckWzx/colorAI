@@ -1,8 +1,5 @@
 /**
- * 智能体聊天「会话历史」服务层 —— 前后端接口契约
- *
- * 后端接口未就绪前，本文件用 localStorage 提供同签名实现；
- * 后端完成后，只需将下方 localSessionStore 替换为 fetch 实现（页面层无需改动）。
+ * 智能体聊天「会话历史」服务层
  *
  * 约定后端 REST 接口（字段与 ChatSessionDTO 对齐）：
  *   GET    /api/sessions         → 会话元数据列表（按 updatedAt 倒序，不含 messages/history）
@@ -43,69 +40,50 @@ export interface ChatSessionService {
   remove(id: string): Promise<void>;
 }
 
-/** —— 本地（localStorage）实现：后端就绪前暂存 —— */
-const SESSIONS_KEY = 'ququan.workspace.sessions.v1';
-
-function loadRaw(): ChatSessionDTO[] {
-  try {
-    const raw = localStorage.getItem(SESSIONS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as ChatSessionDTO[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function persistRaw(list: ChatSessionDTO[]): boolean {
-  try {
-    localStorage.setItem(SESSIONS_KEY, JSON.stringify(list));
-    return true;
-  } catch (e) {
-    console.warn('会话保存失败（可能超出本地存储配额）：', e);
-    return false;
-  }
-}
-
-const localSessionStore: ChatSessionService = {
+/** 会话服务：直接调用后端 REST API */
+export const sessionService: ChatSessionService = {
   async list() {
-    return loadRaw()
-      .sort((a, b) => b.updatedAt - a.updatedAt)
-      .map((s) => ({
-        id: s.id,
-        title: s.title,
-        createdAt: s.createdAt,
-        updatedAt: s.updatedAt,
-        messageCount: s.messageCount,
-      }));
-  },
-  async get(id) {
-    const found = loadRaw().find((s) => s.id === id);
-    return found ?? null;
-  },
-  async save(input) {
-    const list = loadRaw();
-    const existed = list.find((s) => s.id === input.id);
-    const stored: ChatSessionDTO = {
-      id: input.id,
-      title: input.title.trim() || '新对话',
-      createdAt: existed?.createdAt ?? Date.now(),
-      updatedAt: Date.now(),
-      messageCount: input.messages?.length ?? existed?.messageCount ?? 0,
-      messages: input.messages,
-      history: input.history,
-    };
-    const next = [stored, ...list.filter((s) => s.id !== input.id)].sort(
-      (a, b) => b.updatedAt - a.updatedAt
+    const res = await fetch('/api/sessions');
+    if (!res.ok) throw new Error(`Failed to list sessions: ${res.status}`);
+    const data = await res.json();
+    if (!data?.success || !Array.isArray(data.items)) {
+      throw new Error('Invalid response from sessions API');
+    }
+    return data.items.sort(
+      (a: ChatSessionDTO, b: ChatSessionDTO) => b.updatedAt - a.updatedAt
     );
-    persistRaw(next);
-    return stored;
   },
+
+  async get(id) {
+    const res = await fetch(`/api/sessions/${encodeURIComponent(id)}`);
+    if (!res.ok) throw new Error(`Failed to get session: ${res.status}`);
+    const data = await res.json();
+    if (!data?.success || !data.session) return null;
+    return data.session as ChatSessionDTO;
+  },
+
+  async save(input) {
+    const res = await fetch(`/api/sessions/${encodeURIComponent(input.id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: input.title,
+        messages: input.messages,
+        history: input.history,
+      }),
+    });
+    if (!res.ok) throw new Error(`Failed to save session: ${res.status}`);
+    const data = await res.json();
+    if (!data?.success || !data.session) {
+      throw new Error('Invalid response from save session API');
+    }
+    return data.session as ChatSessionDTO;
+  },
+
   async remove(id) {
-    const next = loadRaw().filter((s) => s.id !== id);
-    persistRaw(next);
+    const res = await fetch(`/api/sessions/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw new Error(`Failed to delete session: ${res.status}`);
   },
 };
-
-/** 导出服务实例：接入后端时替换此实现（例如改为 httpSessionStore） */
-export const sessionService: ChatSessionService = localSessionStore;

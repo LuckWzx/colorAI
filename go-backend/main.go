@@ -72,6 +72,16 @@ func main() {
 		knowledgeGroup.GET("/brands", handlers.KnowledgeBrands)
 	}
 
+	// 会话管理路由
+	sessionGroup := r.Group("/api/sessions")
+	{
+		sessionGroup.GET("", handlers.ListSessions)
+		sessionGroup.POST("", handlers.CreateSession)
+		sessionGroup.GET("/:id", handlers.GetSession)
+		sessionGroup.PUT("/:id", handlers.SaveSession)
+		sessionGroup.DELETE("/:id", handlers.DeleteSession)
+	}
+
 	// DeepSeek AI 代理（需要登录）
 	r.POST("/api/deepseek/chat", middleware.RequireAuth(), handlers.DeepseekChat)
 
