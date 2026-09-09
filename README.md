@@ -29,9 +29,11 @@
 - **样式**：Tailwind CSS 3 + CSS Variables（深色模式 + 磨砂玻璃拟态设计）
 - **路由**：React Router 7
 - **状态管理**：Zustand 5
-- **HTTP 客户端**：Axios（`src/services` 统一封装）
+- **HTTP 客户端**：Axios（`src/services` 统一封装，自动携带 Bearer token）
 - **图标**：Lucide React
 - **后端**：Go + Gin（API 服务，默认端口 `3001`）
+- **数据库**：MySQL 8.0（阿里云 ECS）
+- **缓存/会话**：Redis（Token 存储，TTL 7 天）
 - **AI 能力**：DeepSeek API（服务端代理，Key 不暴露给前端）
 - **PWA**：vite-plugin-pwa（支持离线访问与桌面安装）
 
@@ -40,12 +42,20 @@
 ### 环境要求
 
 - Node.js 18+
-- npm（或 pnpm / yarn）
+- Go 1.21+
+- MySQL 8.0+
+- Redis 6+
 
 ### 安装依赖
 
 ```bash
+# 前端
+cd ColorAI
 npm install
+
+# 后端
+cd ../go-backend
+go mod tidy
 ```
 
 ### 配置环境变量
@@ -53,15 +63,29 @@ npm install
 环境变量统一在 Go 后端目录管理：
 
 ```bash
-cd ../go-backend
-cp .env.example .env    # 填入 DEEPSEEK_API_KEY
+cd go-backend
+cp .env.example .env
 ```
 
-编辑 `go-backend/.env`，填入 DeepSeek API Key（申请地址：https://platform.deepseek.com/ ）：
+编辑 `go-backend/.env`，填入实际值：
 
 ```env
+# 服务端口
 PORT=3001
+
+# DeepSeek API Key（申请地址: https://platform.deepseek.com/）
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
+
+# 数据库配置
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=your_db_user
+DB_PASS=your_db_password
+DB_NAME=your_db_name
+
+# Redis 配置
+REDIS_ADDR=127.0.0.1:6379
+REDIS_PASS=your_redis_password
 ```
 
 ### 启动开发环境
@@ -98,20 +122,21 @@ colorAI/
 │   ├── src/                # 前端源码
 │   │   ├── components/     # 通用组件（Layout / Navbar / Footer 等）
 │   │   ├── pages/          # 页面组件（含 Wallet 钱包页）
-│   │   ├── services/       # API 服务层（color / knowledge / deepseek / session）
+│   │   ├── services/       # API 服务层（axios 封装 + token 拦截器）
 │   │   ├── store/          # Zustand 状态管理（auth / app / wallet）
 │   │   ├── hooks/          # 自定义 Hooks（useTheme 等）
+│   │   ├── lib/            # 工具库（security / utils）
 │   │   ├── utils/          # 工具函数（色彩转换等）
 │   │   └── shared/         # 共享类型定义
-│   ├── public/uploads/     # 上传图片存储目录
-│   ├── doc/                # 文档（PRD、移动端评估等）
+│   ├── doc/                # 文档（PRD、技术架构等）
 │   └── vite.config.ts      # Vite 配置（含 /api 代理）
 └── go-backend/             # Go 后端（Gin 框架）
-    ├── main.go             # 入口：加载 .env、注册路由、启动服务
-    ├── handlers/           # 路由处理（color / knowledge / deepseek / auth）
-    ├── data/               # JSON 知识数据（偏色问题、拍照技巧、商铺、品牌）
-    ├── middleware/          # 中间件（CORS）
+    ├── main.go             # 入口：加载 .env、初始化 DB/Redis、注册路由
+    ├── handlers/           # 路由处理（color / knowledge / deepseek / auth / user）
+    ├── middleware/          # 中间件（CORS / RequireAuth 鉴权）
     ├── models/             # 数据结构定义
+    ├── database/           # 数据库连接（MySQL 连接池 + Redis 客户端）
+    ├── cmd/migrate/        # 数据迁移工具（JSON → MySQL）
     └── uploads/            # 上传文件存储
 ```
 
@@ -119,24 +144,31 @@ colorAI/
 
 所有接口以 `/api` 为前缀，健康检查：`GET /api/health`。
 
-| 接口 | 方法 | 说明 |
-|------|------|------|
-| `/api/auth/register` `/login` `/logout` | POST | 用户认证（待实现） |
-| `/api/color/correct` | POST | 图片一键校正（multipart 上传） |
-| `/api/color/pick` | POST | 图片取色 |
-| `/api/color/compare` | POST | 双图颜色相似度对比 |
-| `/api/color/phone-correct` | POST | 手机照片校色 |
-| `/api/knowledge/color-issues` | GET | 偏色问题问答（支持 `keyword` 过滤） |
-| `/api/knowledge/photo-tips` | GET | 拍照技巧 |
-| `/api/knowledge/shops` | GET | 附近商铺（支持 `city` 过滤） |
-| `/api/knowledge/brands` | GET | 品牌大全（支持 `category` 过滤） |
-| `/api/deepseek/chat` | POST | DeepSeek AI 对话（需配置 API Key） |
+| 接口 | 方法 | 鉴权 | 说明 |
+|------|------|------|------|
+| `/api/auth/register` | POST | 公开 | 用户注册（手机号 + 密码） |
+| `/api/auth/login` | POST | 公开 | 用户登录，返回 Redis Token |
+| `/api/auth/logout` | POST | Token | 用户登出，删除 Redis Token |
+| `/api/user/profile` | GET | Token | 获取当前用户信息 |
+| `/api/color/pick` | POST | 公开 | 图片取色 |
+| `/api/color/correct` | POST | Token | 图片一键校正（需登录） |
+| `/api/color/compare` | POST | Token | 双图颜色相似度对比（需登录） |
+| `/api/color/phone-correct` | POST | Token | 手机照片校色（需登录） |
+| `/api/knowledge/color-issues` | GET | 公开 | 偏色问题问答（支持 `keyword` 过滤） |
+| `/api/knowledge/photo-tips` | GET | 公开 | 拍照技巧 |
+| `/api/knowledge/shops` | GET | 公开 | 附近商铺（支持 `city` 过滤） |
+| `/api/knowledge/brands` | GET | 公开 | 品牌大全（支持 `category` 过滤） |
+| `/api/deepseek/chat` | POST | Token | DeepSeek AI 对话（需登录） |
+
+### 鉴权说明
+
+- 需要鉴权的接口在请求头携带 `Authorization: Bearer <token>`
+- Token 存储在 Redis 中，有效期 7 天
+- 前端 Axios 拦截器自动从 localStorage 读取 token 并注入请求头
+- 后端返回 401 时，前端自动清除登录态并跳转到登录页
 
 ## 相关文档
 
-- 产品需求文档：[颜色视觉AI智能体PRD](doc/颜色视觉AI智能体PRD.md)
-- 颜色视觉智能体设计：[颜色视觉智能体](doc/颜色视觉智能体.md)
-- H5 改造方案：[H5改造实施方案](doc/H5改造实施方案.md)
-- 移动端与 App 化评估：[移动端与App化评估](doc/移动端与App化评估.md)
-- Python 工具方协议：[python工具方协议](doc/python工具方协议.md)
-- API 契约文档：[API契约文档](doc/API契约文档.md)
+- 产品需求文档：[PRD-曲泉AI产品需求文档](ColorAI/.trae/documents/PRD-曲泉AI产品需求文档.md)
+- 技术架构文档：[技术架构文档](ColorAI/.trae/documents/技术架构文档.md)
+- API 契约文档：[API契约文档](ColorAI/doc/API契约文档.md)
