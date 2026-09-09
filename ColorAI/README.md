@@ -51,13 +51,17 @@ npm install
 
 ### 配置环境变量
 
+环境变量统一在 Go 后端目录管理：
+
 ```bash
-cp .env.example .env
+cd ../go-backend
+cp .env.example .env    # 填入 DEEPSEEK_API_KEY
 ```
 
-编辑 `.env`，填入 DeepSeek API Key（申请地址：https://platform.deepseek.com/ ）：
+编辑 `go-backend/.env`，填入 DeepSeek API Key（申请地址：https://platform.deepseek.com/ ）：
 
 ```env
+PORT=3001
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
 ```
 
@@ -74,11 +78,11 @@ npm run server:dev   # 后端 http://localhost:3001
 
 开发模式下 Vite 会将 `/api` 请求代理到 `http://localhost:3001`。
 
-**使用 Go 后端（可选）：**
+**使用 Go 后端（推荐）：**
 
 ```bash
 cd ../go-backend    # Go 后端与 ColorAI 同级
-cp .env.example .env    # 填入 DEEPSEEK_API_KEY
+cp .env.example .env    # 填入 DEEPSEEK_API_KEY（如未配置）
 go mod tidy              # 安装依赖
 go run main.go           # 启动 Go 后端 http://localhost:3001
 ```

@@ -1,28 +1,39 @@
-# Logs
-logs
+# === 通用 ===
+.DS_Store
+Thumbs.db
+*.sw?
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# === 环境变量(含密钥) ===
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# === Node.js ===
+node_modules/
+dist/
+dist-ssr/
 *.log
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-.env
-.env.*
-!.env.example
+# === Go ===
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go-backend/go-backend
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-.vite
+# === 上传文件 ===
+**/uploads/*
+!**/uploads/.gitkeep
+
+# === Qoder ===
+.qoder/

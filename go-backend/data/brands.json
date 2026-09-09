@@ -1,0 +1,17 @@
+[
+  {"id": "b-1", "name": "道康宁 DowCorning", "initial": "D", "rating": 4.9, "category": ["工业颜色胶", "硅酮密封胶", "玻璃胶", "结构胶"], "description": "全球硅基技术领导者，道康宁（现更名为陶氏DOW）提供高性能硅酮密封胶和胶粘剂产品，广泛应用于建筑、汽车、电子等行业，产品以耐候性和稳定性著称。", "website": "https://www.dow.com"},
+  {"id": "b-2", "name": "瓦克 Wacker", "initial": "W", "rating": 4.8, "category": ["硅酮胶", "密封胶", "工业胶粘剂"], "description": "德国瓦克化学是全球领先的有机硅生产商之一，其ELASTOSIL系列密封胶产品在建筑和工业领域口碑极佳，产品具备出色的耐老化、耐高温性能。", "website": "https://www.wacker.com"},
+  {"id": "b-3", "name": "汉高 Henkel", "initial": "H", "rating": 4.9, "category": ["胶粘剂", "结构胶", "密封胶", "工业胶"], "description": "德国汉高是全球粘合剂技术的领导者，旗下品牌包括乐泰（Loctite）、泰罗松（Teroson）等，产品覆盖从普通民用胶到高端航空航天结构胶的全品类。", "website": "https://www.henkel.cn"},
+  {"id": "b-4", "name": "回天 Huitian", "initial": "回", "rating": 4.7, "category": ["工业颜色胶", "胶粘剂", "密封胶", "结构胶"], "description": "中国胶粘剂行业龙头企业，回天新材专业从事胶粘剂和新材料研发生产，产品覆盖光伏、电子、汽车、建筑等领域，是国产工业胶的代表品牌。", "website": "https://www.huitian.com"},
+  {"id": "b-5", "name": "之江 Zhijiang", "initial": "之", "rating": 4.6, "category": ["玻璃胶", "密封胶", "耐候胶", "结构胶"], "description": "杭州之江有机硅是国内专业的建筑密封胶生产商，金鼠牌系列硅酮密封胶在国内建筑幕墙领域市场占有率领先，产品性能稳定、性价比高。", "website": "https://www.cnzj.com"},
+  {"id": "b-6", "name": "硅宝 Guibao", "initial": "硅", "rating": 4.6, "category": ["工业颜色胶", "密封胶", "结构胶", "耐候胶"], "description": "成都硅宝科技是国内有机硅密封胶行业首家上市公司，产品广泛应用于建筑幕墙、电子电器、汽车制造、防腐等领域，拥有多项核心专利技术。", "website": "https://www.guibao.cn"},
+  {"id": "b-7", "name": "白云 Baiyun", "initial": "白", "rating": 4.7, "category": ["玻璃胶", "结构胶", "耐候胶", "密封胶"], "description": "广州白云化工是国内建筑密封胶领域的领军企业，产品通过欧盟CE、美国FM等多项国际认证，在超高层建筑幕墙工程中应用案例丰富。", "website": "https://www.chinabaiyun.com"},
+  {"id": "b-8", "name": "中原 Zhongyuan", "initial": "中", "rating": 4.5, "category": ["密封胶", "结构胶", "玻璃胶"], "description": "郑州中原思蓝德是国内最早从事建筑密封胶研发生产的企业之一，MF系列产品在门窗、幕墙领域口碑良好，以性价比高、服务及时著称。", "website": "https://www.zycj.com"},
+  {"id": "b-9", "name": "安泰 Antas", "initial": "安", "rating": 4.6, "category": ["工业颜色胶", "结构胶", "密封胶", "耐候胶"], "description": "广州安泰化学是集科研、生产、销售于一体的专业胶粘剂企业，产品覆盖建筑幕墙、电子电器、交通运输等多个领域，拥有完整的产品体系。", "website": "https://www.antas-chem.com"},
+  {"id": "b-10", "name": "西卡 Sika", "initial": "S", "rating": 4.8, "category": ["结构胶", "密封胶", "工业胶粘剂"], "description": "瑞士西卡集团是全球知名的建筑化学产品和工业粘接解决方案提供商，Sikaflex系列聚氨酯密封胶和结构胶产品在全球工程领域广泛应用。", "website": "https://www.sika.com"},
+  {"id": "b-11", "name": "波士胶 Bostik", "initial": "B", "rating": 4.7, "category": ["胶粘剂", "密封胶", "工业胶"], "description": "法国波士胶（现属阿科玛Arkema集团）是全球领先的胶粘剂解决方案提供商，产品覆盖民用、建筑、工业、汽车等多个市场，技术实力雄厚。", "website": "https://www.bostik.com"},
+  {"id": "b-12", "name": "德运兴 Deyunxing", "initial": "德", "rating": 4.3, "category": ["工业颜色胶", "密封胶", "胶粘剂"], "description": "国内工业胶粘剂新锐品牌，专注于电子电器、汽车制造领域的高性能粘接密封解决方案，产品种类齐全，可根据客户需求定制开发。", "website": "https://www.deyunxing.com"},
+  {"id": "b-13", "name": "硅科 Guike", "initial": "科", "rating": 4.4, "category": ["玻璃胶", "密封胶", "耐候胶"], "description": "专业硅酮胶制造商，产品涵盖中性玻璃胶、酸性玻璃胶、结构胶、耐候胶等全系列，以质量稳定、价格亲民在工程市场获得广泛认可。", "website": "https://www.guikechem.com"},
+  {"id": "b-14", "name": "使你佳 Shinijia", "initial": "使", "rating": 4.2, "category": ["玻璃胶", "结构胶", "密封胶"], "description": "国内建筑装饰胶粘剂品牌，产品线覆盖玻璃胶、万能胶、白乳胶、美缝剂等全系列家装和工程用胶，销售网络遍及全国。", "website": "https://www.shinijia.com"},
+  {"id": "b-15", "name": "吕氏 LuShi", "initial": "吕", "rating": 4.5, "category": ["胶粘剂", "密封胶", "工业胶"], "description": "辽宁吕氏化工是国内大型胶粘剂生产企业，产品包括硅酮胶、万能胶、白乳胶等多品类，在北方市场具有较高的知名度和市场占有率。", "website": "https://www.lshg.com"}
+]
