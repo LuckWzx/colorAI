@@ -40,10 +40,28 @@ export interface ChatSessionService {
   remove(id: string): Promise<void>;
 }
 
-/** 会话服务：直接调用后端 REST API */
+/** 从 Zustand persist store 读取 auth token */
+function getAuthToken(): string | null {
+  try {
+    const raw = localStorage.getItem('colorai_auth');
+    if (!raw) return null;
+    return JSON.parse(raw)?.state?.token ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getAuthToken();
+  const h: Record<string, string> = {};
+  if (token) h['Authorization'] = `Bearer ${token}`;
+  return h;
+}
+
+/** 会话服务：直接调用后端 REST API（需登录） */
 export const sessionService: ChatSessionService = {
   async list() {
-    const res = await fetch('/api/sessions');
+    const res = await fetch('/api/sessions', { headers: authHeaders() });
     if (!res.ok) throw new Error(`Failed to list sessions: ${res.status}`);
     const data = await res.json();
     if (!data?.success || !Array.isArray(data.items)) {
@@ -55,7 +73,7 @@ export const sessionService: ChatSessionService = {
   },
 
   async get(id) {
-    const res = await fetch(`/api/sessions/${encodeURIComponent(id)}`);
+    const res = await fetch(`/api/sessions/${encodeURIComponent(id)}`, { headers: authHeaders() });
     if (!res.ok) throw new Error(`Failed to get session: ${res.status}`);
     const data = await res.json();
     if (!data?.success || !data.session) return null;
@@ -65,7 +83,7 @@ export const sessionService: ChatSessionService = {
   async save(input) {
     const res = await fetch(`/api/sessions/${encodeURIComponent(input.id)}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({
         title: input.title,
         messages: input.messages,
@@ -83,6 +101,7 @@ export const sessionService: ChatSessionService = {
   async remove(id) {
     const res = await fetch(`/api/sessions/${encodeURIComponent(id)}`, {
       method: 'DELETE',
+      headers: authHeaders(),
     });
     if (!res.ok) throw new Error(`Failed to delete session: ${res.status}`);
   },

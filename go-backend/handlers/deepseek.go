@@ -16,7 +16,7 @@ import (
 
 const (
 	deepseekAPIURL = "https://api.deepseek.com/v1/chat/completions"
-	defaultModel   = "deepseek-chat"
+	defaultModel   = "deepseek-v4-flash"
 	maxTokens      = 2000
 	timeoutSeconds = 30
 )

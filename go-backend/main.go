@@ -72,8 +72,8 @@ func main() {
 		knowledgeGroup.GET("/brands", handlers.KnowledgeBrands)
 	}
 
-	// 会话管理路由
-	sessionGroup := r.Group("/api/sessions")
+	// 会话管理路由（需要登录）
+	sessionGroup := r.Group("/api/sessions", middleware.RequireAuth())
 	{
 		sessionGroup.GET("", handlers.ListSessions)
 		sessionGroup.POST("", handlers.CreateSession)
