@@ -31,7 +31,7 @@
 - **状态管理**：Zustand 5
 - **HTTP 客户端**：Axios（`src/services` 统一封装）
 - **图标**：Lucide React
-- **后端**：Express 4 + TypeScript（API 服务，默认端口 `3001`）
+- **后端**：Express 4 + TypeScript 或 Go + Gin（API 服务，默认端口 `3001`）
 - **AI 能力**：DeepSeek API（服务端代理，Key 不暴露给前端）
 - **PWA**：vite-plugin-pwa（支持离线访问与桌面安装）
 - **部署**：支持 Vercel Serverless（`api/index.ts` 为入口）
@@ -74,6 +74,17 @@ npm run server:dev   # 后端 http://localhost:3001
 
 开发模式下 Vite 会将 `/api` 请求代理到 `http://localhost:3001`。
 
+**使用 Go 后端（可选）：**
+
+```bash
+cd ../go-backend    # Go 后端与 ColorAI 同级
+cp .env.example .env    # 填入 DEEPSEEK_API_KEY
+go mod tidy              # 安装依赖
+go run main.go           # 启动 Go 后端 http://localhost:3001
+```
+
+Go 后端与 Express 后端 API 完全兼容，可直接替换使用。
+
 ### 构建与检查
 
 ```bash
@@ -85,24 +96,32 @@ npm run lint     # ESLint 检查
 ## 项目结构
 
 ```
-ColorAI/
-├── api/                    # Express 后端
-│   ├── routes/             # 路由：auth / color / knowledge / deepseek
-│   ├── data/               # 内置知识问答 Mock 数据
-│   ├── app.ts              # Express 应用（中间件、路由挂载、错误处理）
-│   ├── server.ts           # 本地开发服务入口（端口 3001）
-│   └── index.ts            # Vercel Serverless 部署入口
-├── src/                    # React 前端
-│   ├── components/         # 通用组件（Layout / Navbar / Footer 等）
-│   ├── pages/              # 页面组件（含 Wallet 钱包页）
-│   ├── services/           # API 服务层（color / knowledge / deepseek / session）
-│   ├── store/              # Zustand 状态管理（auth / app / wallet）
-│   ├── hooks/              # 自定义 Hooks（useTheme 等）
-│   ├── utils/              # 工具函数（色彩转换等）
-│   └── shared/             # 共享类型定义
-├── public/uploads/         # 上传图片存储目录
-├── doc/                    # 文档（PRD、移动端评估等）
-└── vite.config.ts          # Vite 配置（含 /api 代理）
+colorAI/
+├── ColorAI/                # 前端 + Express 后端
+│   ├── api/                # Express 后端（Node.js 版本）
+│   │   ├── routes/         # 路由：auth / color / knowledge / deepseek
+│   │   ├── data/           # 内置知识问答 Mock 数据
+│   │   ├── app.ts          # Express 应用（中间件、路由挂载、错误处理）
+│   │   ├── server.ts       # 本地开发服务入口（端口 3001）
+│   │   └── index.ts        # Vercel Serverless 部署入口
+│   ├── src/                # React 前端
+│   │   ├── components/     # 通用组件（Layout / Navbar / Footer 等）
+│   │   ├── pages/          # 页面组件（含 Wallet 钱包页）
+│   │   ├── services/       # API 服务层（color / knowledge / deepseek / session）
+│   │   ├── store/          # Zustand 状态管理（auth / app / wallet）
+│   │   ├── hooks/          # 自定义 Hooks（useTheme 等）
+│   │   ├── utils/          # 工具函数（色彩转换等）
+│   │   └── shared/         # 共享类型定义
+│   ├── public/uploads/     # 上传图片存储目录
+│   ├── doc/                # 文档（PRD、移动端评估等）
+│   └── vite.config.ts      # Vite 配置（含 /api 代理）
+└── go-backend/             # Go 后端（Gin 框架，可替代 ColorAI/api/）
+    ├── main.go             # 入口：加载 .env、注册路由、启动服务
+    ├── handlers/           # 路由处理（color / knowledge / deepseek / auth）
+    ├── data/               # JSON 知识数据（偏色问题、拍照技巧、商铺、品牌）
+    ├── middleware/          # 中间件（CORS）
+    ├── models/             # 数据结构定义
+    └── uploads/            # 上传文件存储
 ```
 
 ## API 概览
@@ -133,3 +152,4 @@ ColorAI/
 - H5 改造方案：[H5改造实施方案](doc/H5改造实施方案.md)
 - 移动端与 App 化评估：[移动端与App化评估](doc/移动端与App化评估.md)
 - Python 工具方协议：[python工具方协议](doc/python工具方协议.md)
+- API 契约文档：[API契约文档](doc/API契约文档.md)
