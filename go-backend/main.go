@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"colorai-backend/database"
 	"colorai-backend/handlers"
 	"colorai-backend/middleware"
 
@@ -16,6 +17,14 @@ import (
 func main() {
 	// 加载 .env 文件
 	_ = godotenv.Load()
+
+	// 初始化数据库连接
+	database.Init()
+	defer database.Close()
+
+	// 初始化 Redis
+	database.InitRedis()
+	defer database.CloseRedis()
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -44,10 +53,14 @@ func main() {
 	// 图片处理路由
 	colorGroup := r.Group("/api/color")
 	{
-		colorGroup.POST("/correct", handlers.ColorCorrect)
 		colorGroup.POST("/pick", handlers.ColorPick)
-		colorGroup.POST("/compare", handlers.ColorCompare)
-		colorGroup.POST("/phone-correct", handlers.ColorPhoneCorrect)
+		// 以下为高级功能，需要登录
+		authed := colorGroup.Group("", middleware.RequireAuth())
+		{
+			authed.POST("/correct", handlers.ColorCorrect)
+			authed.POST("/compare", handlers.ColorCompare)
+			authed.POST("/phone-correct", handlers.ColorPhoneCorrect)
+		}
 	}
 
 	// 知识数据路由
@@ -59,15 +72,21 @@ func main() {
 		knowledgeGroup.GET("/brands", handlers.KnowledgeBrands)
 	}
 
-	// DeepSeek AI 代理
-	r.POST("/api/deepseek/chat", handlers.DeepseekChat)
+	// DeepSeek AI 代理（需要登录）
+	r.POST("/api/deepseek/chat", middleware.RequireAuth(), handlers.DeepseekChat)
 
-	// 用户认证路由(桩函数)
+	// 用户认证路由
 	authGroup := r.Group("/api/auth")
 	{
 		authGroup.POST("/register", handlers.AuthRegister)
 		authGroup.POST("/login", handlers.AuthLogin)
 		authGroup.POST("/logout", handlers.AuthLogout)
+	}
+
+	// 用户信息路由（需要登录）
+	userGroup := r.Group("/api/user", middleware.RequireAuth())
+	{
+		userGroup.GET("/profile", handlers.UserProfile)
 	}
 
 	// 404 处理

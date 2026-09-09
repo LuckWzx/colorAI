@@ -1,6 +1,6 @@
 # API 契约文档
 
-本文档梳理当前 Express 后端的所有接口定义,作为 Go 后端 1:1 替换的参考依据。
+本文档梳理当前 Go 后端的所有接口定义,供前端对接参考。
 
 所有接口以 `/api` 为前缀。通用响应格式:
 
@@ -419,10 +419,9 @@ POST /api/auth/logout     → 501 Not Implemented
 
 ## 6. 文件上传说明
 
-- 上传目录: `ColorAI/public/uploads/` (Express) / `../go-backend/uploads/` (Go)
+- 上传目录: `go-backend/uploads/`
 - 文件命名: `{时间戳}-{字段名}-{随机数}.{扩展名}`
-- 通过 `/uploads/xxx.jpg` 路径可直接访问(Express 通过 `express.static` 提供)
-- Go 后端需注册静态文件路由以提供相同访问方式
+- Go 后端通过 `r.Static("/uploads", "./uploads")` 提供静态文件访问
 
 ---
 
@@ -446,7 +445,7 @@ const apiClient = axios.create({
 server: {
   proxy: {
     '/api': {
-      target: 'http://localhost:3001',  // 后端地址,Go 后端也使用此端口
+      target: 'http://localhost:3001',  // Go 后端地址
       changeOrigin: true,
     }
   }

@@ -31,10 +31,9 @@
 - **状态管理**：Zustand 5
 - **HTTP 客户端**：Axios（`src/services` 统一封装）
 - **图标**：Lucide React
-- **后端**：Express 4 + TypeScript 或 Go + Gin（API 服务，默认端口 `3001`）
+- **后端**：Go + Gin（API 服务，默认端口 `3001`）
 - **AI 能力**：DeepSeek API（服务端代理，Key 不暴露给前端）
 - **PWA**：vite-plugin-pwa（支持离线访问与桌面安装）
-- **部署**：支持 Vercel Serverless（`api/index.ts` 为入口）
 
 ## 快速开始
 
@@ -67,27 +66,21 @@ DEEPSEEK_API_KEY=your_deepseek_api_key_here
 
 ### 启动开发环境
 
-```bash
-# 同时启动前端（Vite）与后端（Express）
-npm run dev
+需要分别启动前端和后端（两个终端）：
 
-# 或分别启动
-npm run client:dev   # 前端 http://localhost:5173
-npm run server:dev   # 后端 http://localhost:3001
+```bash
+# 终端 1: 启动前端
+cd ColorAI
+npm run dev          # http://localhost:5173
+```
+
+```bash
+# 终端 2: 启动 Go 后端
+cd go-backend
+go run main.go       # http://localhost:3001
 ```
 
 开发模式下 Vite 会将 `/api` 请求代理到 `http://localhost:3001`。
-
-**使用 Go 后端（推荐）：**
-
-```bash
-cd ../go-backend    # Go 后端与 ColorAI 同级
-cp .env.example .env    # 填入 DEEPSEEK_API_KEY（如未配置）
-go mod tidy              # 安装依赖
-go run main.go           # 启动 Go 后端 http://localhost:3001
-```
-
-Go 后端与 Express 后端 API 完全兼容，可直接替换使用。
 
 ### 构建与检查
 
@@ -101,14 +94,8 @@ npm run lint     # ESLint 检查
 
 ```
 colorAI/
-├── ColorAI/                # 前端 + Express 后端
-│   ├── api/                # Express 后端（Node.js 版本）
-│   │   ├── routes/         # 路由：auth / color / knowledge / deepseek
-│   │   ├── data/           # 内置知识问答 Mock 数据
-│   │   ├── app.ts          # Express 应用（中间件、路由挂载、错误处理）
-│   │   ├── server.ts       # 本地开发服务入口（端口 3001）
-│   │   └── index.ts        # Vercel Serverless 部署入口
-│   ├── src/                # React 前端
+├── ColorAI/                # React 前端
+│   ├── src/                # 前端源码
 │   │   ├── components/     # 通用组件（Layout / Navbar / Footer 等）
 │   │   ├── pages/          # 页面组件（含 Wallet 钱包页）
 │   │   ├── services/       # API 服务层（color / knowledge / deepseek / session）
@@ -119,7 +106,7 @@ colorAI/
 │   ├── public/uploads/     # 上传图片存储目录
 │   ├── doc/                # 文档（PRD、移动端评估等）
 │   └── vite.config.ts      # Vite 配置（含 /api 代理）
-└── go-backend/             # Go 后端（Gin 框架，可替代 ColorAI/api/）
+└── go-backend/             # Go 后端（Gin 框架）
     ├── main.go             # 入口：加载 .env、注册路由、启动服务
     ├── handlers/           # 路由处理（color / knowledge / deepseek / auth）
     ├── data/               # JSON 知识数据（偏色问题、拍照技巧、商铺、品牌）
@@ -144,10 +131,6 @@ colorAI/
 | `/api/knowledge/shops` | GET | 附近商铺（支持 `city` 过滤） |
 | `/api/knowledge/brands` | GET | 品牌大全（支持 `category` 过滤） |
 | `/api/deepseek/chat` | POST | DeepSeek AI 对话（需配置 API Key） |
-
-## 部署到 Vercel
-
-项目已配置 `vercel.json` 与 Serverless 入口（`api/index.ts`），构建命令 `npm run build`。部署前请确保在 Vercel 项目中配置环境变量 `DEEPSEEK_API_KEY`。
 
 ## 相关文档
 

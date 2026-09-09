@@ -1,66 +1,65 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 
+	"colorai-backend/database"
 	"colorai-backend/models"
 
 	"github.com/gin-gonic/gin"
 )
-
-// 知识数据(启动时加载到内存)
-var (
-	colorIssues []models.QAItem
-	photoTips   []models.QAItem
-	shops       []models.Shop
-	brands      []models.Brand
-)
-
-func init() {
-	// 从 go-backend/ 根目录加载 data/
-	dataDir := "data"
-	loadJSON(filepath.Join(dataDir, "color_issues.json"), &colorIssues)
-	loadJSON(filepath.Join(dataDir, "photo_tips.json"), &photoTips)
-	loadJSON(filepath.Join(dataDir, "shops.json"), &shops)
-	loadJSON(filepath.Join(dataDir, "brands.json"), &brands)
-}
-
-// loadJSON 从文件加载 JSON 到目标切片
-func loadJSON(path string, dest interface{}) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		// 数据文件不存在时静默忽略,使用空切片
-		return
-	}
-	_ = json.Unmarshal(data, dest)
-}
 
 // containsIgnoreCase 忽略大小写的字符串包含检查
 func containsIgnoreCase(s, substr string) bool {
 	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }
 
+// scanQAItem 从行中扫描 QAItem
+func scanQAItem(rows *sql.Rows) (models.QAItem, error) {
+	var item models.QAItem
+	var tagsJSON []byte
+	err := rows.Scan(&item.ID, &item.Question, &item.Answer, &item.Category, &tagsJSON)
+	if err != nil {
+		return item, err
+	}
+	if tagsJSON != nil {
+		_ = json.Unmarshal(tagsJSON, &item.Tags)
+	}
+	return item, nil
+}
+
 // KnowledgeColorIssues 偏色问题问答
 // GET /api/knowledge/color-issues?keyword=发红
 func KnowledgeColorIssues(c *gin.Context) {
 	keyword := c.Query("keyword")
-	var result []models.QAItem
+	var rows *sql.Rows
+	var err error
 
 	if keyword == "" {
-		result = colorIssues
+		rows, err = database.DB.Query("SELECT id, question, answer, category, tags FROM color_issues")
 	} else {
-		for _, item := range colorIssues {
-			if containsIgnoreCase(item.Question, keyword) ||
-				containsIgnoreCase(item.Answer, keyword) ||
-				containsIgnoreCase(item.Category, keyword) ||
-				tagsContains(item.Tags, keyword) {
-				result = append(result, item)
-			}
+		like := "%" + keyword + "%"
+		rows, err = database.DB.Query(
+			"SELECT id, question, answer, category, tags FROM color_issues "+
+				"WHERE question LIKE ? OR answer LIKE ? OR category LIKE ? OR JSON_CONTAINS(tags, ?)",
+			like, like, like, "\""+keyword+"\"")
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{Success: false, Error: err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	var result []models.QAItem
+	for rows.Next() {
+		item, err := scanQAItem(rows)
+		if err != nil {
+			continue
 		}
+		result = append(result, item)
 	}
 
 	c.JSON(http.StatusOK, models.ListResponse[models.QAItem]{
@@ -73,10 +72,26 @@ func KnowledgeColorIssues(c *gin.Context) {
 // KnowledgePhotoTips 拍照技巧
 // GET /api/knowledge/photo-tips
 func KnowledgePhotoTips(c *gin.Context) {
+	rows, err := database.DB.Query("SELECT id, question, answer, category, tags FROM photo_tips")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{Success: false, Error: err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	var result []models.QAItem
+	for rows.Next() {
+		item, err := scanQAItem(rows)
+		if err != nil {
+			continue
+		}
+		result = append(result, item)
+	}
+
 	c.JSON(http.StatusOK, models.ListResponse[models.QAItem]{
 		Success: true,
-		Items:   photoTips,
-		Total:   len(photoTips),
+		Items:   result,
+		Total:   len(result),
 	})
 }
 
@@ -84,16 +99,31 @@ func KnowledgePhotoTips(c *gin.Context) {
 // GET /api/knowledge/shops?city=深圳
 func KnowledgeShops(c *gin.Context) {
 	city := c.Query("city")
-	var result []models.Shop
+	var rows *sql.Rows
+	var err error
 
 	if city == "" || city == "all" || city == "全部城市" {
-		result = shops
+		rows, err = database.DB.Query("SELECT id, name, address, city, phone, products, rating FROM shops")
 	} else {
-		for _, s := range shops {
-			if s.City == city {
-				result = append(result, s)
-			}
+		rows, err = database.DB.Query("SELECT id, name, address, city, phone, products, rating FROM shops WHERE city = ?", city)
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{Success: false, Error: err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	var result []models.Shop
+	for rows.Next() {
+		var s models.Shop
+		var productsJSON []byte
+		if err := rows.Scan(&s.ID, &s.Name, &s.Address, &s.City, &s.Phone, &productsJSON, &s.Rating); err != nil {
+			continue
 		}
+		if productsJSON != nil {
+			_ = json.Unmarshal(productsJSON, &s.Products)
+		}
+		result = append(result, s)
 	}
 
 	c.JSON(http.StatusOK, models.ListResponse[models.Shop]{
@@ -107,19 +137,34 @@ func KnowledgeShops(c *gin.Context) {
 // GET /api/knowledge/brands?category=玻璃胶
 func KnowledgeBrands(c *gin.Context) {
 	category := c.Query("category")
-	var result []models.Brand
+	var rows *sql.Rows
+	var err error
 
 	if category == "" || category == "all" || category == "全部" {
-		result = brands
+		rows, err = database.DB.Query("SELECT id, name, initial, rating, category, description, website FROM brands")
 	} else {
-		for _, b := range brands {
-			for _, cat := range b.Category {
-				if strings.Contains(cat, category) {
-					result = append(result, b)
-					break
-				}
-			}
+		rows, err = database.DB.Query(
+			"SELECT id, name, initial, rating, category, description, website FROM brands "+
+				"WHERE JSON_CONTAINS(category, ?)",
+			"\""+category+"\"")
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{Success: false, Error: err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	var result []models.Brand
+	for rows.Next() {
+		var b models.Brand
+		var categoryJSON []byte
+		if err := rows.Scan(&b.ID, &b.Name, &b.Initial, &b.Rating, &categoryJSON, &b.Description, &b.Website); err != nil {
+			continue
 		}
+		if categoryJSON != nil {
+			_ = json.Unmarshal(categoryJSON, &b.Category)
+		}
+		result = append(result, b)
 	}
 
 	c.JSON(http.StatusOK, models.ListResponse[models.Brand]{
@@ -127,14 +172,4 @@ func KnowledgeBrands(c *gin.Context) {
 		Items:   result,
 		Total:   len(result),
 	})
-}
-
-// tagsContains 检查标签数组中是否包含关键词
-func tagsContains(tags []string, keyword string) bool {
-	for _, t := range tags {
-		if containsIgnoreCase(t, keyword) {
-			return true
-		}
-	}
-	return false
 }
