@@ -119,17 +119,22 @@ npm run lint     # ESLint 检查
 ```
 colorAI/
 ├── ColorAI/                # React 前端
-│   ├── src/                # 前端源码
-│   │   ├── components/     # 通用组件（Layout / Navbar / Footer 等）
-│   │   ├── pages/          # 页面组件（含 Wallet 钱包页）
-│   │   ├── services/       # API 服务层（axios 封装 + token 拦截器 + sessionService）
+│   ├── src/
+│   │   ├── components/     # 共享组件
+│   │   │   ├── workspace/  # Workspace 子组件（ChatSidebar / ChatWelcome / ToolDock / ComparisonBar）
+│   │   │   ├── Layout.tsx  # 页面布局壳
+│   │   │   ├── Navbar.tsx  # 导航栏
+│   │   │   └── Footer.tsx  # 页脚
+│   │   ├── pages/          # 页面组件
+│   │   ├── services/       # API 服务层（authFetch 全局认证封装）
 │   │   ├── store/          # Zustand 状态管理（auth / app / wallet）
-│   │   ├── hooks/          # 自定义 Hooks（useTheme 等）
-│   │   ├── lib/            # 工具库（security / utils）
-│   │   ├── utils/          # 工具函数（色彩转换等）
-│   │   └── shared/         # 共享类型定义
-│   ├── doc/                # 文档（PRD、技术架构等）
-│   └── vite.config.ts      # Vite 配置（含 /api 代理）
+│   │   ├── hooks/          # 自定义 Hooks（useSession 会话管理 / useTheme）
+│   │   ├── constants/      # 常量定义（workspace 功能卡片 / 工具坞配置）
+│   │   ├── types/          # 全局共享类型（Message / FeatureKey / 色彩类型）
+│   │   ├── utils/          # 工具函数（色彩转换 / workspace 工具）
+│   │   ├── lib/            # 基础工具库（authFetch / uid / utils）
+│   │   └── doc/            # 文档（PRD、技术架构等）
+│   └── vite.config.ts      # Vite 配置（含 /api 代理 + PWA）
 └── go-backend/             # Go 后端（Gin 框架）
     ├── main.go             # 入口：加载 .env、初始化 DB/Redis、注册路由
     ├── handlers/           # 路由处理（color / knowledge / deepseek / auth / user / session）
@@ -174,6 +179,7 @@ colorAI/
 
 ## 相关文档
 
-- 产品需求文档：[PRD-曲泉AI产品需求文档](ColorAI/.trae/documents/PRD-曲泉AI产品需求文档.md)
-- 技术架构文档：[技术架构文档](ColorAI/.trae/documents/技术架构文档.md)
-- API 契约文档：[API契约文档](ColorAI/doc/API契约文档.md)
+- 前端 README：[ColorAI/README.md](ColorAI/README.md)
+- 后端 README：[go-backend/README.md](go-backend/README.md)
+- 产品需求文档：[PRD](ColorAI/doc/颜色视觉AI智能体PRD.md)
+- API 契约文档：[API 契约](ColorAI/doc/API契约文档.md)
