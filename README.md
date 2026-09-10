@@ -118,31 +118,8 @@ npm run lint     # ESLint 检查
 
 ```
 colorAI/
-├── ColorAI/                # React 前端
-│   ├── src/
-│   │   ├── components/     # 共享组件
-│   │   │   ├── workspace/  # Workspace 子组件（ChatSidebar / ChatWelcome / ToolDock / ComparisonBar）
-│   │   │   ├── Layout.tsx  # 页面布局壳
-│   │   │   ├── Navbar.tsx  # 导航栏
-│   │   │   └── Footer.tsx  # 页脚
-│   │   ├── pages/          # 页面组件
-│   │   ├── services/       # API 服务层（authFetch 全局认证封装）
-│   │   ├── store/          # Zustand 状态管理（auth / app / wallet）
-│   │   ├── hooks/          # 自定义 Hooks（useSession 会话管理 / useTheme）
-│   │   ├── constants/      # 常量定义（workspace 功能卡片 / 工具坞配置）
-│   │   ├── types/          # 全局共享类型（Message / FeatureKey / 色彩类型）
-│   │   ├── utils/          # 工具函数（色彩转换 / workspace 工具）
-│   │   ├── lib/            # 基础工具库（authFetch / uid / utils）
-│   │   └── doc/            # 文档（PRD、技术架构等）
-│   └── vite.config.ts      # Vite 配置（含 /api 代理 + PWA）
-└── go-backend/             # Go 后端（Gin 框架）
-    ├── main.go             # 入口：加载 .env、初始化 DB/Redis、注册路由
-    ├── handlers/           # 路由处理（color / knowledge / deepseek / auth / user / session）
-    ├── middleware/          # 中间件（CORS / RequireAuth 鉴权）
-    ├── models/             # 数据结构定义
-    ├── database/           # 数据库连接（MySQL 连接池 + Redis 客户端）
-    ├── cmd/migrate/        # 数据迁移工具（JSON → MySQL）
-    └── uploads/            # 上传文件存储
+├── ColorAI/        # React 前端（详见 ColorAI/README.md）
+└── go-backend/     # Go 后端（详见 go-backend/README.md）
 ```
 
 ## API 概览
