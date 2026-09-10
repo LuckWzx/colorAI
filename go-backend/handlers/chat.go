@@ -15,20 +15,22 @@ import (
 )
 
 const (
-	deepseekAPIURL = "https://api.deepseek.com/v1/chat/completions"
-	defaultModel   = "deepseek-v4-flash"
-	maxTokens      = 2000
-	timeoutSeconds = 30
+	// LLM 服务配置（当前接入 DeepSeek，后续可切换为其他模型）
+	llmAPIURL       = "https://api.deepseek.com/v1/chat/completions"
+	defaultModel    = "deepseek-v4-flash"
+	llmMaxTokens    = 2000
+	llmTimeoutSecs  = 30
 )
 
-// DeepseekChat DeepSeek AI 对话代理
-// POST /api/deepseek/chat
-func DeepseekChat(c *gin.Context) {
-	apiKey := os.Getenv("DEEPSEEK_API_KEY")
+// Chat AI 对话代理
+// POST /api/chat
+// 当前通过 DeepSeek API 实现，后续可切换为其他 LLM 服务
+func Chat(c *gin.Context) {
+	apiKey := os.Getenv("LLM_API_KEY")
 	if apiKey == "" {
 		c.JSON(http.StatusInternalServerError, models.ChatResponse{
 			Success: false,
-			Error:   "Server configuration error: DEEPSEEK_API_KEY not set",
+			Error:   "Server configuration error: LLM_API_KEY not set",
 		})
 		return
 	}
@@ -47,18 +49,18 @@ func DeepseekChat(c *gin.Context) {
 		model = defaultModel
 	}
 
-	// 构建 DeepSeek API 请求体
+	// 构建 LLM API 请求体
 	body := map[string]interface{}{
 		"model":       model,
 		"messages":    req.Messages,
 		"temperature": 0.7,
-		"max_tokens":  maxTokens,
+		"max_tokens":  llmMaxTokens,
 	}
 	bodyBytes, _ := json.Marshal(body)
 
 	// 发送请求
-	client := &http.Client{Timeout: timeoutSeconds * time.Second}
-	httpReq, err := http.NewRequest("POST", deepseekAPIURL, bytes.NewReader(bodyBytes))
+	client := &http.Client{Timeout: llmTimeoutSecs * time.Second}
+	httpReq, err := http.NewRequest("POST", llmAPIURL, bytes.NewReader(bodyBytes))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.ChatResponse{
 			Success: false,
@@ -73,7 +75,7 @@ func DeepseekChat(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, models.ChatResponse{
 			Success: false,
-			Error:   "Failed to reach DeepSeek API: " + err.Error(),
+			Error:   "Failed to reach AI service: " + err.Error(),
 		})
 		return
 	}
@@ -81,7 +83,7 @@ func DeepseekChat(c *gin.Context) {
 
 	respBody, _ := io.ReadAll(resp.Body)
 
-	// 解析 DeepSeek API 响应
+	// 解析 LLM API 响应
 	var dsResp struct {
 		Choices []struct {
 			Message struct {
@@ -101,16 +103,16 @@ func DeepseekChat(c *gin.Context) {
 	if err := json.Unmarshal(respBody, &dsResp); err != nil {
 		c.JSON(http.StatusBadGateway, models.ChatResponse{
 			Success: false,
-			Error:   "Invalid response from DeepSeek API",
+			Error:   "Invalid response from AI service",
 		})
 		return
 	}
 
-	// 检查 DeepSeek API 错误
+	// 检查 LLM API 错误
 	if dsResp.Error != nil {
 		c.JSON(resp.StatusCode, models.ChatResponse{
 			Success: false,
-			Error:   fmt.Sprintf("DeepSeek API error: %s", dsResp.Error.Message),
+			Error:   fmt.Sprintf("AI service error: %s", dsResp.Error.Message),
 		})
 		return
 	}
@@ -118,7 +120,7 @@ func DeepseekChat(c *gin.Context) {
 	if len(dsResp.Choices) == 0 || dsResp.Choices[0].Message.Content == "" {
 		c.JSON(http.StatusBadGateway, models.ChatResponse{
 			Success: false,
-			Error:   "Invalid response from DeepSeek API",
+			Error:   "Invalid response from AI service",
 		})
 		return
 	}

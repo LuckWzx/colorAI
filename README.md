@@ -34,7 +34,7 @@
 - **后端**：Go + Gin（API 服务，默认端口 `3001`）
 - **数据库**：MySQL 8.0（阿里云 ECS）
 - **缓存/会话**：Redis（Token 存储，TTL 7 天）
-- **AI 能力**：DeepSeek API（服务端代理，Key 不暴露给前端）
+- **AI 能力**：LLM API（服务端代理，当前接入 DeepSeek，Key 不暴露给前端）
 - **PWA**：vite-plugin-pwa（支持离线访问与桌面安装）
 
 ## 快速开始
@@ -73,8 +73,9 @@ cp .env.example .env
 # 服务端口
 PORT=3001
 
-# DeepSeek API Key（申请地址: https://platform.deepseek.com/）
-DEEPSEEK_API_KEY=your_deepseek_api_key_here
+# LLM API Key（当前接入 DeepSeek，服务端读取，不暴露给前端）
+# 申请地址: https://platform.deepseek.com/
+LLM_API_KEY=your_llm_api_key_here
 
 # 数据库配置
 DB_HOST=127.0.0.1
@@ -140,7 +141,7 @@ colorAI/
 | `/api/knowledge/photo-tips` | GET | 公开 | 拍照技巧 |
 | `/api/knowledge/shops` | GET | 公开 | 附近商铺（支持 `city` 过滤） |
 | `/api/knowledge/brands` | GET | 公开 | 品牌大全（支持 `category` 过滤） |
-| `/api/deepseek/chat` | POST | Token | DeepSeek AI 对话（需登录） |
+| `/api/chat` | POST | Token | AI 对话（需登录，当前接入 DeepSeek） |
 | `/api/sessions` | GET | Token | 获取当前用户的会话列表 |
 | `/api/sessions` | POST | Token | 创建新会话 |
 | `/api/sessions/:id` | GET | Token | 获取单个会话详情（含消息列表） |

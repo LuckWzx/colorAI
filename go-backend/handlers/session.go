@@ -95,7 +95,7 @@ func GetSession(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "session": detail})
 }
 
-// loadMessages 从 chat_messages 表加载消息，返回 messages + history（DeepSeek 上下文）
+// loadMessages 从 chat_messages 表加载消息，返回 messages + history（AI 对话上下文）
 func loadMessages(sessionID string) (messages []interface{}, history []interface{}, err error) {
 	rows, err := database.DB.Query(
 		"SELECT id, role, msg_type, content, payload, created_at FROM chat_messages WHERE session_id = ? ORDER BY sort_order",
@@ -143,7 +143,7 @@ func loadMessages(sessionID string) (messages []interface{}, history []interface
 
 		messages = append(messages, msg)
 
-		// 构建 history（DeepSeek API 格式：只保留 user 文字 + assistant 文字）
+		// 构建 history（LLM API 格式：只保留 user 文字 + assistant 文字）
 		if content != "" {
 			history = append(history, map[string]string{"role": role, "content": content})
 		}

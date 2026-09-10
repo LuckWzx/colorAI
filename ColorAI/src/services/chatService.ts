@@ -1,11 +1,13 @@
 /**
- * DeepSeek AI 服务模块
- * - 封装与 DeepSeek API 的对话调用
+ * AI 对话服务模块
+ * - 封装与 LLM API 的对话调用
  * - 支持色彩智能体的 System Prompt
  *
  * 安全说明：
  *   API Key 仅在服务端使用，客户端不存储任何密钥。
- *   客户端通过 /api/deepseek/chat 后端代理转发。
+ *   客户端通过 /api/chat 后端代理转发。
+ *
+ * 当前实现：DeepSeek API（后续可切换为其他 LLM 服务）
  */
 
 import { authFetch } from '@/lib/authFetch';
@@ -37,11 +39,11 @@ const COLOR_SYSTEM_PROMPT = `你是曲泉AI，一个专业的色彩智能体。�
 回答时适当使用色彩相关的专业术语，但要解释清楚。`;
 
 /**
- * 通过后端代理调用 DeepSeek API
+ * 通过后端代理调用 LLM API
  * （API Key 仅存在于服务端环境变量中，不会暴露给前端）
  */
 async function callViaProxy(messages: ChatMessage[]): Promise<ChatResponse> {
-  const res = await authFetch('/api/deepseek/chat', {
+  const res = await authFetch('/api/chat', {
     method: 'POST',
     body: JSON.stringify({
       messages: [
@@ -54,17 +56,17 @@ async function callViaProxy(messages: ChatMessage[]): Promise<ChatResponse> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    throw new Error(body?.error || `DeepSeek API 请求失败 (${res.status})`);
+    throw new Error(body?.error || `AI 服务请求失败 (${res.status})`);
   }
 
   const data = await res.json();
   if (!data?.choices?.[0]?.message?.content) {
-    throw new Error('DeepSeek API 返回为空');
+    throw new Error('AI 服务返回为空');
   }
 
   return {
     text: data.choices[0].message.content,
-    model: data.model || 'deepseek-v4-flash',
+    model: data.model || 'unknown',
     usage: data.usage
       ? {
           promptTokens: data.usage.prompt_tokens,
@@ -76,11 +78,11 @@ async function callViaProxy(messages: ChatMessage[]): Promise<ChatResponse> {
 }
 
 /**
- * DeepSeek 对话服务
+ * AI 对话服务
  */
-export const deepseekService = {
+export const chatService = {
   /**
-   * 发送对话请求（通过后端代理调用 DeepSeek API）
+   * 发送对话请求（通过后端代理调用 LLM API）
    */
   async chat(userMessage: string, history: ChatMessage[] = []): Promise<ChatResponse> {
     const messages: ChatMessage[] = [...history, { role: 'user', content: userMessage }];

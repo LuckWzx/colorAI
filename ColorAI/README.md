@@ -1,6 +1,6 @@
 # 曲泉AI — 前端应用
 
-> 色彩处理智能应用：校色、取色、色彩转换、色差对比，基于 DeepSeek 大模型的专业色彩智能体。
+> 色彩处理智能应用：校色、取色、色彩转换、色差对比，基于 AI 大模型的专业色彩智能体。
 
 ## 技术栈
 
@@ -75,7 +75,7 @@ src/
 ├── services/            # API 服务层
 │   ├── api.ts               # Axios 实例 + 拦截器
 │   ├── colorService.ts      # 色彩处理 API（校色/取色/对比/转换）
-│   ├── deepseekService.ts   # DeepSeek 大模型对话
+│   ├── chatService.ts       # AI 对话服务（通过后端代理调用 LLM API）
 │   ├── knowledgeService.ts  # 知识库 API
 │   └── sessionService.ts    # 会话历史 CRUD
 ├── shared/              # 共享类型（已废弃，合并至 types/）
@@ -97,14 +97,14 @@ src/
 
 ### AI 对话工作区（Workspace）
 
-主交互入口，集成了 5 大图像处理能力 + DeepSeek 大模型对话：
+主交互入口，集成了 5 大图像处理能力 + AI 大模型对话：
 
 - **图片一键校正** — AI 智能白平衡还原真实色彩
 - **智能取色器** — 点击图片获取多格式色值
 - **色彩空间转换** — HEX / RGB / HSL / CMYK / Lab / HSV 实时互转
 - **颜色相似度对比** — ΔE 专业色差量化评分
 - **手机拍摄校色** — 还原人眼视觉真实颜色
-- **自由对话** — 基于 DeepSeek 大模型的色彩问答
+- **自由对话** — 基于 AI 大模型的色彩问答
 
 ### 会话管理
 

@@ -8,7 +8,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { sessionService } from '@/services/sessionService';
 import type { ChatSessionDTO } from '@/services/sessionService';
-import type { ChatMessage } from '@/services/deepseekService';
+import type { ChatMessage } from '@/services/chatService';
 import type { Message } from '@/types';
 import { uid } from '@/lib/uid';
 import { welcomeMsg, titleOf, stripWelcome, toSessionMeta } from '@/utils/workspace';

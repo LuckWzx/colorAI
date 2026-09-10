@@ -19,7 +19,7 @@
 # 1. 复制环境变量配置
 cp .env.example .env
 
-# 2. 编辑 .env，填入数据库、Redis、DeepSeek API Key 等配置
+# 2. 编辑 .env，填入数据库、Redis、LLM API Key 等配置
 
 # 3. 运行数据迁移（建表 + 写入种子数据）
 go run cmd/migrate/main.go
@@ -41,7 +41,7 @@ go-backend/
 ├── handlers/
 │   ├── auth.go              # 用户注册/登录/登出
 │   ├── color.go             # 色彩处理（校色/取色/对比/手机校色）
-│   ├── deepseek.go          # DeepSeek 大模型对话代理
+│   ├── chat.go              # AI 对话代理（当前接入 DeepSeek，可切换其他 LLM）
 │   ├── knowledge.go         # 知识库数据查询
 │   ├── session.go           # 会话历史 CRUD
 │   └── user.go              # 用户信息
@@ -68,8 +68,8 @@ go-backend/
 # 服务端口（默认 3001）
 PORT=3001
 
-# DeepSeek API Key（服务端读取，不暴露给前端）
-DEEPSEEK_API_KEY=your_deepseek_api_key_here
+# LLM API Key（当前接入 DeepSeek，服务端读取，不暴露给前端）
+LLM_API_KEY=your_llm_api_key_here
 
 # 数据库配置
 DB_HOST=127.0.0.1
@@ -114,11 +114,11 @@ REDIS_PASS=your_redis_password
 | POST | `/api/color/compare` | 需登录 | 两张图片颜色对比（ΔE 色差） |
 | POST | `/api/color/phone-correct` | 需登录 | 手机拍摄视觉校色 |
 
-### DeepSeek AI 对话
+### AI 对话
 
 | 方法 | 路径 | 权限 | 说明 |
 |------|------|------|------|
-| POST | `/api/deepseek/chat` | 需登录 | 发送对话消息，代理调用 DeepSeek API |
+| POST | `/api/chat` | 需登录 | 发送对话消息，代理调用 LLM API（当前接入 DeepSeek） |
 
 ### 会话管理
 

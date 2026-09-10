@@ -82,8 +82,8 @@ func main() {
 		sessionGroup.DELETE("/:id", handlers.DeleteSession)
 	}
 
-	// DeepSeek AI 代理（需要登录）
-	r.POST("/api/deepseek/chat", middleware.RequireAuth(), handlers.DeepseekChat)
+	// AI 对话代理（需要登录）
+	r.POST("/api/chat", middleware.RequireAuth(), handlers.Chat)
 
 	// 用户认证路由
 	authGroup := r.Group("/api/auth")

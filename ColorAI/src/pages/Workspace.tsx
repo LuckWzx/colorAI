@@ -16,7 +16,7 @@ import {
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { colorService } from '@/services/colorService';
-import { deepseekService } from '@/services/deepseekService';
+import { chatService } from '@/services/chatService';
 import { useAppStore } from '@/store/appStore';
 import { convertFrom, getColorName, formatColorValue, parseColor, detectColorFormat } from '@/utils/colorConverter';
 import { uid } from '@/lib/uid';
@@ -380,7 +380,7 @@ export default function Workspace() {
           return latestHistory;
         });
         try {
-          const response = await deepseekService.chat(userText, latestHistory);
+          const response = await chatService.chat(userText, latestHistory);
           const assistantText = response.text;
           setChatHistory((prev) => [...prev, { role: 'assistant', content: assistantText }]);
           setMessages((prev) =>
@@ -551,7 +551,7 @@ export default function Workspace() {
           <div className="flex items-center gap-1">
             <div className="hidden md:flex items-center gap-2 text-xs text-brand-muted">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              服务在线 · DeepSeek AI 已连接
+              服务在线 · AI 已连接
             </div>
             <button
               onClick={() => setSidebarOpen(true)}
@@ -722,7 +722,7 @@ export default function Workspace() {
             </div>
 
             <p className="text-center text-[11px] text-brand-muted mt-2.5">
-              曲泉AI · 接入 DeepSeek 大模型 · 支持色彩问答 + 5 大图像处理功能
+              曲泉AI · 接入 AI 大模型 · 支持色彩问答 + 5 大图像处理功能
             </p>
           </div>
         </footer>
@@ -935,7 +935,7 @@ function MessageBubble({
           <p className="text-brand-muted text-sm sm:text-base leading-relaxed mb-2 sm:mb-4 px-2 sm:px-0">
             你的专属色彩智能体 👋
             <span className="hidden sm:inline"><br /></span>
-            我可以帮你一键校正图片、精准取色、转换色彩空间、对比颜色相似度，也可以直接向我提问任何色彩相关问题——基于 DeepSeek 大模型，专业回答等你。
+            我可以帮你一键校正图片、精准取色、转换色彩空间、对比颜色相似度，也可以直接向我提问任何色彩相关问题——基于 AI 大模型，专业回答等你。
           </p>
           <p className="text-xs sm:text-sm text-brand-muted/80">
             选择下方功能开始，或直接输入你的色彩问题～
