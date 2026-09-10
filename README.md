@@ -122,7 +122,7 @@ colorAI/
 │   ├── src/                # 前端源码
 │   │   ├── components/     # 通用组件（Layout / Navbar / Footer 等）
 │   │   ├── pages/          # 页面组件（含 Wallet 钱包页）
-│   │   ├── services/       # API 服务层（axios 封装 + token 拦截器）
+│   │   ├── services/       # API 服务层（axios 封装 + token 拦截器 + sessionService）
 │   │   ├── store/          # Zustand 状态管理（auth / app / wallet）
 │   │   ├── hooks/          # 自定义 Hooks（useTheme 等）
 │   │   ├── lib/            # 工具库（security / utils）
@@ -132,7 +132,7 @@ colorAI/
 │   └── vite.config.ts      # Vite 配置（含 /api 代理）
 └── go-backend/             # Go 后端（Gin 框架）
     ├── main.go             # 入口：加载 .env、初始化 DB/Redis、注册路由
-    ├── handlers/           # 路由处理（color / knowledge / deepseek / auth / user）
+    ├── handlers/           # 路由处理（color / knowledge / deepseek / auth / user / session）
     ├── middleware/          # 中间件（CORS / RequireAuth 鉴权）
     ├── models/             # 数据结构定义
     ├── database/           # 数据库连接（MySQL 连接池 + Redis 客户端）
@@ -159,6 +159,11 @@ colorAI/
 | `/api/knowledge/shops` | GET | 公开 | 附近商铺（支持 `city` 过滤） |
 | `/api/knowledge/brands` | GET | 公开 | 品牌大全（支持 `category` 过滤） |
 | `/api/deepseek/chat` | POST | Token | DeepSeek AI 对话（需登录） |
+| `/api/sessions` | GET | Token | 获取当前用户的会话列表 |
+| `/api/sessions` | POST | Token | 创建新会话 |
+| `/api/sessions/:id` | GET | Token | 获取单个会话详情（含消息列表） |
+| `/api/sessions/:id` | PUT | Token | 更新会话（标题、消息等） |
+| `/api/sessions/:id` | DELETE | Token | 删除会话 |
 
 ### 鉴权说明
 
