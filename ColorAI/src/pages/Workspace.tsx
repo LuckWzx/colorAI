@@ -276,7 +276,7 @@ export default function Workspace() {
     const userMsg: UserMessage = {
       id: uid(), role: 'user', createdAt: Date.now(), ...msg,
     };
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages((prev) => [...prev.filter((m) => !(m.role === 'assistant' && m.type === 'welcome')), userMsg]);
     const loadingId = uid();
     setMessages((prev) => [
       ...prev,

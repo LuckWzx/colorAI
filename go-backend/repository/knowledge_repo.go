@@ -134,4 +134,3 @@ func scanQAItems(rows *sql.Rows) ([]models.QAItem, error) {
 	}
 	return result, nil
 }
-

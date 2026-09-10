@@ -69,4 +69,3 @@ func (h *KnowledgeController) KnowledgeBrands(c *gin.Context) {
 
 	OK(c, gin.H{"items": items, "total": len(items)})
 }
-
