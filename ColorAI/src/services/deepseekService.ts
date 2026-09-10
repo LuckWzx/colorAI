@@ -8,6 +8,8 @@
  *   客户端通过 /api/deepseek/chat 后端代理转发。
  */
 
+import { authFetch } from '@/lib/authFetch';
+
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -34,32 +36,13 @@ const COLOR_SYSTEM_PROMPT = `你是曲泉AI，一个专业的色彩智能体。�
 当用户询问色彩理论、校色技巧、设备选择、行业应用等问题时，给出准确、实用的建议。
 回答时适当使用色彩相关的专业术语，但要解释清楚。`;
 
-/** 从 Zustand persist store 读取 auth token */
-function getAuthToken(): string | null {
-  try {
-    const raw = localStorage.getItem('colorai_auth');
-    if (!raw) return null;
-    return JSON.parse(raw)?.state?.token ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function authHeaders(): Record<string, string> {
-  const token = getAuthToken();
-  const h: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) h['Authorization'] = `Bearer ${token}`;
-  return h;
-}
-
 /**
  * 通过后端代理调用 DeepSeek API
  * （API Key 仅存在于服务端环境变量中，不会暴露给前端）
  */
 async function callViaProxy(messages: ChatMessage[]): Promise<ChatResponse> {
-  const res = await fetch('/api/deepseek/chat', {
+  const res = await authFetch('/api/deepseek/chat', {
     method: 'POST',
-    headers: authHeaders(),
     body: JSON.stringify({
       messages: [
         { role: 'system', content: COLOR_SYSTEM_PROMPT },
