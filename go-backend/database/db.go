@@ -4,50 +4,29 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"os"
+
+	"colorai-backend/config"
 
 	_ "github.com/go-sql-driver/mysql"
 )
 
-var DB *sql.DB
-
-// Init 初始化数据库连接
-func Init() {
-	user := getEnv("DB_USER", "agent")
-	pass := getEnv("DB_PASS", "")
-	host := getEnv("DB_HOST", "127.0.0.1")
-	port := getEnv("DB_PORT", "3306")
-	name := getEnv("DB_NAME", "agent")
-
+// InitMySQL 初始化 MySQL 连接，返回 *sql.DB
+func InitMySQL(cfg config.DatabaseConfig) *sql.DB {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=true&loc=Local",
-		user, pass, host, port, name)
+		cfg.User, cfg.Pass, cfg.Host, cfg.Port, cfg.Name)
 
-	var err error
-	DB, err = sql.Open("mysql", dsn)
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		log.Fatalf("数据库连接失败: %v", err)
 	}
 
-	if err := DB.Ping(); err != nil {
+	if err := db.Ping(); err != nil {
 		log.Fatalf("数据库不可达: %v", err)
 	}
 
-	DB.SetMaxOpenConns(25)
-	DB.SetMaxIdleConns(5)
+	db.SetMaxOpenConns(cfg.MaxOpenConns)
+	db.SetMaxIdleConns(cfg.MaxIdleConns)
 
-	log.Println("✓ 数据库连接成功")
-}
-
-// Close 关闭数据库连接
-func Close() {
-	if DB != nil {
-		DB.Close()
-	}
-}
-
-func getEnv(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
+	log.Println("数据库连接成功")
+	return db
 }

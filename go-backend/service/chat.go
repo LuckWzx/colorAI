@@ -1,4 +1,4 @@
-package handlers
+package service
 
 import (
 	"bytes"
@@ -6,78 +6,66 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"time"
 
+	"colorai-backend/config"
 	"colorai-backend/models"
-
-	"github.com/gin-gonic/gin"
 )
 
-const (
-	// LLM 服务配置（当前接入 DeepSeek，后续可切换为其他模型）
-	llmAPIURL       = "https://api.deepseek.com/v1/chat/completions"
-	defaultModel    = "deepseek-v4-flash"
-	llmMaxTokens    = 2000
-	llmTimeoutSecs  = 30
-)
+// ChatService AI 对话业务接口
+type ChatService interface {
+	Chat(messages []models.ChatMessage, model string) (*models.ChatResponse, error)
+}
 
-// Chat AI 对话代理
-// POST /api/chat
-// 当前通过 DeepSeek API 实现，后续可切换为其他 LLM 服务
-func Chat(c *gin.Context) {
-	apiKey := os.Getenv("LLM_API_KEY")
-	if apiKey == "" {
-		c.JSON(http.StatusInternalServerError, models.ChatResponse{
+type chatService struct {
+	llmCfg config.LLMConfig
+}
+
+// NewChatService 创建 ChatService 实例
+func NewChatService(llmCfg config.LLMConfig) ChatService {
+	return &chatService{llmCfg: llmCfg}
+}
+
+func (s *chatService) Chat(messages []models.ChatMessage, model string) (*models.ChatResponse, error) {
+	if s.llmCfg.APIKey == "" {
+		return &models.ChatResponse{
 			Success: false,
 			Error:   "Server configuration error: LLM_API_KEY not set",
-		})
-		return
+		}, nil
 	}
 
-	var req models.ChatRequest
-	if err := c.ShouldBindJSON(&req); err != nil || len(req.Messages) == 0 {
-		c.JSON(http.StatusBadRequest, models.ChatResponse{
+	if len(messages) == 0 {
+		return &models.ChatResponse{
 			Success: false,
 			Error:   "Invalid request: messages array is required",
-		})
-		return
+		}, nil
 	}
 
-	model := req.Model
 	if model == "" {
-		model = defaultModel
+		model = s.llmCfg.Model
 	}
 
 	// 构建 LLM API 请求体
 	body := map[string]interface{}{
 		"model":       model,
-		"messages":    req.Messages,
+		"messages":    messages,
 		"temperature": 0.7,
-		"max_tokens":  llmMaxTokens,
+		"max_tokens":  s.llmCfg.MaxTokens,
 	}
 	bodyBytes, _ := json.Marshal(body)
 
 	// 发送请求
-	client := &http.Client{Timeout: llmTimeoutSecs * time.Second}
-	httpReq, err := http.NewRequest("POST", llmAPIURL, bytes.NewReader(bodyBytes))
+	client := &http.Client{Timeout: time.Duration(s.llmCfg.TimeoutSec) * time.Second}
+	httpReq, err := http.NewRequest("POST", s.llmCfg.APIURL, bytes.NewReader(bodyBytes))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, models.ChatResponse{
-			Success: false,
-			Error:   "Failed to create request: " + err.Error(),
-		})
-		return
+		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+	httpReq.Header.Set("Authorization", "Bearer "+s.llmCfg.APIKey)
 
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, models.ChatResponse{
-			Success: false,
-			Error:   "Failed to reach AI service: " + err.Error(),
-		})
-		return
+		return nil, fmt.Errorf("调用 AI 服务失败: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -101,32 +89,22 @@ func Chat(c *gin.Context) {
 		} `json:"error"`
 	}
 	if err := json.Unmarshal(respBody, &dsResp); err != nil {
-		c.JSON(http.StatusBadGateway, models.ChatResponse{
-			Success: false,
-			Error:   "Invalid response from AI service",
-		})
-		return
+		return nil, fmt.Errorf("解析 AI 服务响应失败: %w", err)
 	}
 
-	// 检查 LLM API 错误
 	if dsResp.Error != nil {
-		c.JSON(resp.StatusCode, models.ChatResponse{
+		return &models.ChatResponse{
 			Success: false,
 			Error:   fmt.Sprintf("AI service error: %s", dsResp.Error.Message),
-		})
-		return
+		}, nil
 	}
 
 	if len(dsResp.Choices) == 0 || dsResp.Choices[0].Message.Content == "" {
-		c.JSON(http.StatusBadGateway, models.ChatResponse{
-			Success: false,
-			Error:   "Invalid response from AI service",
-		})
-		return
+		return nil, fmt.Errorf("AI 服务返回空响应")
 	}
 
 	// 构建成功响应
-	result := models.ChatResponse{
+	result := &models.ChatResponse{
 		Success: true,
 		Choices: []models.ChatChoice{
 			{Message: models.ChatMessage{
@@ -145,5 +123,5 @@ func Chat(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, result)
+	return result, nil
 }
