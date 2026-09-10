@@ -14,7 +14,7 @@ import { useSearchParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import ColorDots from '@/components/ColorDots';
 import { knowledgeService } from '@/services/knowledgeService';
-import type { QAItem, Shop, Brand } from '@/shared/types';
+import type { QAItem, Shop, Brand } from '@/types';
 
 type TabKey = 'issues' | 'tips' | 'shops' | 'brands';
 

@@ -1,3 +1,13 @@
+/* ============================================================
+ * 全局共享类型定义
+ * 所有跨模块复用的接口、类型统一在此声明
+ * ============================================================ */
+
+// ——— 色彩基础 ———
+
+export type ColorFormat = 'hex' | 'rgb' | 'hsl' | 'cmyk' | 'lab' | 'hsv';
+export type ColorSpace = ColorFormat;
+
 export interface FullColorValues {
   hex: string;
   rgb: { r: number; g: number; b: number };
@@ -10,20 +20,19 @@ export interface FullColorValues {
 }
 
 export type ColorFormats = FullColorValues;
-export type ColorFormat = 'hex' | 'rgb' | 'hsl' | 'cmyk' | 'lab' | 'hsv';
-export type ColorSpace = ColorFormat;
-
 export type CorrectionMode = 'auto' | 'nature' | 'portrait' | 'product' | 'landscape';
+
+// ——— API 响应 ———
 
 export interface CorrectResponse {
   success: boolean;
   originalUrl: string;
   correctedUrl: string;
   meta: {
-    brightnessDiff: number;
-    contrastDiff: number;
-    saturationDiff: number;
-    whiteBalanceShift: 'warm' | 'cool' | 'neutral';
+    brightness: number;
+    contrast: number;
+    saturation: number;
+    temperature: number;
   };
 }
 
@@ -46,13 +55,14 @@ export interface PickResponse {
 
 export interface CompareResponse {
   success: boolean;
-  similarity: {
-    deltaE: number;
-    percent: number;
-    level: '极高' | '高' | '中' | '低' | '极低';
+  similarity: number;
+  deltaE: number;
+  pass: boolean;
+  details: {
+    brightnessDiff: number;
+    colorDiff: number;
+    saturationDiff: number;
   };
-  dominantColorsA: string[];
-  dominantColorsB: string[];
 }
 
 export interface CompareResult {
@@ -71,23 +81,25 @@ export interface CompareResult {
 export interface PhoneCorrectResponse {
   success: boolean;
   originalUrl: string;
-  correctedUrl: string;
-  standardUrl: string;
+  visualCorrectedUrl: string;
+  standardCorrectedUrl: string;
   adjustment: {
-    redShift: number;
-    greenShift: number;
-    blueShift: number;
+    redChannel: number;
+    greenChannel: number;
+    blueChannel: number;
     brightness: number;
-    exposure: number;
+    exposureCompensation: number;
   };
 }
+
+// ——— 知识库 ———
 
 export interface QAItem {
   id: string;
   question: string;
   answer: string;
-  tags: string[];
   category?: string;
+  tags?: string[];
   level?: number;
 }
 
@@ -104,13 +116,49 @@ export interface Shop {
 export interface Brand {
   id: string;
   name: string;
-  logo?: string;
-  category: string[];
-  desc: string;
-  website?: string;
-  rating: number;
   initial?: string;
+  rating: number;
+  category: string[];
   description?: string;
+  website?: string;
 }
 
+// ——— 通用状态 ———
+
 export type ApiStatus = 'idle' | 'loading' | 'success' | 'error';
+
+// ——— Workspace 消息类型 ———
+
+/** 功能键：决定工具卡片和消息归属 */
+export type FeatureKey = 'correct' | 'pick' | 'convert' | 'compare' | 'phone';
+
+export interface BaseMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  createdAt: number;
+}
+
+export interface UserMessage extends BaseMessage {
+  role: 'user';
+  text?: string;
+  images?: string[];
+  feature?: FeatureKey;
+}
+
+export interface AssistantMessage extends BaseMessage {
+  role: 'assistant';
+  text?: string;
+  type: 'welcome' | 'text' | 'correct' | 'pick' | 'compare' | 'convert' | 'phone' | 'loading';
+  correctResult?: CorrectionResult;
+  pickResult?: { color: FullColorValues; colorName: string };
+  compareResult?: CompareResult;
+  convertResult?: {
+    input: string;
+    detectedFormat: string;
+    color: FullColorValues;
+    colorName: string;
+  };
+  phoneResult?: unknown;
+}
+
+export type Message = UserMessage | AssistantMessage;

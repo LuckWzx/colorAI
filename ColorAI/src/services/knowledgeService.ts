@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { QAItem, Shop, Brand } from '@/shared/types'
+import type { QAItem, Shop, Brand } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001/api'
 
