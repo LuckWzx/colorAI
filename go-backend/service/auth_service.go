@@ -1,6 +1,7 @@
 package service
 
 import (
+	"colorai-backend/model/entity"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -9,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"colorai-backend/models"
 	"colorai-backend/repository"
 
 	"github.com/redis/go-redis/v9"
@@ -21,8 +21,8 @@ var phoneRe = regexp.MustCompile(`^1[3-9]\d{9}$`)
 
 // AuthService 认证业务接口
 type AuthService interface {
-	Register(username, phone, password string) (*models.User, string, error)
-	Login(phone, password string) (*models.User, string, error)
+	Register(username, phone, password string) (*entity.User, string, error)
+	Login(phone, password string) (*entity.User, string, error)
 	Logout(token string) error
 	ValidateToken(token string) (userID, username, phone string, err error)
 	ValidatePhone(phone string) bool
@@ -42,7 +42,7 @@ func (s *authService) ValidatePhone(phone string) bool {
 	return phoneRe.MatchString(phone)
 }
 
-func (s *authService) Register(username, phone, password string) (*models.User, string, error) {
+func (s *authService) Register(username, phone, password string) (*entity.User, string, error) {
 	// 检查手机号是否已注册
 	exists, err := s.userRepo.ExistsByPhone(phone)
 	if err != nil {
@@ -55,7 +55,7 @@ func (s *authService) Register(username, phone, password string) (*models.User, 
 	// 创建用户
 	userID := fmt.Sprintf("u_%d", time.Now().UnixNano())
 	passwordHash := hashPassword(password)
-	user := &models.User{
+	user := &entity.User{
 		ID:        userID,
 		Username:  username,
 		Phone:     phone,
@@ -72,7 +72,7 @@ func (s *authService) Register(username, phone, password string) (*models.User, 
 	return user, token, nil
 }
 
-func (s *authService) Login(phone, password string) (*models.User, string, error) {
+func (s *authService) Login(phone, password string) (*entity.User, string, error) {
 	user, storedHash, err := s.userRepo.FindByPhone(phone)
 	if err == sql.ErrNoRows {
 		return nil, "", &ServiceError{StatusCode: 401, Message: "该手机号尚未注册"}
@@ -117,7 +117,7 @@ func (s *authService) genToken(userID string) string {
 	return fmt.Sprintf("tk_%s_%x", userID, h[:8])
 }
 
-func (s *authService) saveToken(token string, user *models.User) {
+func (s *authService) saveToken(token string, user *entity.User) {
 	ctx := context.Background()
 	val := fmt.Sprintf("%s|%s|%s", user.ID, user.Username, user.Phone)
 	s.rdb.Set(ctx, "token:"+token, val, tokenTTL)

@@ -1,10 +1,10 @@
 package controller
 
 import (
+	"colorai-backend/model/entity"
 	"net/http"
 	"strings"
 
-	"colorai-backend/models"
 	"colorai-backend/service"
 
 	"github.com/gin-gonic/gin"
@@ -23,7 +23,7 @@ func NewAuthController(authSvc service.AuthService) *AuthController {
 // Register 用户注册
 // POST /api/auth/register
 func (h *AuthController) Register(c *gin.Context) {
-	var req models.RegisterRequest
+	var req entity.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		Fail(c, http.StatusBadRequest, "参数校验失败: "+err.Error())
 		return
@@ -46,7 +46,7 @@ func (h *AuthController) Register(c *gin.Context) {
 // Login 用户登录
 // POST /api/auth/login
 func (h *AuthController) Login(c *gin.Context) {
-	var req models.LoginRequest
+	var req entity.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		Fail(c, http.StatusBadRequest, "参数校验失败: "+err.Error())
 		return

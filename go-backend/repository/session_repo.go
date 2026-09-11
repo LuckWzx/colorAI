@@ -1,20 +1,19 @@
 package repository
 
 import (
+	"colorai-backend/model/entity"
 	"crypto/rand"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"math/big"
-
-	"colorai-backend/models"
 )
 
 // SessionRepository 会话数据访问接口
 type SessionRepository interface {
-	ListByUser(userID string) ([]models.ChatSession, error)
-	FindByID(sessionID, userID string) (*models.ChatSessionDetail, error)
+	ListByUser(userID string) ([]entity.ChatSession, error)
+	FindByID(sessionID, userID string) (*entity.ChatSessionDetail, error)
 	Create(sessionID, userID, title string, now int64) error
 	Save(sessionID, userID, title string, messages []interface{}, now int64) error
 	Delete(sessionID, userID string) error
@@ -30,7 +29,7 @@ func NewSessionRepository(db *sql.DB) SessionRepository {
 	return &mysqlSessionRepository{db: db}
 }
 
-func (r *mysqlSessionRepository) ListByUser(userID string) ([]models.ChatSession, error) {
+func (r *mysqlSessionRepository) ListByUser(userID string) ([]entity.ChatSession, error) {
 	rows, err := r.db.Query(
 		"SELECT id, title, created_at, updated_at, message_count FROM chat_sessions WHERE user_id = ? ORDER BY updated_at DESC",
 		userID,
@@ -40,9 +39,9 @@ func (r *mysqlSessionRepository) ListByUser(userID string) ([]models.ChatSession
 	}
 	defer rows.Close()
 
-	list := make([]models.ChatSession, 0)
+	list := make([]entity.ChatSession, 0)
 	for rows.Next() {
-		var s models.ChatSession
+		var s entity.ChatSession
 		if err := rows.Scan(&s.ID, &s.Title, &s.CreatedAt, &s.UpdatedAt, &s.MessageCount); err != nil {
 			continue
 		}
@@ -51,8 +50,8 @@ func (r *mysqlSessionRepository) ListByUser(userID string) ([]models.ChatSession
 	return list, nil
 }
 
-func (r *mysqlSessionRepository) FindByID(sessionID, userID string) (*models.ChatSessionDetail, error) {
-	var detail models.ChatSessionDetail
+func (r *mysqlSessionRepository) FindByID(sessionID, userID string) (*entity.ChatSessionDetail, error) {
+	var detail entity.ChatSessionDetail
 	err := r.db.QueryRow(
 		"SELECT id, title, created_at, updated_at, message_count FROM chat_sessions WHERE id = ? AND user_id = ?",
 		sessionID, userID,

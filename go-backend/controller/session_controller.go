@@ -1,9 +1,9 @@
 package controller
 
 import (
+	"colorai-backend/model/entity"
 	"net/http"
 
-	"colorai-backend/models"
 	"colorai-backend/service"
 
 	"github.com/gin-gonic/gin"
@@ -72,7 +72,7 @@ func (h *SessionController) SaveSession(c *gin.Context) {
 	userID := getUserID(c)
 	sessionID := c.Param("id")
 
-	var req models.SaveSessionRequest
+	var req entity.SaveSessionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		Fail(c, http.StatusBadRequest, "Invalid request body")
 		return

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"colorai-backend/model/entity"
 	"crypto/rand"
 	"fmt"
 	"math/big"
@@ -9,7 +10,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"colorai-backend/models"
 	"colorai-backend/service"
 
 	"github.com/gin-gonic/gin"
@@ -28,7 +28,7 @@ func NewColorController(colorSvc service.ColorService) *ColorController {
 // ColorPick 智能取色
 // POST /api/color/pick
 func (h *ColorController) ColorPick(c *gin.Context) {
-	var req models.PickRequest
+	var req entity.PickRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		Fail(c, http.StatusBadRequest, "Invalid request body")
 		return
@@ -51,7 +51,25 @@ func (h *ColorController) ColorPick(c *gin.Context) {
 // ColorCorrect 图片一键校正
 // POST /api/color/correct
 func (h *ColorController) ColorCorrect(c *gin.Context) {
-	imageURL := saveUploadedFile(c, "image")
+	// 支持两种输入方式：1. 上传文件 2. JSON请求体中的imageUrl
+	var imageURL string
+
+	// 尝试从表单获取文件
+	file, err := c.FormFile("image")
+	if err == nil && file != nil {
+		// 有文件上传，保存文件
+		imageURL = saveUploadedFile(c, "image")
+	} else {
+		// 没有文件上传，尝试从JSON获取imageUrl
+		var req struct {
+			ImageURL string `json:"imageUrl"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil || req.ImageURL == "" {
+			Fail(c, http.StatusBadRequest, "请提供图片文件或imageUrl参数")
+			return
+		}
+		imageURL = req.ImageURL
+	}
 
 	resp, err := h.colorSvc.CorrectImage(imageURL)
 	if err != nil {

@@ -1,16 +1,15 @@
 package repository
 
 import (
+	"colorai-backend/model/entity"
 	"database/sql"
 	"time"
-
-	"colorai-backend/models"
 )
 
 // UserRepository 用户数据访问接口
 type UserRepository interface {
-	Create(user *models.User, passwordHash string) error
-	FindByPhone(phone string) (*models.User, string, error)
+	Create(user *entity.User, passwordHash string) error
+	FindByPhone(phone string) (*entity.User, string, error)
 	ExistsByPhone(phone string) (bool, error)
 }
 
@@ -24,7 +23,7 @@ func NewUserRepository(db *sql.DB) UserRepository {
 	return &mysqlUserRepository{db: db}
 }
 
-func (r *mysqlUserRepository) Create(user *models.User, passwordHash string) error {
+func (r *mysqlUserRepository) Create(user *entity.User, passwordHash string) error {
 	_, err := r.db.Exec(
 		"INSERT INTO users (id, username, phone, password_hash) VALUES (?, ?, ?, ?)",
 		user.ID, user.Username, user.Phone, passwordHash,
@@ -32,8 +31,8 @@ func (r *mysqlUserRepository) Create(user *models.User, passwordHash string) err
 	return err
 }
 
-func (r *mysqlUserRepository) FindByPhone(phone string) (*models.User, string, error) {
-	var user models.User
+func (r *mysqlUserRepository) FindByPhone(phone string) (*entity.User, string, error) {
+	var user entity.User
 	var passwordHash string
 	var createdAt time.Time
 

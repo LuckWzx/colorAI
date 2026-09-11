@@ -1,9 +1,9 @@
 package controller
 
 import (
+	"colorai-backend/model/entity"
 	"net/http"
 
-	"colorai-backend/models"
 	"colorai-backend/service"
 
 	"github.com/gin-gonic/gin"
@@ -22,7 +22,7 @@ func NewChatController(chatSvc service.ChatService) *ChatController {
 // Chat AI 对话
 // POST /api/chat
 func (h *ChatController) Chat(c *gin.Context) {
-	var req models.ChatRequest
+	var req entity.ChatRequest
 	if err := c.ShouldBindJSON(&req); err != nil || len(req.Messages) == 0 {
 		Fail(c, http.StatusBadRequest, "Invalid request: messages array is required")
 		return

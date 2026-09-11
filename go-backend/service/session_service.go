@@ -1,22 +1,22 @@
 package service
 
 import (
+	"colorai-backend/model/entity"
 	"crypto/rand"
 	"database/sql"
 	"fmt"
 	"math/big"
 	"time"
 
-	"colorai-backend/models"
 	"colorai-backend/repository"
 )
 
 // SessionService 会话管理业务接口
 type SessionService interface {
-	ListByUser(userID string) ([]models.ChatSession, error)
-	GetByID(userID, sessionID string) (*models.ChatSessionDetail, error)
-	Create(userID string) (*models.ChatSessionDetail, error)
-	Save(userID, sessionID string, req models.SaveSessionRequest) (*models.ChatSessionDetail, error)
+	ListByUser(userID string) ([]entity.ChatSession, error)
+	GetByID(userID, sessionID string) (*entity.ChatSessionDetail, error)
+	Create(userID string) (*entity.ChatSessionDetail, error)
+	Save(userID, sessionID string, req entity.SaveSessionRequest) (*entity.ChatSessionDetail, error)
 	Delete(userID, sessionID string) error
 }
 
@@ -29,11 +29,11 @@ func NewSessionService(sessionRepo repository.SessionRepository) SessionService 
 	return &sessionService{sessionRepo: sessionRepo}
 }
 
-func (s *sessionService) ListByUser(userID string) ([]models.ChatSession, error) {
+func (s *sessionService) ListByUser(userID string) ([]entity.ChatSession, error) {
 	return s.sessionRepo.ListByUser(userID)
 }
 
-func (s *sessionService) GetByID(userID, sessionID string) (*models.ChatSessionDetail, error) {
+func (s *sessionService) GetByID(userID, sessionID string) (*entity.ChatSessionDetail, error) {
 	detail, err := s.sessionRepo.FindByID(sessionID, userID)
 	if err == sql.ErrNoRows {
 		return nil, &ServiceError{StatusCode: 404, Message: "Session not found"}
@@ -41,7 +41,7 @@ func (s *sessionService) GetByID(userID, sessionID string) (*models.ChatSessionD
 	return detail, err
 }
 
-func (s *sessionService) Create(userID string) (*models.ChatSessionDetail, error) {
+func (s *sessionService) Create(userID string) (*entity.ChatSessionDetail, error) {
 	id := fmt.Sprintf("session-%016x", func() int64 {
 		n, _ := rand.Int(rand.Reader, big.NewInt(1<<62))
 		return n.Int64()
@@ -52,8 +52,8 @@ func (s *sessionService) Create(userID string) (*models.ChatSessionDetail, error
 		return nil, fmt.Errorf("创建会话失败: %w", err)
 	}
 
-	return &models.ChatSessionDetail{
-		ChatSession: models.ChatSession{
+	return &entity.ChatSessionDetail{
+		ChatSession: entity.ChatSession{
 			ID:           id,
 			Title:        "新对话",
 			CreatedAt:    now,
@@ -65,7 +65,7 @@ func (s *sessionService) Create(userID string) (*models.ChatSessionDetail, error
 	}, nil
 }
 
-func (s *sessionService) Save(userID, sessionID string, req models.SaveSessionRequest) (*models.ChatSessionDetail, error) {
+func (s *sessionService) Save(userID, sessionID string, req entity.SaveSessionRequest) (*entity.ChatSessionDetail, error) {
 	now := time.Now().UnixMilli()
 	title := req.Title
 	if title == "" {
@@ -86,8 +86,8 @@ func (s *sessionService) Save(userID, sessionID string, req models.SaveSessionRe
 		return nil, fmt.Errorf("保存会话失败: %w", err)
 	}
 
-	return &models.ChatSessionDetail{
-		ChatSession: models.ChatSession{
+	return &entity.ChatSessionDetail{
+		ChatSession: entity.ChatSession{
 			ID:           sessionID,
 			Title:        title,
 			UpdatedAt:    now,

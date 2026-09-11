@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"colorai-backend/model/entity"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,12 +10,11 @@ import (
 	"time"
 
 	"colorai-backend/config"
-	"colorai-backend/models"
 )
 
 // ChatService AI 对话业务接口
 type ChatService interface {
-	Chat(messages []models.ChatMessage, model string) (*models.ChatResponse, error)
+	Chat(messages []entity.ChatMessage, model string) (*entity.ChatResponse, error)
 }
 
 type chatService struct {
@@ -26,16 +26,16 @@ func NewChatService(llmCfg config.LLMConfig) ChatService {
 	return &chatService{llmCfg: llmCfg}
 }
 
-func (s *chatService) Chat(messages []models.ChatMessage, model string) (*models.ChatResponse, error) {
+func (s *chatService) Chat(messages []entity.ChatMessage, model string) (*entity.ChatResponse, error) {
 	if s.llmCfg.APIKey == "" {
-		return &models.ChatResponse{
+		return &entity.ChatResponse{
 			Success: false,
 			Error:   "Server configuration error: LLM_API_KEY not set",
 		}, nil
 	}
 
 	if len(messages) == 0 {
-		return &models.ChatResponse{
+		return &entity.ChatResponse{
 			Success: false,
 			Error:   "Invalid request: messages array is required",
 		}, nil
@@ -93,7 +93,7 @@ func (s *chatService) Chat(messages []models.ChatMessage, model string) (*models
 	}
 
 	if dsResp.Error != nil {
-		return &models.ChatResponse{
+		return &entity.ChatResponse{
 			Success: false,
 			Error:   fmt.Sprintf("AI service error: %s", dsResp.Error.Message),
 		}, nil
@@ -104,10 +104,10 @@ func (s *chatService) Chat(messages []models.ChatMessage, model string) (*models
 	}
 
 	// 构建成功响应
-	result := &models.ChatResponse{
+	result := &entity.ChatResponse{
 		Success: true,
-		Choices: []models.ChatChoice{
-			{Message: models.ChatMessage{
+		Choices: []entity.ChatChoice{
+			{Message: entity.ChatMessage{
 				Role:    "assistant",
 				Content: dsResp.Choices[0].Message.Content,
 			}},
@@ -116,7 +116,7 @@ func (s *chatService) Chat(messages []models.ChatMessage, model string) (*models
 	}
 
 	if dsResp.Usage != nil {
-		result.Usage = &models.ChatUsage{
+		result.Usage = &entity.ChatUsage{
 			PromptTokens:     dsResp.Usage.PromptTokens,
 			CompletionTokens: dsResp.Usage.CompletionTokens,
 			TotalTokens:      dsResp.Usage.TotalTokens,

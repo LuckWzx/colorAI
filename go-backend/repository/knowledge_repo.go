@@ -1,18 +1,17 @@
 package repository
 
 import (
+	"colorai-backend/model/entity"
 	"database/sql"
 	"encoding/json"
-
-	"colorai-backend/models"
 )
 
 // KnowledgeRepository 知识库数据访问接口
 type KnowledgeRepository interface {
-	GetColorIssues(keyword string) ([]models.QAItem, error)
-	GetPhotoTips() ([]models.QAItem, error)
-	GetShops(city string) ([]models.Shop, error)
-	GetBrands(category string) ([]models.Brand, error)
+	GetColorIssues(keyword string) ([]entity.QAItem, error)
+	GetPhotoTips() ([]entity.QAItem, error)
+	GetShops(city string) ([]entity.Shop, error)
+	GetBrands(category string) ([]entity.Brand, error)
 }
 
 // mysqlKnowledgeRepository MySQL 知识库数据访问实现
@@ -25,7 +24,7 @@ func NewKnowledgeRepository(db *sql.DB) KnowledgeRepository {
 	return &mysqlKnowledgeRepository{db: db}
 }
 
-func (r *mysqlKnowledgeRepository) GetColorIssues(keyword string) ([]models.QAItem, error) {
+func (r *mysqlKnowledgeRepository) GetColorIssues(keyword string) ([]entity.QAItem, error) {
 	var rows *sql.Rows
 	var err error
 
@@ -46,7 +45,7 @@ func (r *mysqlKnowledgeRepository) GetColorIssues(keyword string) ([]models.QAIt
 	return scanQAItems(rows)
 }
 
-func (r *mysqlKnowledgeRepository) GetPhotoTips() ([]models.QAItem, error) {
+func (r *mysqlKnowledgeRepository) GetPhotoTips() ([]entity.QAItem, error) {
 	rows, err := r.db.Query("SELECT id, question, answer, category, tags FROM photo_tips")
 	if err != nil {
 		return nil, err
@@ -56,7 +55,7 @@ func (r *mysqlKnowledgeRepository) GetPhotoTips() ([]models.QAItem, error) {
 	return scanQAItems(rows)
 }
 
-func (r *mysqlKnowledgeRepository) GetShops(city string) ([]models.Shop, error) {
+func (r *mysqlKnowledgeRepository) GetShops(city string) ([]entity.Shop, error) {
 	var rows *sql.Rows
 	var err error
 
@@ -70,9 +69,9 @@ func (r *mysqlKnowledgeRepository) GetShops(city string) ([]models.Shop, error) 
 	}
 	defer rows.Close()
 
-	var result []models.Shop
+	var result []entity.Shop
 	for rows.Next() {
-		var s models.Shop
+		var s entity.Shop
 		var productsJSON []byte
 		if err := rows.Scan(&s.ID, &s.Name, &s.Address, &s.City, &s.Phone, &productsJSON, &s.Rating); err != nil {
 			continue
@@ -85,7 +84,7 @@ func (r *mysqlKnowledgeRepository) GetShops(city string) ([]models.Shop, error) 
 	return result, nil
 }
 
-func (r *mysqlKnowledgeRepository) GetBrands(category string) ([]models.Brand, error) {
+func (r *mysqlKnowledgeRepository) GetBrands(category string) ([]entity.Brand, error) {
 	var rows *sql.Rows
 	var err error
 
@@ -102,9 +101,9 @@ func (r *mysqlKnowledgeRepository) GetBrands(category string) ([]models.Brand, e
 	}
 	defer rows.Close()
 
-	var result []models.Brand
+	var result []entity.Brand
 	for rows.Next() {
-		var b models.Brand
+		var b entity.Brand
 		var categoryJSON []byte
 		if err := rows.Scan(&b.ID, &b.Name, &b.Initial, &b.Rating, &categoryJSON, &b.Description, &b.Website); err != nil {
 			continue
@@ -118,10 +117,10 @@ func (r *mysqlKnowledgeRepository) GetBrands(category string) ([]models.Brand, e
 }
 
 // scanQAItems 从行集中扫描 QAItem 列表
-func scanQAItems(rows *sql.Rows) ([]models.QAItem, error) {
-	var result []models.QAItem
+func scanQAItems(rows *sql.Rows) ([]entity.QAItem, error) {
+	var result []entity.QAItem
 	for rows.Next() {
-		var item models.QAItem
+		var item entity.QAItem
 		var tagsJSON []byte
 		err := rows.Scan(&item.ID, &item.Question, &item.Answer, &item.Category, &tagsJSON)
 		if err != nil {
