@@ -62,6 +62,7 @@ go-backend/
 │   └── models.go           # 统一数据模型定义
 ├── cmd/migrate/
 │   └── main.go             # 数据库迁移 + 种子数据导入
+├── doc/                    # 项目文档（PRD、API 契约、技术方案等）
 ├── uploads/                # 用户上传图片存储
 ├── .env.example            # 环境变量模板
 ├── app.go                  # 应用初始化（依赖注入）

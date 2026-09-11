@@ -119,18 +119,8 @@ npm run lint     # ESLint 检查
 
 ```
 colorAI/
-├── ColorAI/                # React 前端（详见 ColorAI/README.md）
-└── go-backend/             # Go 后端（详见 go-backend/README.md）
-    ├── config/             # 配置管理（环境变量加载）
-    ├── controller/         # HTTP 控制器（请求解析 + 响应）
-    ├── service/            # 业务逻辑层
-    ├── repository/         # 数据访问层
-    ├── database/           # 数据库连接（MySQL + Redis）
-    ├── middleware/          # 中间件（CORS / RequireAuth）
-    ├── models/             # 数据模型定义
-    ├── cmd/migrate/        # 数据库迁移工具
-    ├── app.go              # 应用初始化（依赖注入）
-    └── router.go           # 路由注册
+├── ColorAI/        # React 前端（详见 ColorAI/README.md）
+└── go-backend/     # Go 后端（详见 go-backend/README.md）
 ```
 
 ## API 概览
