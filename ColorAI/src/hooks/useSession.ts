@@ -130,34 +130,34 @@ export function useSession({ startNew = false }: UseSessionOptions = {}) {
   /** 切换到指定会话 */
   const switchSession = useCallback(async (targetId: string) => {
     if (targetId === activeId) return; // 已是当前会话，跳过重复请求
-    await flushSave();
     const seq = ++openSeq.current;
-    skipAutoSaveRef.current = true;
+    skipAutoSaveRef.current = true; // 跳过本次 setActiveId 触发的 auto-save
     try {
       const detail = await sessionService.get(targetId);
       if (seq !== openSeq.current) return; // 已被更新的切换覆盖
       const ms = (detail?.messages ?? []) as Message[];
-      // 先设消息，再设 activeId，避免 auto-save 用新 id 存旧消息
+      // 先设消息，再设 activeId，确保 auto-save 如触发则数据一致
       setMessages(ms.length ? ms : [welcomeMsg()]);
       setChatHistory((detail?.history ?? []) as ChatMessage[]);
       setActiveId(targetId);
     } catch { /* 保持欢迎首屏 */ }
-  }, [activeId, flushSave]);
+  }, [activeId]);
 
   /** 新建空会话 */
-  const createSession = useCallback(async () => {
-    await flushSave();
+  const createSession = useCallback(() => {
     const newId = uid();
-    setActiveId(newId);
+    skipAutoSaveRef.current = true; // 跳过本次 setActiveId 触发的 auto-save
     setMessages([welcomeMsg()]);
     setChatHistory([]);
-  }, [flushSave]);
+    setActiveId(newId);
+  }, []);
 
   /** 删除会话 */
   const deleteSession = useCallback(async (targetId: string) => {
     await sessionService.remove(targetId).catch(() => undefined);
     setSessions((prev) => prev.filter((s) => s.id !== targetId));
     if (activeId === targetId) {
+      skipAutoSaveRef.current = true; // 防止旧消息被 auto-save 存到随机 id
       setActiveId(null);
       setMessages([welcomeMsg()]);
       setChatHistory([]);
