@@ -32,32 +32,41 @@ go run main.go
 
 ```
 go-backend/
-├── cmd/
-│   └── migrate/
-│       └── main.go          # 数据库迁移 + 种子数据导入
+├── config/
+│   └── config.go           # 配置结构体 + 环境变量加载
+├── controller/
+│   ├── auth_controller.go  # 用户注册/登录/登出
+│   ├── chat_controller.go  # AI 对话代理
+│   ├── color_controller.go # 色彩处理（校色/取色/对比/手机校色）
+│   ├── knowledge_controller.go # 知识库数据查询
+│   ├── session_controller.go   # 会话历史 CRUD
+│   ├── user_controller.go  # 用户信息
+│   └── response.go         # 统一响应封装
+├── service/
+│   ├── auth.go             # 认证业务逻辑
+│   ├── chat.go             # AI 对话业务逻辑
+│   ├── color.go            # 色彩处理业务逻辑
+│   ├── knowledge.go        # 知识库业务逻辑
+│   └── session.go          # 会话管理业务逻辑
+├── repository/
+│   ├── user_repo.go        # 用户数据访问
+│   ├── session_repo.go     # 会话数据访问
+│   └── knowledge_repo.go   # 知识库数据访问
 ├── database/
-│   ├── db.go                # MySQL 连接初始化
-│   └── redis.go             # Redis 连接初始化
-├── handlers/
-│   ├── auth.go              # 用户注册/登录/登出
-│   ├── color.go             # 色彩处理（校色/取色/对比/手机校色）
-│   ├── chat.go              # AI 对话代理（当前接入 DeepSeek，可切换其他 LLM）
-│   ├── knowledge.go         # 知识库数据查询
-│   ├── session.go           # 会话历史 CRUD
-│   └── user.go              # 用户信息
+│   ├── db.go               # MySQL 连接初始化
+│   └── redis.go            # Redis 连接初始化
 ├── middleware/
-│   ├── auth.go              # Token 鉴权中间件（Redis 校验）
-│   └── cors.go              # CORS 跨域中间件
+│   ├── auth.go             # Token 鉴权中间件（Redis 校验）
+│   └── cors.go             # CORS 跨域中间件
 ├── models/
-│   └── models.go            # 统一数据模型定义
-├── data/                    # 知识库 JSON 种子数据
-│   ├── color_issues.json    # 拍照偏色解答
-│   ├── photo_tips.json      # 拍照技巧
-│   ├── shops.json           # 附近商铺
-│   └── brands.json          # 工业胶品牌
-├── uploads/                 # 用户上传图片存储
-├── .env.example             # 环境变量模板
-├── main.go                  # 服务入口 + 路由注册
+│   └── models.go           # 统一数据模型定义
+├── cmd/migrate/
+│   └── main.go             # 数据库迁移 + 种子数据导入
+├── uploads/                # 用户上传图片存储
+├── .env.example            # 环境变量模板
+├── app.go                  # 应用初始化（依赖注入）
+├── router.go               # 路由注册
+├── main.go                 # 服务入口
 ├── go.mod
 └── go.sum
 ```
