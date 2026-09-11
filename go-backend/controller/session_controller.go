@@ -2,6 +2,7 @@ package controller
 
 import (
 	"colorai-backend/model/request"
+	"colorai-backend/model/response"
 	"net/http"
 
 	"colorai-backend/service"
@@ -34,7 +35,13 @@ func (h *SessionController) ListSessions(c *gin.Context) {
 		return
 	}
 
-	OK(c, gin.H{"items": list, "total": len(list)})
+	// 转换为响应结构
+	items := make([]response.ChatSessionResponse, 0, len(list))
+	for _, s := range list {
+		items = append(items, response.SessionFromEntity(s))
+	}
+
+	OK(c, gin.H{"items": items, "total": len(items)})
 }
 
 // GetSession 获取会话详情
