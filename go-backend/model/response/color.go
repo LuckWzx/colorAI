@@ -13,10 +13,11 @@ type RGB struct {
 
 // CorrectMeta 校色元数据
 type CorrectMeta struct {
-	Brightness  int `json:"brightness"`
-	Contrast    int `json:"contrast"`
-	Saturation  int `json:"saturation"`
-	Temperature int `json:"temperature"`
+	Brand       string  `json:"brand"`
+	DeviceInfo  string  `json:"deviceInfo"`
+	Distance    float64 `json:"distance"`
+	Threshold   float64 `json:"threshold"`
+	ElapsedTime float64 `json:"elapsedTime"`
 }
 
 // CorrectResponse 图片校色响应
@@ -25,6 +26,7 @@ type CorrectResponse struct {
 	OriginalURL  string      `json:"originalUrl"`
 	CorrectedURL string      `json:"correctedUrl"`
 	Meta         CorrectMeta `json:"meta"`
+	Error        string      `json:"error,omitempty"`
 }
 
 // PickResponse 智能取色响应

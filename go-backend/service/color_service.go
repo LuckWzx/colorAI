@@ -68,10 +68,11 @@ func (s *mockColorService) CorrectImage(imageURL string) (*response.CorrectRespo
 		OriginalURL:  imageURL,
 		CorrectedURL: imageURL,
 		Meta: response.CorrectMeta{
-			Brightness:  cryptoRandInt(-5, 15),
-			Contrast:    cryptoRandInt(5, 25),
-			Saturation:  cryptoRandInt(-5, 15),
-			Temperature: cryptoRandInt(-15, 15),
+			Brand:       "MockBrand",
+			DeviceInfo:  "MockDevice",
+			Distance:    randomFloat(0.5, 3.0, 2),
+			Threshold:   3.0,
+			ElapsedTime: randomFloat(0.1, 2.0, 2),
 		},
 	}, nil
 }
@@ -174,36 +175,54 @@ func (s *realColorService) CorrectImage(imageURL string) (*response.CorrectRespo
 		return nil, fmt.Errorf("解析响应失败: %w", err)
 	}
 
-	// 检查是否成功
+	// 构建公共 meta
+	meta := response.CorrectMeta{
+		Brand:       correctionResp.Brand,
+		DeviceInfo:  correctionResp.DeviceInfo,
+		Distance:    correctionResp.Distance,
+		Threshold:   correctionResp.Threshold,
+		ElapsedTime: correctionResp.ElapsedTime,
+	}
+
+	// 外部API返回错误
+	if correctionResp.Error != "" {
+		return &response.CorrectResponse{
+			Success:     false,
+			OriginalURL: correctionResp.Original,
+			Meta:        meta,
+			Error:       correctionResp.Error,
+		}, nil
+	}
+
+	// 校色未通过
 	if !correctionResp.Passed {
 		return &response.CorrectResponse{
 			Success:     false,
 			OriginalURL: correctionResp.Original,
-			Meta: response.CorrectMeta{
-				Brightness:  int(correctionResp.Distance * 100),
-				Contrast:    int(correctionResp.Threshold * 100),
-				Saturation:  0,
-				Temperature: 0,
-			},
+			Meta:        meta,
+			Error:       fmt.Sprintf("校色未通过，色差: %.2f，阈值: %.2f", correctionResp.Distance, correctionResp.Threshold),
 		}, nil
 	}
 
-	// 构建响应
+	// 取校色后的图片URL
 	correctedURL := ""
 	if len(correctionResp.Results) > 0 {
 		correctedURL = correctionResp.Results[0].Corrected
+	}
+	if correctedURL == "" {
+		return &response.CorrectResponse{
+			Success:     false,
+			OriginalURL: correctionResp.Original,
+			Meta:        meta,
+			Error:       "校色API未返回校正后的图片",
+		}, nil
 	}
 
 	return &response.CorrectResponse{
 		Success:      true,
 		OriginalURL:  correctionResp.Original,
 		CorrectedURL: correctedURL,
-		Meta: response.CorrectMeta{
-			Brightness:  int(correctionResp.Distance * 100),
-			Contrast:    int(correctionResp.Threshold * 100),
-			Saturation:  int(correctionResp.ElapsedTime),
-			Temperature: 0,
-		},
+		Meta:         meta,
 	}, nil
 }
 
