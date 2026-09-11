@@ -53,6 +53,7 @@ export function useSession({ startNew = false }: UseSessionOptions = {}) {
         const ms = (detail?.messages ?? []) as Message[];
         setMessages(ms.length ? ms : [welcomeMsg()]);
         setChatHistory((detail?.history ?? []) as ChatMessage[]);
+        skipAutoSaveRef.current = true; // 防止 setActiveId 触发 auto-save 保存欢迎消息
         setActiveId(recent.id); // 设 activeId 使 skipAutoSave 逻辑一致，且防止用户点击时重复请求
       } catch {
         /* 保持新对话欢迎首屏 */
