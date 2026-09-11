@@ -28,7 +28,9 @@ func (h *ChatController) Chat(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.chatSvc.Chat(req.Messages, req.Model)
+	userID := getUserID(c)
+
+	resp, err := h.chatSvc.Chat(userID, req.SessionID, req.Messages, req.Model)
 	if err != nil {
 		Fail(c, http.StatusServiceUnavailable, err.Error())
 		return

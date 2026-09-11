@@ -12,6 +12,7 @@ type ChatMessage struct {
 
 // ChatRequest AI 对话请求
 type ChatRequest struct {
-	Messages []ChatMessage `json:"messages"`
-	Model    string        `json:"model,omitempty"`
+	SessionID string      `json:"sessionId"`
+	Messages  []ChatMessage `json:"messages"`
+	Model     string        `json:"model,omitempty"`
 }

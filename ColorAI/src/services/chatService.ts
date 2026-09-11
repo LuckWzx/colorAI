@@ -42,10 +42,11 @@ const COLOR_SYSTEM_PROMPT = `你是曲泉AI，一个专业的色彩智能体。�
  * 通过后端代理调用 LLM API
  * （API Key 仅存在于服务端环境变量中，不会暴露给前端）
  */
-async function callViaProxy(messages: ChatMessage[]): Promise<ChatResponse> {
+async function callViaProxy(messages: ChatMessage[], sessionId?: string): Promise<ChatResponse> {
   const res = await authFetch('/api/chat', {
     method: 'POST',
     body: JSON.stringify({
+      sessionId: sessionId || '',
       messages: [
         { role: 'system', content: COLOR_SYSTEM_PROMPT },
         ...messages,
@@ -84,8 +85,8 @@ export const chatService = {
   /**
    * 发送对话请求（通过后端代理调用 LLM API）
    */
-  async chat(userMessage: string, history: ChatMessage[] = []): Promise<ChatResponse> {
+  async chat(userMessage: string, history: ChatMessage[] = [], sessionId?: string): Promise<ChatResponse> {
     const messages: ChatMessage[] = [...history, { role: 'user', content: userMessage }];
-    return callViaProxy(messages);
+    return callViaProxy(messages, sessionId);
   },
 };

@@ -41,7 +41,6 @@ export default function Workspace() {
     sessions, activeId, messages, chatHistory,
     setMessages, setChatHistory,
     switchSession, createSession, deleteSession,
-    flushSave, liveRef, skipAutoSaveRef,
   } = useSession({ startNew });
 
   // —— UI 状态 ——
@@ -112,7 +111,6 @@ export default function Workspace() {
   };
 
   const startNewChat = async () => {
-    await flushSave();
     createSession();
     setSelectedFeature(null);
     setPendingImages([]);
@@ -380,7 +378,7 @@ export default function Workspace() {
           return latestHistory;
         });
         try {
-          const response = await chatService.chat(userText, latestHistory);
+          const response = await chatService.chat(userText, latestHistory, activeId);
           const assistantText = response.text;
           setChatHistory((prev) => [...prev, { role: 'assistant', content: assistantText }]);
           setMessages((prev) =>

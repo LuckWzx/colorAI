@@ -18,6 +18,7 @@ type SessionRepository interface {
 	FindByID(sessionID, userID string) (*response.ChatSessionDetail, error)
 	Create(sessionID, userID, title string, now int64) error
 	Save(sessionID, userID, title string, messages []interface{}, now int64) error
+	AppendMessages(sessionID, userID string, messages []entity.ChatMessageRecord, now int64) error
 	Delete(sessionID, userID string) error
 }
 
@@ -185,6 +186,43 @@ func (r *mysqlSessionRepository) Delete(sessionID, userID string) error {
 		// 删除会话
 		if err := tx.Where("id = ? AND user_id = ?", sessionID, userID).Delete(&entity.ChatSession{}).Error; err != nil {
 			return fmt.Errorf("删除会话失败: %w", err)
+		}
+
+		return nil
+	})
+}
+
+// AppendMessages 追加消息到会话（聊天时后端自动保存）
+func (r *mysqlSessionRepository) AppendMessages(sessionID, userID string, messages []entity.ChatMessageRecord, now int64) error {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// 确认会话存在
+		var session entity.ChatSession
+		if err := tx.Where("id = ? AND user_id = ?", sessionID, userID).First(&session).Error; err != nil {
+			return fmt.Errorf("会话不存在: %w", err)
+		}
+
+		// 获取当前消息数作为起始 sort_order
+		startOrder := session.MessageCount
+
+		// 插入消息
+		for i := range messages {
+			messages[i].SortOrder = startOrder + i
+		}
+		if err := tx.CreateInBatches(messages, 100).Error; err != nil {
+			return fmt.Errorf("插入消息失败: %w", err)
+		}
+
+		// 更新会话元数据
+		newCount := session.MessageCount + len(messages)
+		if err := tx.Model(&session).Updates(map[string]interface{}{
+			"message_count": newCount,
+			"updated_at":    now,
+		}).Error; err != nil {
+			return fmt.Errorf("更新会话失败: %w", err)
 		}
 
 		return nil

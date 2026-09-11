@@ -2,11 +2,15 @@ package service
 
 import (
 	"bytes"
+	"colorai-backend/model/entity"
 	"colorai-backend/model/request"
 	"colorai-backend/model/response"
+	"colorai-backend/repository"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"time"
 
@@ -15,19 +19,20 @@ import (
 
 // ChatService AI 对话业务接口
 type ChatService interface {
-	Chat(messages []request.ChatMessage, model string) (*response.ChatResponse, error)
+	Chat(userID, sessionID string, messages []request.ChatMessage, model string) (*response.ChatResponse, error)
 }
 
 type chatService struct {
-	llmCfg config.LLMConfig
+	llmCfg     config.LLMConfig
+	sessionRepo repository.SessionRepository
 }
 
 // NewChatService 创建 ChatService 实例
-func NewChatService(llmCfg config.LLMConfig) ChatService {
-	return &chatService{llmCfg: llmCfg}
+func NewChatService(llmCfg config.LLMConfig, sessionRepo repository.SessionRepository) ChatService {
+	return &chatService{llmCfg: llmCfg, sessionRepo: sessionRepo}
 }
 
-func (s *chatService) Chat(messages []request.ChatMessage, model string) (*response.ChatResponse, error) {
+func (s *chatService) Chat(userID, sessionID string, messages []request.ChatMessage, model string) (*response.ChatResponse, error) {
 	if s.llmCfg.APIKey == "" {
 		return &response.ChatResponse{
 			Success: false,
@@ -124,5 +129,50 @@ func (s *chatService) Chat(messages []request.ChatMessage, model string) (*respo
 		}
 	}
 
+	// 自动保存消息到会话
+	if sessionID != "" && userID != "" {
+		s.saveMessages(userID, sessionID, messages, dsResp.Choices[0].Message.Content)
+	}
+
 	return result, nil
+}
+
+// saveMessages 将用户消息和 AI 回复保存到会话
+func (s *chatService) saveMessages(userID, sessionID string, userMessages []request.ChatMessage, assistantReply string) {
+	now := time.Now().UnixMilli()
+	records := make([]entity.ChatMessageRecord, 0, len(userMessages)+1)
+
+	// 保存最后一条用户消息（前端只发最新一条）
+	if len(userMessages) > 0 {
+		last := userMessages[len(userMessages)-1]
+		records = append(records, entity.ChatMessageRecord{
+			ID:        chatMsgID(),
+			SessionID: sessionID,
+			Role:      last.Role,
+			MsgType:   "text",
+			Content:   last.Content,
+			Payload:   "null",
+			CreatedAt: now,
+		})
+	}
+
+	// 保存 AI 回复
+	records = append(records, entity.ChatMessageRecord{
+		ID:        chatMsgID(),
+		SessionID: sessionID,
+		Role:      "assistant",
+		MsgType:   "text",
+		Content:   assistantReply,
+		Payload:   "null",
+		CreatedAt: now,
+	})
+
+	if err := s.sessionRepo.AppendMessages(sessionID, userID, records, now); err != nil {
+		fmt.Printf("[chat] 自动保存消息失败: %v\n", err)
+	}
+}
+
+func chatMsgID() string {
+	n, _ := rand.Int(rand.Reader, big.NewInt(1<<62))
+	return fmt.Sprintf("msg-%016x", n.Int64())
 }

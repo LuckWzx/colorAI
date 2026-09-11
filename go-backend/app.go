@@ -56,7 +56,7 @@ func NewApp(cfg *config.Config) *App {
 
 	// Services
 	authSvc := service.NewAuthService(userRepo, rdb)
-	chatSvc := service.NewChatService(cfg.LLM)
+	chatSvc := service.NewChatService(cfg.LLM, sessionRepo)
 	colorSvc := service.NewColorService()
 	sessionSvc := service.NewSessionService(sessionRepo)
 	knowledgeSvc := service.NewKnowledgeService(knowledgeRepo)
