@@ -31,7 +31,7 @@
 - **状态管理**：Zustand 5
 - **HTTP 客户端**：Axios（`src/services` 统一封装，自动携带 Bearer token）
 - **图标**：Lucide React
-- **后端**：Go + Gin（API 服务，默认端口 `3001`）
+- **后端**：Go + Gin + GORM（API 服务，默认端口 `3001`）
 - **数据库**：MySQL 8.0（阿里云 ECS）
 - **缓存/会话**：Redis（Token 存储，TTL 7 天）
 - **AI 能力**：LLM API（服务端代理，当前接入 DeepSeek，Key 不暴露给前端）
@@ -76,6 +76,9 @@ PORT=3001
 # LLM API Key（当前接入 DeepSeek，服务端读取，不暴露给前端）
 # 申请地址: https://platform.deepseek.com/
 LLM_API_KEY=your_llm_api_key_here
+
+# 校色API地址（留空则使用Mock数据）
+COLOR_CORRECTION_API_URL=https://your-color-correction-api.com/endpoint
 
 # 数据库配置
 DB_HOST=127.0.0.1

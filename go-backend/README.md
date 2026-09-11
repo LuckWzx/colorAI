@@ -8,7 +8,7 @@
 |------|------|
 | 语言 | Go 1.24 |
 | Web 框架 | Gin 1.10 |
-| 数据库 | MySQL（go-sql-driver） |
+| 数据库 | MySQL（GORM） |
 | 缓存 | Redis（go-redis v9） |
 | 认证 | Redis Token 存储 |
 | 环境变量 | godotenv |
@@ -21,10 +21,7 @@ cp .env.example .env
 
 # 2. 编辑 .env，填入数据库、Redis、LLM API Key 等配置
 
-# 3. 运行数据迁移（建表 + 写入种子数据）
-go run cmd/migrate/main.go
-
-# 4. 启动服务（默认端口 3001）
+# 3. 启动服务（默认端口 3001）
 go run main.go
 ```
 
@@ -33,41 +30,56 @@ go run main.go
 ```
 go-backend/
 ├── config/
-│   └── config.go           # 配置结构体 + 环境变量加载
+│   └── config.go               # 配置结构体 + 环境变量加载
 ├── controller/
-│   ├── auth_controller.go  # 用户注册/登录/登出
-│   ├── chat_controller.go  # AI 对话代理
-│   ├── color_controller.go # 色彩处理（校色/取色/对比/手机校色）
+│   ├── auth_controller.go      # 用户注册/登录/登出
+│   ├── chat_controller.go      # AI 对话代理
+│   ├── color_controller.go     # 色彩处理（校色/取色/对比/手机校色）
 │   ├── knowledge_controller.go # 知识库数据查询
 │   ├── session_controller.go   # 会话历史 CRUD
-│   ├── user_controller.go  # 用户信息
-│   └── response.go         # 统一响应封装
+│   ├── user_controller.go      # 用户信息
+│   └── response.go             # 统一响应封装
 ├── service/
-│   ├── auth.go             # 认证业务逻辑
-│   ├── chat.go             # AI 对话业务逻辑
-│   ├── color.go            # 色彩处理业务逻辑
-│   ├── knowledge.go        # 知识库业务逻辑
-│   └── session.go          # 会话管理业务逻辑
+│   ├── auth_service.go         # 认证业务逻辑
+│   ├── chat_service.go         # AI 对话业务逻辑
+│   ├── color_service.go        # 色彩处理业务逻辑（Mock + 真实实现切换）
+│   ├── knowledge_service.go    # 知识库业务逻辑
+│   └── session_service.go      # 会话管理业务逻辑
 ├── repository/
-│   ├── user_repo.go        # 用户数据访问
-│   ├── session_repo.go     # 会话数据访问
-│   └── knowledge_repo.go   # 知识库数据访问
+│   ├── user_repo.go            # 用户数据访问（GORM）
+│   ├── session_repo.go         # 会话数据访问（GORM 事务）
+│   └── knowledge_repo.go       # 知识库数据访问（GORM）
+├── model/
+│   ├── entity/                 # 数据库表模型（GORM，json:"-"）
+│   │   ├── auth.go             # User
+│   │   ├── knowledge.go        # ColorIssue, PhotoTip, ShopDB, BrandDB
+│   │   └── session.go          # ChatSession, ChatMessageRecord
+│   ├── request/                # API 请求体（binding 标签）
+│   │   ├── auth.go             # RegisterRequest, LoginRequest
+│   │   ├── chat.go             # ChatRequest, ChatMessage
+│   │   ├── color.go            # PickRequest, CompareRequest
+│   │   └── session.go          # SaveSessionRequest
+│   └── response/               # API 响应体（json 标签）
+│       ├── auth.go             # AuthResponse, UserResponse
+│       ├── chat.go             # ChatResponse, ChatChoice, ChatUsage
+│       ├── color.go            # PickResponse, CorrectResponse, CompareResponse 等
+│       ├── color_correction.go # ColorCorrectionResponse（外部校色API）
+│       ├── common.go           # SuccessResponse, ErrorResponse, ListResponse
+│       ├── knowledge.go        # QAItem, Shop, Brand
+│       └── session.go          # ChatSessionDetail, ChatSessionResponse
 ├── database/
-│   ├── db.go               # MySQL 连接初始化
-│   └── redis.go            # Redis 连接初始化
+│   ├── db.go                   # MySQL 连接初始化（GORM）
+│   └── redis.go                # Redis 连接初始化
 ├── middleware/
-│   ├── auth.go             # Token 鉴权中间件（Redis 校验）
-│   └── cors.go             # CORS 跨域中间件
-├── models/
-│   └── models.go           # 统一数据模型定义
-├── cmd/migrate/
-│   └── main.go             # 数据库迁移 + 种子数据导入
-├── doc/                    # 项目文档（PRD、API 契约、技术方案等）
-├── uploads/                # 用户上传图片存储
-├── .env.example            # 环境变量模板
-├── app.go                  # 应用初始化（依赖注入）
-├── router.go               # 路由注册
-├── main.go                 # 服务入口
+│   ├── auth.go                 # Token 鉴权中间件（Redis 校验）
+│   └── cors.go                 # CORS 跨域中间件
+├── data/                       # 知识库 JSON 种子数据
+├── doc/                        # 项目文档（PRD、API 契约、技术方案等）
+├── uploads/                    # 用户上传图片存储
+├── .env.example                # 环境变量模板
+├── app.go                      # 应用初始化（依赖注入）
+├── router.go                   # 路由注册
+├── main.go                     # 服务入口
 ├── go.mod
 └── go.sum
 ```
@@ -80,6 +92,9 @@ PORT=3001
 
 # LLM API Key（当前接入 DeepSeek，服务端读取，不暴露给前端）
 LLM_API_KEY=your_llm_api_key_here
+
+# 校色API地址（留空则使用Mock数据）
+COLOR_CORRECTION_API_URL=https://api3.ququan.net/quality/api/quality_check
 
 # 数据库配置
 DB_HOST=127.0.0.1
@@ -120,7 +135,7 @@ REDIS_PASS=your_redis_password
 | 方法 | 路径 | 权限 | 说明 |
 |------|------|------|------|
 | POST | `/api/color/pick` | 公开 | 图片取色（坐标 → RGB/HEX） |
-| POST | `/api/color/correct` | 需登录 | 图片一键校正（白平衡/亮度/对比度） |
+| POST | `/api/color/correct` | 需登录 | 图片一键校正（调用外部校色API） |
 | POST | `/api/color/compare` | 需登录 | 两张图片颜色对比（ΔE 色差） |
 | POST | `/api/color/phone-correct` | 需登录 | 手机拍摄视觉校色 |
 
@@ -159,7 +174,7 @@ REDIS_PASS=your_redis_password
 | phone | VARCHAR(20) UNIQUE | 手机号 |
 | password_hash | VARCHAR(128) | 密码 SHA-256 哈希 |
 | avatar | VARCHAR(255) | 头像 URL |
-| created_at | BIGINT | 创建时间戳 |
+| created_at | DATETIME | 创建时间 |
 
 ### chat_sessions
 | 字段 | 类型 | 说明 |
@@ -195,18 +210,6 @@ REDIS_PASS=your_redis_password
 2. 前端存储 Token 至 localStorage（通过 Zustand 持久化）
 3. 请求受保护接口时，前端通过 `authFetch` 自动注入 `Authorization: Bearer {token}`
 4. 后端 `RequireAuth` 中间件从 Redis 校验 Token，解析用户信息写入 Gin Context
-
-## 数据迁移
-
-```bash
-# 从 data/ 目录的 JSON 文件导入知识库种子数据
-# 同时创建会话系统表结构 + 写入 mock 会话数据
-go run cmd/migrate/main.go
-```
-
-迁移内容：
-- 建表：`users`、`chat_sessions`、`chat_messages`、`color_issues`、`photo_tips`、`shops`、`brands`
-- 种子数据：4 类知识库 JSON + 3 个 mock 会话（含完整消息历史）
 
 ## 相关项目
 
