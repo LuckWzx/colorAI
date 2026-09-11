@@ -5,11 +5,12 @@ package entity
 // ============================================================
 
 type User struct {
-	ID        string `json:"id"`
-	Username  string `json:"username"`
-	Phone     string `json:"phone"`
-	Avatar    string `json:"avatar,omitempty"`
-	CreatedAt int64  `json:"createdAt"`
+	ID        string `json:"id" gorm:"column:id;primaryKey"`
+	Username  string `json:"username" gorm:"column:username"`
+	Phone     string `json:"phone" gorm:"column:phone"`
+	Avatar    string `json:"avatar,omitempty" gorm:"column:avatar"`
+	CreatedAt int64  `json:"createdAt" gorm:"column:created_at"`
+	Password  string `json:"-" gorm:"column:password_hash"`
 }
 
 type RegisterRequest struct {

@@ -2,8 +2,9 @@ package repository
 
 import (
 	"colorai-backend/model/entity"
-	"database/sql"
 	"encoding/json"
+
+	"gorm.io/gorm"
 )
 
 // KnowledgeRepository 知识库数据访问接口
@@ -16,120 +17,142 @@ type KnowledgeRepository interface {
 
 // mysqlKnowledgeRepository MySQL 知识库数据访问实现
 type mysqlKnowledgeRepository struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
 // NewKnowledgeRepository 创建 KnowledgeRepository 实例
-func NewKnowledgeRepository(db *sql.DB) KnowledgeRepository {
+func NewKnowledgeRepository(db *gorm.DB) KnowledgeRepository {
 	return &mysqlKnowledgeRepository{db: db}
 }
 
 func (r *mysqlKnowledgeRepository) GetColorIssues(keyword string) ([]entity.QAItem, error) {
-	var rows *sql.Rows
-	var err error
+	var items []entity.ColorIssue
+	query := r.db
 
-	if keyword == "" {
-		rows, err = r.db.Query("SELECT id, question, answer, category, tags FROM color_issues")
-	} else {
+	if keyword != "" {
 		like := "%" + keyword + "%"
-		rows, err = r.db.Query(
-			"SELECT id, question, answer, category, tags FROM color_issues "+
-				"WHERE question LIKE ? OR answer LIKE ? OR category LIKE ? OR JSON_CONTAINS(tags, ?)",
-			like, like, like, "\""+keyword+"\"")
+		query = query.Where("question LIKE ? OR answer LIKE ? OR category LIKE ?", like, like, like)
 	}
-	if err != nil {
+
+	if err := query.Find(&items).Error; err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	return scanQAItems(rows)
+	return convertColorIssues(items), nil
 }
 
 func (r *mysqlKnowledgeRepository) GetPhotoTips() ([]entity.QAItem, error) {
-	rows, err := r.db.Query("SELECT id, question, answer, category, tags FROM photo_tips")
-	if err != nil {
+	var items []entity.PhotoTip
+	if err := r.db.Find(&items).Error; err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	return scanQAItems(rows)
+	return convertPhotoTips(items), nil
 }
 
 func (r *mysqlKnowledgeRepository) GetShops(city string) ([]entity.Shop, error) {
-	var rows *sql.Rows
-	var err error
+	var shops []entity.ShopDB
+	query := r.db
 
-	if city == "" || city == "all" || city == "全部城市" {
-		rows, err = r.db.Query("SELECT id, name, address, city, phone, products, rating FROM shops")
-	} else {
-		rows, err = r.db.Query("SELECT id, name, address, city, phone, products, rating FROM shops WHERE city = ?", city)
+	if city != "" && city != "all" && city != "全部城市" {
+		query = query.Where("city = ?", city)
 	}
-	if err != nil {
+
+	if err := query.Find(&shops).Error; err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var result []entity.Shop
-	for rows.Next() {
-		var s entity.Shop
-		var productsJSON []byte
-		if err := rows.Scan(&s.ID, &s.Name, &s.Address, &s.City, &s.Phone, &productsJSON, &s.Rating); err != nil {
-			continue
-		}
-		if productsJSON != nil {
-			_ = json.Unmarshal(productsJSON, &s.Products)
-		}
-		result = append(result, s)
-	}
-	return result, nil
+	return convertShops(shops), nil
 }
 
 func (r *mysqlKnowledgeRepository) GetBrands(category string) ([]entity.Brand, error) {
-	var rows *sql.Rows
-	var err error
+	var brands []entity.BrandDB
+	query := r.db
 
-	if category == "" || category == "all" || category == "全部" {
-		rows, err = r.db.Query("SELECT id, name, initial, rating, category, description, website FROM brands")
-	} else {
-		rows, err = r.db.Query(
-			"SELECT id, name, initial, rating, category, description, website FROM brands "+
-				"WHERE JSON_CONTAINS(category, ?)",
-			"\""+category+"\"")
+	if category != "" && category != "all" && category != "全部" {
+		// 使用 JSON_CONTAINS 查询包含指定分类的品牌
+		query = query.Where("JSON_CONTAINS(category, ?)", "\""+category+"\"")
 	}
-	if err != nil {
+
+	if err := query.Find(&brands).Error; err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var result []entity.Brand
-	for rows.Next() {
-		var b entity.Brand
-		var categoryJSON []byte
-		if err := rows.Scan(&b.ID, &b.Name, &b.Initial, &b.Rating, &categoryJSON, &b.Description, &b.Website); err != nil {
-			continue
+	return convertBrands(brands), nil
+}
+
+// 转换函数
+func convertColorIssues(items []entity.ColorIssue) []entity.QAItem {
+	result := make([]entity.QAItem, 0, len(items))
+	for _, item := range items {
+		qaItem := entity.QAItem{
+			ID:       item.ID,
+			Question: item.Question,
+			Answer:   item.Answer,
+			Category: item.Category,
 		}
-		if categoryJSON != nil {
-			_ = json.Unmarshal(categoryJSON, &b.Category)
+		// 解析 JSON tags
+		if item.Tags != "" && item.Tags != "null" {
+			_ = json.Unmarshal([]byte(item.Tags), &qaItem.Tags)
+		}
+		result = append(result, qaItem)
+	}
+	return result
+}
+
+func convertPhotoTips(items []entity.PhotoTip) []entity.QAItem {
+	result := make([]entity.QAItem, 0, len(items))
+	for _, item := range items {
+		qaItem := entity.QAItem{
+			ID:       item.ID,
+			Question: item.Question,
+			Answer:   item.Answer,
+			Category: item.Category,
+		}
+		// 解析 JSON tags
+		if item.Tags != "" && item.Tags != "null" {
+			_ = json.Unmarshal([]byte(item.Tags), &qaItem.Tags)
+		}
+		result = append(result, qaItem)
+	}
+	return result
+}
+
+func convertShops(shops []entity.ShopDB) []entity.Shop {
+	result := make([]entity.Shop, 0, len(shops))
+	for _, shop := range shops {
+		s := entity.Shop{
+			ID:      shop.ID,
+			Name:    shop.Name,
+			Address: shop.Address,
+			City:    shop.City,
+			Phone:   shop.Phone,
+			Rating:  shop.Rating,
+		}
+		// 解析 JSON products
+		if shop.Products != "" && shop.Products != "null" {
+			_ = json.Unmarshal([]byte(shop.Products), &s.Products)
+		}
+		result = append(result, s)
+	}
+	return result
+}
+
+func convertBrands(brands []entity.BrandDB) []entity.Brand {
+	result := make([]entity.Brand, 0, len(brands))
+	for _, brand := range brands {
+		b := entity.Brand{
+			ID:          brand.ID,
+			Name:        brand.Name,
+			Initial:     brand.Initial,
+			Rating:      brand.Rating,
+			Description: brand.Description,
+			Website:     brand.Website,
+		}
+		// 解析 JSON category
+		if brand.Category != "" && brand.Category != "null" {
+			_ = json.Unmarshal([]byte(brand.Category), &b.Category)
 		}
 		result = append(result, b)
 	}
-	return result, nil
-}
-
-// scanQAItems 从行集中扫描 QAItem 列表
-func scanQAItems(rows *sql.Rows) ([]entity.QAItem, error) {
-	var result []entity.QAItem
-	for rows.Next() {
-		var item entity.QAItem
-		var tagsJSON []byte
-		err := rows.Scan(&item.ID, &item.Question, &item.Answer, &item.Category, &tagsJSON)
-		if err != nil {
-			continue
-		}
-		if tagsJSON != nil {
-			_ = json.Unmarshal(tagsJSON, &item.Tags)
-		}
-		result = append(result, item)
-	}
-	return result, nil
+	return result
 }

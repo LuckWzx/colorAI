@@ -4,7 +4,6 @@ import (
 	"colorai-backend/model/entity"
 	"context"
 	"crypto/sha256"
-	"database/sql"
 	"fmt"
 	"regexp"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"colorai-backend/repository"
 
 	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
 const tokenTTL = 7 * 24 * time.Hour
@@ -54,15 +54,15 @@ func (s *authService) Register(username, phone, password string) (*entity.User, 
 
 	// 创建用户
 	userID := fmt.Sprintf("u_%d", time.Now().UnixNano())
-	passwordHash := hashPassword(password)
 	user := &entity.User{
 		ID:        userID,
 		Username:  username,
 		Phone:     phone,
+		Password:  hashPassword(password),
 		CreatedAt: time.Now().UnixMilli(),
 	}
 
-	if err := s.userRepo.Create(user, passwordHash); err != nil {
+	if err := s.userRepo.Create(user); err != nil {
 		return nil, "", fmt.Errorf("注册失败: %w", err)
 	}
 
@@ -73,15 +73,15 @@ func (s *authService) Register(username, phone, password string) (*entity.User, 
 }
 
 func (s *authService) Login(phone, password string) (*entity.User, string, error) {
-	user, storedHash, err := s.userRepo.FindByPhone(phone)
-	if err == sql.ErrNoRows {
+	user, err := s.userRepo.FindByPhone(phone)
+	if err == gorm.ErrRecordNotFound {
 		return nil, "", &ServiceError{StatusCode: 401, Message: "该手机号尚未注册"}
 	}
 	if err != nil {
 		return nil, "", fmt.Errorf("查询失败: %w", err)
 	}
 
-	if storedHash != hashPassword(password) {
+	if user.Password != hashPassword(password) {
 		return nil, "", &ServiceError{StatusCode: 401, Message: "密码错误"}
 	}
 

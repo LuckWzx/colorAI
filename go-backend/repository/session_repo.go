@@ -3,11 +3,12 @@ package repository
 import (
 	"colorai-backend/model/entity"
 	"crypto/rand"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"math/big"
+
+	"gorm.io/gorm"
 )
 
 // SessionRepository 会话数据访问接口
@@ -21,42 +22,26 @@ type SessionRepository interface {
 
 // mysqlSessionRepository MySQL 会话数据访问实现
 type mysqlSessionRepository struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
 // NewSessionRepository 创建 SessionRepository 实例
-func NewSessionRepository(db *sql.DB) SessionRepository {
+func NewSessionRepository(db *gorm.DB) SessionRepository {
 	return &mysqlSessionRepository{db: db}
 }
 
 func (r *mysqlSessionRepository) ListByUser(userID string) ([]entity.ChatSession, error) {
-	rows, err := r.db.Query(
-		"SELECT id, title, created_at, updated_at, message_count FROM chat_sessions WHERE user_id = ? ORDER BY updated_at DESC",
-		userID,
-	)
+	var sessions []entity.ChatSession
+	err := r.db.Where("user_id = ?", userID).Order("updated_at DESC").Find(&sessions).Error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	list := make([]entity.ChatSession, 0)
-	for rows.Next() {
-		var s entity.ChatSession
-		if err := rows.Scan(&s.ID, &s.Title, &s.CreatedAt, &s.UpdatedAt, &s.MessageCount); err != nil {
-			continue
-		}
-		list = append(list, s)
-	}
-	return list, nil
+	return sessions, nil
 }
 
 func (r *mysqlSessionRepository) FindByID(sessionID, userID string) (*entity.ChatSessionDetail, error) {
-	var detail entity.ChatSessionDetail
-	err := r.db.QueryRow(
-		"SELECT id, title, created_at, updated_at, message_count FROM chat_sessions WHERE id = ? AND user_id = ?",
-		sessionID, userID,
-	).Scan(&detail.ID, &detail.Title, &detail.CreatedAt, &detail.UpdatedAt, &detail.MessageCount)
-
+	var session entity.ChatSession
+	err := r.db.Where("id = ? AND user_id = ?", sessionID, userID).First(&session).Error
 	if err != nil {
 		return nil, err
 	}
@@ -66,156 +51,170 @@ func (r *mysqlSessionRepository) FindByID(sessionID, userID string) (*entity.Cha
 	if err != nil {
 		return nil, err
 	}
-	detail.Messages = msgs
-	detail.History = hist
 
-	return &detail, nil
+	return &entity.ChatSessionDetail{
+		ChatSession: session,
+		Messages:    msgs,
+		History:     hist,
+	}, nil
 }
 
 func (r *mysqlSessionRepository) Create(sessionID, userID, title string, now int64) error {
-	_, err := r.db.Exec(
-		"INSERT INTO chat_sessions (id, user_id, title, message_count, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?)",
-		sessionID, userID, title, now, now,
-	)
-	return err
+	session := entity.ChatSession{
+		ID:           sessionID,
+		UserID:       userID,
+		Title:        title,
+		MessageCount: 0,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	return r.db.Create(&session).Error
 }
 
 func (r *mysqlSessionRepository) Save(sessionID, userID, title string, messages []interface{}, now int64) error {
 	msgCount := len(messages)
 
-	tx, err := r.db.Begin()
-	if err != nil {
-		return fmt.Errorf("事务开始失败: %w", err)
-	}
-	defer tx.Rollback()
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// upsert 会话元数据
+		var session entity.ChatSession
+		err := tx.Where("id = ? AND user_id = ?", sessionID, userID).First(&session).Error
 
-	// upsert 会话元数据
-	var sessionCreatedAt int64
-	err = tx.QueryRow("SELECT created_at FROM chat_sessions WHERE id = ? AND user_id = ?", sessionID, userID).Scan(&sessionCreatedAt)
-
-	if err == nil {
-		_, err = tx.Exec("UPDATE chat_sessions SET title = ?, message_count = ?, updated_at = ? WHERE id = ? AND user_id = ?",
-			title, msgCount, now, sessionID, userID)
-	} else {
-		sessionCreatedAt = now
-		_, err = tx.Exec("INSERT INTO chat_sessions (id, user_id, title, message_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-			sessionID, userID, title, msgCount, now, now)
-	}
-	if err != nil {
-		return fmt.Errorf("保存会话失败: %w", err)
-	}
-
-	// 删除旧消息
-	tx.Exec("DELETE FROM chat_messages WHERE session_id = ?", sessionID)
-
-	// 批量插入新消息
-	if len(messages) > 0 {
-		stmt, err := tx.Prepare(
-			"INSERT INTO chat_messages (id, session_id, role, msg_type, content, payload, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-		if err != nil {
-			return fmt.Errorf("准备插入消息失败: %w", err)
+		if err == gorm.ErrRecordNotFound {
+			// 创建新会话
+			session = entity.ChatSession{
+				ID:           sessionID,
+				UserID:       userID,
+				Title:        title,
+				MessageCount: msgCount,
+				CreatedAt:    now,
+				UpdatedAt:    now,
+			}
+			if err := tx.Create(&session).Error; err != nil {
+				return fmt.Errorf("创建会话失败: %w", err)
+			}
+		} else if err != nil {
+			return fmt.Errorf("查询会话失败: %w", err)
+		} else {
+			// 更新现有会话
+			if err := tx.Model(&session).Updates(map[string]interface{}{
+				"title":         title,
+				"message_count": msgCount,
+				"updated_at":    now,
+			}).Error; err != nil {
+				return fmt.Errorf("更新会话失败: %w", err)
+			}
 		}
-		defer stmt.Close()
 
-		for order, raw := range messages {
-			m, ok := raw.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			msgID, _ := m["id"].(string)
-			if msgID == "" {
-				msgID = genMsgID()
-			}
-			role, _ := m["role"].(string)
-			msgType, _ := m["type"].(string)
-			if msgType == "" {
-				msgType = "text"
-			}
-			text, _ := m["text"].(string)
-			msgCreatedAt, _ := m["createdAt"].(float64)
+		// 删除旧消息
+		if err := tx.Where("session_id = ?", sessionID).Delete(&entity.ChatMessageRecord{}).Error; err != nil {
+			return fmt.Errorf("删除旧消息失败: %w", err)
+		}
 
-			// 把额外字段打包为 payload
-			payload := map[string]interface{}{}
-			for k, v := range m {
-				if k != "id" && k != "role" && k != "type" && k != "text" && k != "createdAt" {
-					payload[k] = v
+		// 批量插入新消息
+		if len(messages) > 0 {
+			msgRecords := make([]entity.ChatMessageRecord, 0, len(messages))
+			for order, raw := range messages {
+				m, ok := raw.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				msgID, _ := m["id"].(string)
+				if msgID == "" {
+					msgID = genMsgID()
+				}
+				role, _ := m["role"].(string)
+				msgType, _ := m["type"].(string)
+				if msgType == "" {
+					msgType = "text"
+				}
+				text, _ := m["text"].(string)
+				msgCreatedAt, _ := m["createdAt"].(float64)
+
+				// 把额外字段打包为 payload
+				payload := map[string]interface{}{}
+				for k, v := range m {
+					if k != "id" && k != "role" && k != "type" && k != "text" && k != "createdAt" {
+						payload[k] = v
+					}
+				}
+				payloadJSON, _ := json.Marshal(payload)
+				if len(payload) == 0 {
+					payloadJSON = []byte("null")
+				}
+
+				msgRecords = append(msgRecords, entity.ChatMessageRecord{
+					ID:        msgID,
+					SessionID: sessionID,
+					Role:      role,
+					MsgType:   msgType,
+					Content:   text,
+					Payload:   string(payloadJSON),
+					SortOrder: order,
+					CreatedAt: int64(msgCreatedAt),
+				})
+			}
+
+			if len(msgRecords) > 0 {
+				if err := tx.CreateInBatches(msgRecords, 100).Error; err != nil {
+					log.Printf("批量插入消息失败: %v", err)
 				}
 			}
-			payloadJSON, _ := json.Marshal(payload)
-			if len(payload) == 0 {
-				payloadJSON = []byte("null")
-			}
-
-			if _, execErr := stmt.Exec(msgID, sessionID, role, msgType, text, string(payloadJSON), order, int64(msgCreatedAt)); execErr != nil {
-				log.Printf("插入消息 %s 失败: %v", msgID, execErr)
-			}
 		}
-	}
 
-	return tx.Commit()
+		return nil
+	})
 }
 
 func (r *mysqlSessionRepository) Delete(sessionID, userID string) error {
-	tx, err := r.db.Begin()
-	if err != nil {
-		return fmt.Errorf("事务开始失败: %w", err)
-	}
-	defer tx.Rollback()
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// 确认会话存在
+		var count int64
+		if err := tx.Model(&entity.ChatSession{}).Where("id = ? AND user_id = ?", sessionID, userID).Count(&count).Error; err != nil {
+			return fmt.Errorf("查询会话失败: %w", err)
+		}
+		if count == 0 {
+			return fmt.Errorf("会话不存在")
+		}
 
-	// 确认会话存在
-	var exists int
-	r.db.QueryRow("SELECT COUNT(*) FROM chat_sessions WHERE id = ? AND user_id = ?", sessionID, userID).Scan(&exists)
-	if exists == 0 {
-		return sql.ErrNoRows
-	}
+		// 删除消息
+		if err := tx.Where("session_id = ?", sessionID).Delete(&entity.ChatMessageRecord{}).Error; err != nil {
+			return fmt.Errorf("删除消息失败: %w", err)
+		}
 
-	tx.Exec("DELETE FROM chat_messages WHERE session_id = ?", sessionID)
-	_, err = tx.Exec("DELETE FROM chat_sessions WHERE id = ? AND user_id = ?", sessionID, userID)
-	if err != nil {
-		return fmt.Errorf("删除会话失败: %w", err)
-	}
+		// 删除会话
+		if err := tx.Where("id = ? AND user_id = ?", sessionID, userID).Delete(&entity.ChatSession{}).Error; err != nil {
+			return fmt.Errorf("删除会话失败: %w", err)
+		}
 
-	return tx.Commit()
+		return nil
+	})
 }
 
 // loadMessages 从 chat_messages 表加载消息
 func (r *mysqlSessionRepository) loadMessages(sessionID string) (messages []interface{}, history []interface{}, err error) {
-	rows, err := r.db.Query(
-		"SELECT id, role, msg_type, content, payload, created_at FROM chat_messages WHERE session_id = ? ORDER BY sort_order",
-		sessionID,
-	)
+	var msgRecords []entity.ChatMessageRecord
+	err = r.db.Where("session_id = ?", sessionID).Order("sort_order").Find(&msgRecords).Error
 	if err != nil {
 		return nil, nil, err
 	}
-	defer rows.Close()
 
-	messages = make([]interface{}, 0)
+	messages = make([]interface{}, 0, len(msgRecords))
 	history = make([]interface{}, 0)
 
-	for rows.Next() {
-		var (
-			msgID, role, msgType string
-			content              string
-			payloadStr           sql.NullString
-			createdAt            int64
-		)
-		if err := rows.Scan(&msgID, &role, &msgType, &content, &payloadStr, &createdAt); err != nil {
-			continue
-		}
-
+	for _, m := range msgRecords {
 		msg := map[string]interface{}{
-			"id":        msgID,
-			"role":      role,
-			"type":      msgType,
-			"createdAt": createdAt,
+			"id":        m.ID,
+			"role":      m.Role,
+			"type":      m.MsgType,
+			"createdAt": m.CreatedAt,
 		}
-		if content != "" {
-			msg["text"] = content
+		if m.Content != "" {
+			msg["text"] = m.Content
 		}
 
-		if payloadStr.Valid && payloadStr.String != "" && payloadStr.String != "null" {
+		if m.Payload != "" && m.Payload != "null" && m.Payload != "{}" {
 			var payload map[string]interface{}
-			if json.Unmarshal([]byte(payloadStr.String), &payload) == nil {
+			if err := json.Unmarshal([]byte(m.Payload), &payload); err == nil {
 				for k, v := range payload {
 					msg[k] = v
 				}
@@ -224,8 +223,8 @@ func (r *mysqlSessionRepository) loadMessages(sessionID string) (messages []inte
 
 		messages = append(messages, msg)
 
-		if content != "" {
-			history = append(history, map[string]string{"role": role, "content": content})
+		if m.Content != "" {
+			history = append(history, map[string]string{"role": m.Role, "content": m.Content})
 		}
 	}
 	return messages, history, nil

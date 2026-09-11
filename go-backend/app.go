@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"log"
 	"os"
 	"path/filepath"
@@ -13,13 +12,14 @@ import (
 	"colorai-backend/service"
 
 	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
 // App 依赖注入容器，持有所有基础设施、仓库、服务和处理器引用
 type App struct {
 	// 基础设施
 	Config *config.Config
-	DB     *sql.DB
+	DB     *gorm.DB
 	RDB    *redis.Client
 
 	// Repositories
@@ -99,7 +99,10 @@ func NewApp(cfg *config.Config) *App {
 // Close 释放所有资源
 func (a *App) Close() {
 	if a.DB != nil {
-		a.DB.Close()
+		sqlDB, err := a.DB.DB()
+		if err == nil {
+			sqlDB.Close()
+		}
 	}
 	if a.RDB != nil {
 		a.RDB.Close()

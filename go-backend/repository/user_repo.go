@@ -2,58 +2,42 @@ package repository
 
 import (
 	"colorai-backend/model/entity"
-	"database/sql"
-	"time"
+
+	"gorm.io/gorm"
 )
 
 // UserRepository 用户数据访问接口
 type UserRepository interface {
-	Create(user *entity.User, passwordHash string) error
-	FindByPhone(phone string) (*entity.User, string, error)
+	Create(user *entity.User) error
+	FindByPhone(phone string) (*entity.User, error)
 	ExistsByPhone(phone string) (bool, error)
 }
 
 // mysqlUserRepository MySQL 用户数据访问实现
 type mysqlUserRepository struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
 // NewUserRepository 创建 UserRepository 实例
-func NewUserRepository(db *sql.DB) UserRepository {
+func NewUserRepository(db *gorm.DB) UserRepository {
 	return &mysqlUserRepository{db: db}
 }
 
-func (r *mysqlUserRepository) Create(user *entity.User, passwordHash string) error {
-	_, err := r.db.Exec(
-		"INSERT INTO users (id, username, phone, password_hash) VALUES (?, ?, ?, ?)",
-		user.ID, user.Username, user.Phone, passwordHash,
-	)
-	return err
+func (r *mysqlUserRepository) Create(user *entity.User) error {
+	return r.db.Create(user).Error
 }
 
-func (r *mysqlUserRepository) FindByPhone(phone string) (*entity.User, string, error) {
+func (r *mysqlUserRepository) FindByPhone(phone string) (*entity.User, error) {
 	var user entity.User
-	var passwordHash string
-	var createdAt time.Time
-
-	err := r.db.QueryRow(
-		"SELECT id, username, phone, COALESCE(avatar,''), created_at, password_hash FROM users WHERE phone = ?",
-		phone,
-	).Scan(&user.ID, &user.Username, &user.Phone, &user.Avatar, &createdAt, &passwordHash)
-
-	if err == sql.ErrNoRows {
-		return nil, "", sql.ErrNoRows
-	}
+	err := r.db.Where("phone = ?", phone).First(&user).Error
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
-
-	user.CreatedAt = createdAt.UnixMilli()
-	return &user, passwordHash, nil
+	return &user, nil
 }
 
 func (r *mysqlUserRepository) ExistsByPhone(phone string) (bool, error) {
-	var count int
-	err := r.db.QueryRow("SELECT COUNT(*) FROM users WHERE phone = ?", phone).Scan(&count)
+	var count int64
+	err := r.db.Model(&entity.User{}).Where("phone = ?", phone).Count(&count).Error
 	return count > 0, err
 }

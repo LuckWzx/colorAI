@@ -3,12 +3,13 @@ package service
 import (
 	"colorai-backend/model/entity"
 	"crypto/rand"
-	"database/sql"
 	"fmt"
 	"math/big"
 	"time"
 
 	"colorai-backend/repository"
+
+	"gorm.io/gorm"
 )
 
 // SessionService 会话管理业务接口
@@ -35,7 +36,7 @@ func (s *sessionService) ListByUser(userID string) ([]entity.ChatSession, error)
 
 func (s *sessionService) GetByID(userID, sessionID string) (*entity.ChatSessionDetail, error) {
 	detail, err := s.sessionRepo.FindByID(sessionID, userID)
-	if err == sql.ErrNoRows {
+	if err == gorm.ErrRecordNotFound {
 		return nil, &ServiceError{StatusCode: 404, Message: "Session not found"}
 	}
 	return detail, err
@@ -100,7 +101,7 @@ func (s *sessionService) Save(userID, sessionID string, req entity.SaveSessionRe
 
 func (s *sessionService) Delete(userID, sessionID string) error {
 	err := s.sessionRepo.Delete(sessionID, userID)
-	if err == sql.ErrNoRows {
+	if err != nil && err.Error() == "会话不存在" {
 		return &ServiceError{StatusCode: 404, Message: "Session not found"}
 	}
 	return err
