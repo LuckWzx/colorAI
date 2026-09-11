@@ -2,6 +2,7 @@ package controller
 
 import (
 	"colorai-backend/model/request"
+	"colorai-backend/model/response"
 	"net/http"
 	"strings"
 
@@ -40,7 +41,7 @@ func (h *AuthController) Register(c *gin.Context) {
 		return
 	}
 
-	OK(c, gin.H{"user": user, "token": token})
+	OK(c, gin.H{"user": response.UserFromEntity(*user), "token": token})
 }
 
 // Login 用户登录
@@ -63,7 +64,7 @@ func (h *AuthController) Login(c *gin.Context) {
 		return
 	}
 
-	OK(c, gin.H{"user": user, "token": token})
+	OK(c, gin.H{"user": response.UserFromEntity(*user), "token": token})
 }
 
 // Logout 用户登出

@@ -59,7 +59,7 @@ func (s *authService) Register(username, phone, password string) (*entity.User, 
 		Username:  username,
 		Phone:     phone,
 		Password:  hashPassword(password),
-		CreatedAt: time.Now().UnixMilli(),
+		CreatedAt: time.Now(),
 	}
 
 	if err := s.userRepo.Create(user); err != nil {
