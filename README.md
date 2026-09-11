@@ -159,5 +159,5 @@ colorAI/
 
 - 前端 README：[ColorAI/README.md](ColorAI/README.md)
 - 后端 README：[go-backend/README.md](go-backend/README.md)
-- 产品需求文档：[PRD](ColorAI/doc/颜色视觉AI智能体PRD.md)
-- API 契约文档：[API 契约](ColorAI/doc/API契约文档.md)
+- 产品需求文档：[PRD](go-backend/doc/颜色视觉AI智能体PRD.md)
+- API 契约文档：[API 契约](go-backend/doc/API契约文档.md)
