@@ -1,29 +1,28 @@
-package entity
+package response
 
 // ============================================================
-// AI 对话代理
+// AI 对话 - API 响应体
 // ============================================================
 
+// ChatMessage 对话消息（响应）
 type ChatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-type ChatRequest struct {
-	Messages []ChatMessage `json:"messages"`
-	Model    string        `json:"model,omitempty"`
-}
-
+// ChatChoice 对话选项
 type ChatChoice struct {
 	Message ChatMessage `json:"message"`
 }
 
+// ChatUsage Token 用量
 type ChatUsage struct {
 	PromptTokens     int `json:"promptTokens"`
 	CompletionTokens int `json:"completionTokens"`
 	TotalTokens      int `json:"totalTokens"`
 }
 
+// ChatResponse AI 对话响应
 type ChatResponse struct {
 	Success bool         `json:"success"`
 	Choices []ChatChoice `json:"choices"`

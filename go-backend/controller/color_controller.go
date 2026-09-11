@@ -1,7 +1,7 @@
 package controller
 
 import (
-	"colorai-backend/model/entity"
+	"colorai-backend/model/request"
 	"crypto/rand"
 	"fmt"
 	"math/big"
@@ -28,7 +28,7 @@ func NewColorController(colorSvc service.ColorService) *ColorController {
 // ColorPick 智能取色
 // POST /api/color/pick
 func (h *ColorController) ColorPick(c *gin.Context) {
-	var req entity.PickRequest
+	var req request.PickRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		Fail(c, http.StatusBadRequest, "Invalid request body")
 		return

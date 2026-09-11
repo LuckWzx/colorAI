@@ -2,7 +2,6 @@ package service
 
 import (
 	"bytes"
-	"colorai-backend/model/entity"
 	"colorai-backend/model/response"
 	"crypto/rand"
 	"encoding/json"
@@ -18,10 +17,10 @@ import (
 
 // ColorService 色彩处理业务接口
 type ColorService interface {
-	PickColor(imageURL string, x, y float64) (*entity.PickResponse, error)
-	CorrectImage(imageURL string) (*entity.CorrectResponse, error)
-	CompareImages(urlA, urlB string) (*entity.CompareResponse, error)
-	PhoneCorrect(imageURL string) (*entity.PhoneCorrectResponse, error)
+	PickColor(imageURL string, x, y float64) (*response.PickResponse, error)
+	CorrectImage(imageURL string) (*response.CorrectResponse, error)
+	CompareImages(urlA, urlB string) (*response.CompareResponse, error)
+	PhoneCorrect(imageURL string) (*response.PhoneCorrectResponse, error)
 }
 
 // mockColorService Mock 色彩处理实现（后续对接真实服务时替换此实现）
@@ -48,27 +47,27 @@ func NewColorService() ColorService {
 	return &mockColorService{}
 }
 
-func (s *mockColorService) PickColor(imageURL string, x, y float64) (*entity.PickResponse, error) {
+func (s *mockColorService) PickColor(imageURL string, x, y float64) (*response.PickResponse, error) {
 	r := cryptoRandInt(0, 255)
 	g := cryptoRandInt(0, 255)
 	b := cryptoRandInt(0, 255)
 	hex := fmt.Sprintf("#%02X%02X%02X", r, g, b)
 
-	return &entity.PickResponse{
+	return &response.PickResponse{
 		Success:  true,
 		Hex:      hex,
-		RGB:      entity.RGB{R: r, G: g, B: b},
+		RGB:      response.RGB{R: r, G: g, B: b},
 		Name:     getColorName(hex),
 		Category: getColorCategory(r, g, b),
 	}, nil
 }
 
-func (s *mockColorService) CorrectImage(imageURL string) (*entity.CorrectResponse, error) {
-	return &entity.CorrectResponse{
+func (s *mockColorService) CorrectImage(imageURL string) (*response.CorrectResponse, error) {
+	return &response.CorrectResponse{
 		Success:      true,
 		OriginalURL:  imageURL,
 		CorrectedURL: imageURL,
-		Meta: entity.CorrectMeta{
+		Meta: response.CorrectMeta{
 			Brightness:  cryptoRandInt(-5, 15),
 			Contrast:    cryptoRandInt(5, 25),
 			Saturation:  cryptoRandInt(-5, 15),
@@ -77,20 +76,20 @@ func (s *mockColorService) CorrectImage(imageURL string) (*entity.CorrectRespons
 	}, nil
 }
 
-func (s *mockColorService) CompareImages(urlA, urlB string) (*entity.CompareResponse, error) {
+func (s *mockColorService) CompareImages(urlA, urlB string) (*response.CompareResponse, error) {
 	similarity := randomFloat(60, 98, 1)
 	deltaE := randomFloat(0.3, 8, 2)
 
-	return &entity.CompareResponse{
+	return &response.CompareResponse{
 		Success:    true,
 		Similarity: similarity,
 		DeltaE:     deltaE,
 		Pass:       deltaE <= 3,
-		Images: entity.CompareImages{
+		Images: response.CompareImages{
 			ImageA: urlA,
 			ImageB: urlB,
 		},
-		Details: entity.CompareDetails{
+		Details: response.CompareDetails{
 			BrightnessDiff: randomFloat(-10, 10, 2),
 			ColorDiff:      randomFloat(0.5, 10, 2),
 			SaturationDiff: randomFloat(-8, 8, 2),
@@ -98,13 +97,13 @@ func (s *mockColorService) CompareImages(urlA, urlB string) (*entity.CompareResp
 	}, nil
 }
 
-func (s *mockColorService) PhoneCorrect(imageURL string) (*entity.PhoneCorrectResponse, error) {
-	return &entity.PhoneCorrectResponse{
+func (s *mockColorService) PhoneCorrect(imageURL string) (*response.PhoneCorrectResponse, error) {
+	return &response.PhoneCorrectResponse{
 		Success:              true,
 		OriginalURL:          imageURL,
 		VisualCorrectedURL:   imageURL,
 		StandardCorrectedURL: imageURL,
-		Adjustment: entity.PhoneAdjustment{
+		Adjustment: response.PhoneAdjustment{
 			RedChannel:           cryptoRandInt(-8, 12),
 			GreenChannel:         cryptoRandInt(-10, 8),
 			BlueChannel:          cryptoRandInt(-12, 10),
@@ -118,7 +117,7 @@ func (s *mockColorService) PhoneCorrect(imageURL string) (*entity.PhoneCorrectRe
 // realColorService 实现
 // ============================================================
 
-func (s *realColorService) CorrectImage(imageURL string) (*entity.CorrectResponse, error) {
+func (s *realColorService) CorrectImage(imageURL string) (*response.CorrectResponse, error) {
 	// 下载图片到临时文件
 	tmpFile, err := downloadImageToTemp(imageURL)
 	if err != nil {
@@ -177,10 +176,10 @@ func (s *realColorService) CorrectImage(imageURL string) (*entity.CorrectRespons
 
 	// 检查是否成功
 	if !correctionResp.Passed {
-		return &entity.CorrectResponse{
+		return &response.CorrectResponse{
 			Success:     false,
 			OriginalURL: correctionResp.Original,
-			Meta: entity.CorrectMeta{
+			Meta: response.CorrectMeta{
 				Brightness:  int(correctionResp.Distance * 100),
 				Contrast:    int(correctionResp.Threshold * 100),
 				Saturation:  0,
@@ -195,11 +194,11 @@ func (s *realColorService) CorrectImage(imageURL string) (*entity.CorrectRespons
 		correctedURL = correctionResp.Results[0].Corrected
 	}
 
-	return &entity.CorrectResponse{
+	return &response.CorrectResponse{
 		Success:      true,
 		OriginalURL:  correctionResp.Original,
 		CorrectedURL: correctedURL,
-		Meta: entity.CorrectMeta{
+		Meta: response.CorrectMeta{
 			Brightness:  int(correctionResp.Distance * 100),
 			Contrast:    int(correctionResp.Threshold * 100),
 			Saturation:  int(correctionResp.ElapsedTime),
@@ -208,19 +207,19 @@ func (s *realColorService) CorrectImage(imageURL string) (*entity.CorrectRespons
 	}, nil
 }
 
-func (s *realColorService) PickColor(imageURL string, x, y float64) (*entity.PickResponse, error) {
+func (s *realColorService) PickColor(imageURL string, x, y float64) (*response.PickResponse, error) {
 	// V1版本暂不实现，使用Mock数据
 	mock := &mockColorService{}
 	return mock.PickColor(imageURL, x, y)
 }
 
-func (s *realColorService) CompareImages(urlA, urlB string) (*entity.CompareResponse, error) {
+func (s *realColorService) CompareImages(urlA, urlB string) (*response.CompareResponse, error) {
 	// V1版本暂不实现，使用Mock数据
 	mock := &mockColorService{}
 	return mock.CompareImages(urlA, urlB)
 }
 
-func (s *realColorService) PhoneCorrect(imageURL string) (*entity.PhoneCorrectResponse, error) {
+func (s *realColorService) PhoneCorrect(imageURL string) (*response.PhoneCorrectResponse, error) {
 	// V1版本暂不实现，使用Mock数据
 	mock := &mockColorService{}
 	return mock.PhoneCorrect(imageURL)

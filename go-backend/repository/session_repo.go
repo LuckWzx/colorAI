@@ -2,6 +2,7 @@ package repository
 
 import (
 	"colorai-backend/model/entity"
+	"colorai-backend/model/response"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -14,7 +15,7 @@ import (
 // SessionRepository 会话数据访问接口
 type SessionRepository interface {
 	ListByUser(userID string) ([]entity.ChatSession, error)
-	FindByID(sessionID, userID string) (*entity.ChatSessionDetail, error)
+	FindByID(sessionID, userID string) (*response.ChatSessionDetail, error)
 	Create(sessionID, userID, title string, now int64) error
 	Save(sessionID, userID, title string, messages []interface{}, now int64) error
 	Delete(sessionID, userID string) error
@@ -39,7 +40,7 @@ func (r *mysqlSessionRepository) ListByUser(userID string) ([]entity.ChatSession
 	return sessions, nil
 }
 
-func (r *mysqlSessionRepository) FindByID(sessionID, userID string) (*entity.ChatSessionDetail, error) {
+func (r *mysqlSessionRepository) FindByID(sessionID, userID string) (*response.ChatSessionDetail, error) {
 	var session entity.ChatSession
 	err := r.db.Where("id = ? AND user_id = ?", sessionID, userID).First(&session).Error
 	if err != nil {
@@ -52,10 +53,10 @@ func (r *mysqlSessionRepository) FindByID(sessionID, userID string) (*entity.Cha
 		return nil, err
 	}
 
-	return &entity.ChatSessionDetail{
-		ChatSession: session,
-		Messages:    msgs,
-		History:     hist,
+	return &response.ChatSessionDetail{
+		ChatSessionResponse: response.SessionFromEntity(session),
+		Messages:            msgs,
+		History:             hist,
 	}, nil
 }
 

@@ -2,7 +2,8 @@ package service
 
 import (
 	"bytes"
-	"colorai-backend/model/entity"
+	"colorai-backend/model/request"
+	"colorai-backend/model/response"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,7 +15,7 @@ import (
 
 // ChatService AI 对话业务接口
 type ChatService interface {
-	Chat(messages []entity.ChatMessage, model string) (*entity.ChatResponse, error)
+	Chat(messages []request.ChatMessage, model string) (*response.ChatResponse, error)
 }
 
 type chatService struct {
@@ -26,16 +27,16 @@ func NewChatService(llmCfg config.LLMConfig) ChatService {
 	return &chatService{llmCfg: llmCfg}
 }
 
-func (s *chatService) Chat(messages []entity.ChatMessage, model string) (*entity.ChatResponse, error) {
+func (s *chatService) Chat(messages []request.ChatMessage, model string) (*response.ChatResponse, error) {
 	if s.llmCfg.APIKey == "" {
-		return &entity.ChatResponse{
+		return &response.ChatResponse{
 			Success: false,
 			Error:   "Server configuration error: LLM_API_KEY not set",
 		}, nil
 	}
 
 	if len(messages) == 0 {
-		return &entity.ChatResponse{
+		return &response.ChatResponse{
 			Success: false,
 			Error:   "Invalid request: messages array is required",
 		}, nil
@@ -93,7 +94,7 @@ func (s *chatService) Chat(messages []entity.ChatMessage, model string) (*entity
 	}
 
 	if dsResp.Error != nil {
-		return &entity.ChatResponse{
+		return &response.ChatResponse{
 			Success: false,
 			Error:   fmt.Sprintf("AI service error: %s", dsResp.Error.Message),
 		}, nil
@@ -104,10 +105,10 @@ func (s *chatService) Chat(messages []entity.ChatMessage, model string) (*entity
 	}
 
 	// 构建成功响应
-	result := &entity.ChatResponse{
+	result := &response.ChatResponse{
 		Success: true,
-		Choices: []entity.ChatChoice{
-			{Message: entity.ChatMessage{
+		Choices: []response.ChatChoice{
+			{Message: response.ChatMessage{
 				Role:    "assistant",
 				Content: dsResp.Choices[0].Message.Content,
 			}},
@@ -116,7 +117,7 @@ func (s *chatService) Chat(messages []entity.ChatMessage, model string) (*entity
 	}
 
 	if dsResp.Usage != nil {
-		result.Usage = &entity.ChatUsage{
+		result.Usage = &response.ChatUsage{
 			PromptTokens:     dsResp.Usage.PromptTokens,
 			CompletionTokens: dsResp.Usage.CompletionTokens,
 			TotalTokens:      dsResp.Usage.TotalTokens,

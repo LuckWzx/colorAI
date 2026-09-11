@@ -1,7 +1,7 @@
 package controller
 
 import (
-	"colorai-backend/model/entity"
+	"colorai-backend/model/request"
 	"net/http"
 
 	"colorai-backend/service"
@@ -72,7 +72,7 @@ func (h *SessionController) SaveSession(c *gin.Context) {
 	userID := getUserID(c)
 	sessionID := c.Param("id")
 
-	var req entity.SaveSessionRequest
+	var req request.SaveSessionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		Fail(c, http.StatusBadRequest, "Invalid request body")
 		return

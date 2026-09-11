@@ -2,6 +2,8 @@ package service
 
 import (
 	"colorai-backend/model/entity"
+	"colorai-backend/model/request"
+	"colorai-backend/model/response"
 	"crypto/rand"
 	"fmt"
 	"math/big"
@@ -15,9 +17,9 @@ import (
 // SessionService 会话管理业务接口
 type SessionService interface {
 	ListByUser(userID string) ([]entity.ChatSession, error)
-	GetByID(userID, sessionID string) (*entity.ChatSessionDetail, error)
-	Create(userID string) (*entity.ChatSessionDetail, error)
-	Save(userID, sessionID string, req entity.SaveSessionRequest) (*entity.ChatSessionDetail, error)
+	GetByID(userID, sessionID string) (*response.ChatSessionDetail, error)
+	Create(userID string) (*response.ChatSessionDetail, error)
+	Save(userID, sessionID string, req request.SaveSessionRequest) (*response.ChatSessionDetail, error)
 	Delete(userID, sessionID string) error
 }
 
@@ -34,7 +36,7 @@ func (s *sessionService) ListByUser(userID string) ([]entity.ChatSession, error)
 	return s.sessionRepo.ListByUser(userID)
 }
 
-func (s *sessionService) GetByID(userID, sessionID string) (*entity.ChatSessionDetail, error) {
+func (s *sessionService) GetByID(userID, sessionID string) (*response.ChatSessionDetail, error) {
 	detail, err := s.sessionRepo.FindByID(sessionID, userID)
 	if err == gorm.ErrRecordNotFound {
 		return nil, &ServiceError{StatusCode: 404, Message: "Session not found"}
@@ -42,7 +44,7 @@ func (s *sessionService) GetByID(userID, sessionID string) (*entity.ChatSessionD
 	return detail, err
 }
 
-func (s *sessionService) Create(userID string) (*entity.ChatSessionDetail, error) {
+func (s *sessionService) Create(userID string) (*response.ChatSessionDetail, error) {
 	id := fmt.Sprintf("session-%016x", func() int64 {
 		n, _ := rand.Int(rand.Reader, big.NewInt(1<<62))
 		return n.Int64()
@@ -53,8 +55,8 @@ func (s *sessionService) Create(userID string) (*entity.ChatSessionDetail, error
 		return nil, fmt.Errorf("创建会话失败: %w", err)
 	}
 
-	return &entity.ChatSessionDetail{
-		ChatSession: entity.ChatSession{
+	return &response.ChatSessionDetail{
+		ChatSessionResponse: response.ChatSessionResponse{
 			ID:           id,
 			Title:        "新对话",
 			CreatedAt:    now,
@@ -66,7 +68,7 @@ func (s *sessionService) Create(userID string) (*entity.ChatSessionDetail, error
 	}, nil
 }
 
-func (s *sessionService) Save(userID, sessionID string, req entity.SaveSessionRequest) (*entity.ChatSessionDetail, error) {
+func (s *sessionService) Save(userID, sessionID string, req request.SaveSessionRequest) (*response.ChatSessionDetail, error) {
 	now := time.Now().UnixMilli()
 	title := req.Title
 	if title == "" {
@@ -87,8 +89,8 @@ func (s *sessionService) Save(userID, sessionID string, req entity.SaveSessionRe
 		return nil, fmt.Errorf("保存会话失败: %w", err)
 	}
 
-	return &entity.ChatSessionDetail{
-		ChatSession: entity.ChatSession{
+	return &response.ChatSessionDetail{
+		ChatSessionResponse: response.ChatSessionResponse{
 			ID:           sessionID,
 			Title:        title,
 			UpdatedAt:    now,

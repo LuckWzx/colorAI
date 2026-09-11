@@ -2,6 +2,7 @@ package repository
 
 import (
 	"colorai-backend/model/entity"
+	"colorai-backend/model/response"
 	"encoding/json"
 
 	"gorm.io/gorm"
@@ -9,10 +10,10 @@ import (
 
 // KnowledgeRepository 知识库数据访问接口
 type KnowledgeRepository interface {
-	GetColorIssues(keyword string) ([]entity.QAItem, error)
-	GetPhotoTips() ([]entity.QAItem, error)
-	GetShops(city string) ([]entity.Shop, error)
-	GetBrands(category string) ([]entity.Brand, error)
+	GetColorIssues(keyword string) ([]response.QAItem, error)
+	GetPhotoTips() ([]response.QAItem, error)
+	GetShops(city string) ([]response.Shop, error)
+	GetBrands(category string) ([]response.Brand, error)
 }
 
 // mysqlKnowledgeRepository MySQL 知识库数据访问实现
@@ -25,7 +26,7 @@ func NewKnowledgeRepository(db *gorm.DB) KnowledgeRepository {
 	return &mysqlKnowledgeRepository{db: db}
 }
 
-func (r *mysqlKnowledgeRepository) GetColorIssues(keyword string) ([]entity.QAItem, error) {
+func (r *mysqlKnowledgeRepository) GetColorIssues(keyword string) ([]response.QAItem, error) {
 	var items []entity.ColorIssue
 	query := r.db
 
@@ -41,7 +42,7 @@ func (r *mysqlKnowledgeRepository) GetColorIssues(keyword string) ([]entity.QAIt
 	return convertColorIssues(items), nil
 }
 
-func (r *mysqlKnowledgeRepository) GetPhotoTips() ([]entity.QAItem, error) {
+func (r *mysqlKnowledgeRepository) GetPhotoTips() ([]response.QAItem, error) {
 	var items []entity.PhotoTip
 	if err := r.db.Find(&items).Error; err != nil {
 		return nil, err
@@ -49,7 +50,7 @@ func (r *mysqlKnowledgeRepository) GetPhotoTips() ([]entity.QAItem, error) {
 	return convertPhotoTips(items), nil
 }
 
-func (r *mysqlKnowledgeRepository) GetShops(city string) ([]entity.Shop, error) {
+func (r *mysqlKnowledgeRepository) GetShops(city string) ([]response.Shop, error) {
 	var shops []entity.ShopDB
 	query := r.db
 
@@ -64,7 +65,7 @@ func (r *mysqlKnowledgeRepository) GetShops(city string) ([]entity.Shop, error) 
 	return convertShops(shops), nil
 }
 
-func (r *mysqlKnowledgeRepository) GetBrands(category string) ([]entity.Brand, error) {
+func (r *mysqlKnowledgeRepository) GetBrands(category string) ([]response.Brand, error) {
 	var brands []entity.BrandDB
 	query := r.db
 
@@ -81,10 +82,10 @@ func (r *mysqlKnowledgeRepository) GetBrands(category string) ([]entity.Brand, e
 }
 
 // 转换函数
-func convertColorIssues(items []entity.ColorIssue) []entity.QAItem {
-	result := make([]entity.QAItem, 0, len(items))
+func convertColorIssues(items []entity.ColorIssue) []response.QAItem {
+	result := make([]response.QAItem, 0, len(items))
 	for _, item := range items {
-		qaItem := entity.QAItem{
+		qaItem := response.QAItem{
 			ID:       item.ID,
 			Question: item.Question,
 			Answer:   item.Answer,
@@ -99,10 +100,10 @@ func convertColorIssues(items []entity.ColorIssue) []entity.QAItem {
 	return result
 }
 
-func convertPhotoTips(items []entity.PhotoTip) []entity.QAItem {
-	result := make([]entity.QAItem, 0, len(items))
+func convertPhotoTips(items []entity.PhotoTip) []response.QAItem {
+	result := make([]response.QAItem, 0, len(items))
 	for _, item := range items {
-		qaItem := entity.QAItem{
+		qaItem := response.QAItem{
 			ID:       item.ID,
 			Question: item.Question,
 			Answer:   item.Answer,
@@ -117,10 +118,10 @@ func convertPhotoTips(items []entity.PhotoTip) []entity.QAItem {
 	return result
 }
 
-func convertShops(shops []entity.ShopDB) []entity.Shop {
-	result := make([]entity.Shop, 0, len(shops))
+func convertShops(shops []entity.ShopDB) []response.Shop {
+	result := make([]response.Shop, 0, len(shops))
 	for _, shop := range shops {
-		s := entity.Shop{
+		s := response.Shop{
 			ID:      shop.ID,
 			Name:    shop.Name,
 			Address: shop.Address,
@@ -137,10 +138,10 @@ func convertShops(shops []entity.ShopDB) []entity.Shop {
 	return result
 }
 
-func convertBrands(brands []entity.BrandDB) []entity.Brand {
-	result := make([]entity.Brand, 0, len(brands))
+func convertBrands(brands []entity.BrandDB) []response.Brand {
+	result := make([]response.Brand, 0, len(brands))
 	for _, brand := range brands {
-		b := entity.Brand{
+		b := response.Brand{
 			ID:          brand.ID,
 			Name:        brand.Name,
 			Initial:     brand.Initial,

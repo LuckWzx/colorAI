@@ -1,15 +1,17 @@
-package entity
+package response
 
 // ============================================================
-// 颜色处理
+// 颜色处理 - API 响应体
 // ============================================================
 
+// RGB RGB 颜色值
 type RGB struct {
 	R int `json:"r"`
 	G int `json:"g"`
 	B int `json:"b"`
 }
 
+// CorrectMeta 校色元数据
 type CorrectMeta struct {
 	Brightness  int `json:"brightness"`
 	Contrast    int `json:"contrast"`
@@ -17,6 +19,7 @@ type CorrectMeta struct {
 	Temperature int `json:"temperature"`
 }
 
+// CorrectResponse 图片校色响应
 type CorrectResponse struct {
 	Success      bool        `json:"success"`
 	OriginalURL  string      `json:"originalUrl"`
@@ -24,12 +27,7 @@ type CorrectResponse struct {
 	Meta         CorrectMeta `json:"meta"`
 }
 
-type PickRequest struct {
-	ImageURL string  `json:"imageUrl"`
-	X        float64 `json:"x"`
-	Y        float64 `json:"y"`
-}
-
+// PickResponse 智能取色响应
 type PickResponse struct {
 	Success  bool   `json:"success"`
 	Hex      string `json:"hex"`
@@ -38,17 +36,20 @@ type PickResponse struct {
 	Category string `json:"category"`
 }
 
+// CompareImages 对比图片
 type CompareImages struct {
 	ImageA string `json:"imageA"`
 	ImageB string `json:"imageB"`
 }
 
+// CompareDetails 对比详情
 type CompareDetails struct {
 	BrightnessDiff float64 `json:"brightnessDiff"`
 	ColorDiff      float64 `json:"colorDiff"`
 	SaturationDiff float64 `json:"saturationDiff"`
 }
 
+// CompareResponse 颜色对比响应
 type CompareResponse struct {
 	Success    bool           `json:"success"`
 	Similarity float64        `json:"similarity"`
@@ -58,6 +59,7 @@ type CompareResponse struct {
 	Details    CompareDetails `json:"details"`
 }
 
+// PhoneAdjustment 手机校色调整参数
 type PhoneAdjustment struct {
 	RedChannel           int     `json:"redChannel"`
 	GreenChannel         int     `json:"greenChannel"`
@@ -66,6 +68,7 @@ type PhoneAdjustment struct {
 	ExposureCompensation float64 `json:"exposureCompensation"`
 }
 
+// PhoneCorrectResponse 手机拍摄校色响应
 type PhoneCorrectResponse struct {
 	Success              bool            `json:"success"`
 	OriginalURL          string          `json:"originalUrl"`
