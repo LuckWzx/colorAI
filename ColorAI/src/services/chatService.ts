@@ -20,6 +20,7 @@ export interface ChatMessage {
 export interface ChatResponse {
   text: string;
   model: string;
+  messageId?: string; // 后端返回的消息ID（用于SSE/WebSocket场景关联）
   usage?: {
     promptTokens: number;
     completionTokens: number;
@@ -42,11 +43,12 @@ const COLOR_SYSTEM_PROMPT = `你是曲泉AI，一个专业的色彩智能体。�
  * 通过后端代理调用 LLM API
  * （API Key 仅存在于服务端环境变量中，不会暴露给前端）
  */
-async function callViaProxy(messages: ChatMessage[], sessionId?: string): Promise<ChatResponse> {
+async function callViaProxy(messages: ChatMessage[], sessionId?: string, messageId?: string): Promise<ChatResponse> {
   const res = await authFetch('/api/chat', {
     method: 'POST',
     body: JSON.stringify({
       sessionId: sessionId || '',
+      messageId: messageId || '', // 前端生成的消息ID
       messages: [
         { role: 'system', content: COLOR_SYSTEM_PROMPT },
         ...messages,
@@ -68,6 +70,7 @@ async function callViaProxy(messages: ChatMessage[], sessionId?: string): Promis
   return {
     text: data.choices[0].message.content,
     model: data.model || 'unknown',
+    messageId: data.messageId, // 后端返回的消息ID
     usage: data.usage
       ? {
           promptTokens: data.usage.prompt_tokens,
@@ -84,9 +87,18 @@ async function callViaProxy(messages: ChatMessage[], sessionId?: string): Promis
 export const chatService = {
   /**
    * 发送对话请求（通过后端代理调用 LLM API）
+   * @param userMessage 用户消息内容
+   * @param history 历史对话记录
+   * @param sessionId 会话ID（可选）
+   * @param messageId 消息ID（前端生成，用于SSE/WebSocket场景关联）
    */
-  async chat(userMessage: string, history: ChatMessage[] = [], sessionId?: string): Promise<ChatResponse> {
+  async chat(
+    userMessage: string,
+    history: ChatMessage[] = [],
+    sessionId?: string,
+    messageId?: string
+  ): Promise<ChatResponse> {
     const messages: ChatMessage[] = [...history, { role: 'user', content: userMessage }];
-    return callViaProxy(messages, sessionId);
+    return callViaProxy(messages, sessionId, messageId);
   },
 };

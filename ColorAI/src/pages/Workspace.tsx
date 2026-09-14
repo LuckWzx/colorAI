@@ -361,7 +361,9 @@ export default function Workspace() {
           return latestHistory;
         });
         try {
-          const response = await chatService.chat(userText, latestHistory, activeId);
+          // 生成消息ID用于SSE/WebSocket场景关联
+          const messageId = uid();
+          const response = await chatService.chat(userText, latestHistory, activeId, messageId);
           const assistantText = response.text;
           setChatHistory((prev) => [...prev, { role: 'assistant', content: assistantText }]);
           setMessages((prev) =>

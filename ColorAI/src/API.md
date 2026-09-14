@@ -173,6 +173,7 @@ Content-Type: application/json
 ```json
 {
   "sessionId": "session-uuid",
+  "messageId": "msg-0a1b2c3d4e5f6789",
   "messages": [
     {
       "role": "system",
@@ -190,6 +191,7 @@ Content-Type: application/json
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | sessionId | string | 否 | 会话ID，用于关联对话历史 |
+| messageId | string | 否 | 消息ID（前端生成，用于SSE/WebSocket场景关联） |
 | messages | ChatMessage[] | 是 | 消息数组，至少包含一条消息 |
 | model | string | 否 | 模型标识，默认 deepseek-chat |
 
@@ -214,6 +216,7 @@ Content-Type: application/json
     }
   ],
   "model": "deepseek-chat",
+  "messageId": "msg-0a1b2c3d4e5f6789",
   "usage": {
     "promptTokens": 1234,
     "completionTokens": 567,
@@ -230,6 +233,7 @@ Content-Type: application/json
 | choices[].message.role | string | 固定为 `assistant` |
 | choices[].message.content | string | AI 回复内容 |
 | model | string | 使用的模型标识 |
+| messageId | string | 消息ID（前端传入，后端原样返回，用于SSE/WebSocket场景关联） |
 | usage.promptTokens | number | 输入 token 数 |
 | usage.completionTokens | number | 输出 token 数 |
 | usage.totalTokens | number | 总 token 数 |

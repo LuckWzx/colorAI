@@ -19,7 +19,7 @@ import (
 
 // ChatService AI 对话业务接口
 type ChatService interface {
-	Chat(userID, sessionID string, messages []request.ChatMessage, model string) (*response.ChatResponse, error)
+	Chat(userID, sessionID, messageID string, messages []request.ChatMessage, model string) (*response.ChatResponse, error)
 }
 
 type chatService struct {
@@ -32,7 +32,7 @@ func NewChatService(llmCfg config.LLMConfig, sessionRepo repository.SessionRepos
 	return &chatService{llmCfg: llmCfg, sessionRepo: sessionRepo}
 }
 
-func (s *chatService) Chat(userID, sessionID string, messages []request.ChatMessage, model string) (*response.ChatResponse, error) {
+func (s *chatService) Chat(userID, sessionID, messageID string, messages []request.ChatMessage, model string) (*response.ChatResponse, error) {
 	if s.llmCfg.APIKey == "" {
 		return &response.ChatResponse{
 			Success: false,
@@ -118,7 +118,8 @@ func (s *chatService) Chat(userID, sessionID string, messages []request.ChatMess
 				Content: dsResp.Choices[0].Message.Content,
 			}},
 		},
-		Model: dsResp.Model,
+		Model:     dsResp.Model,
+		MessageID: messageID, // 返回前端传入的消息ID
 	}
 
 	if dsResp.Usage != nil {
@@ -131,22 +132,27 @@ func (s *chatService) Chat(userID, sessionID string, messages []request.ChatMess
 
 	// 自动保存消息到会话
 	if sessionID != "" && userID != "" {
-		s.saveMessages(userID, sessionID, messages, dsResp.Choices[0].Message.Content)
+		s.saveMessages(userID, sessionID, messageID, messages, dsResp.Choices[0].Message.Content)
 	}
 
 	return result, nil
 }
 
 // saveMessages 将用户消息和 AI 回复保存到会话
-func (s *chatService) saveMessages(userID, sessionID string, userMessages []request.ChatMessage, assistantReply string) {
+func (s *chatService) saveMessages(userID, sessionID, messageID string, userMessages []request.ChatMessage, assistantReply string) {
 	now := time.Now().UnixMilli()
 	records := make([]entity.ChatMessageRecord, 0, len(userMessages)+1)
 
 	// 保存最后一条用户消息（前端只发最新一条）
 	if len(userMessages) > 0 {
 		last := userMessages[len(userMessages)-1]
+		// 使用前端传入的消息ID（如果有），否则生成新的
+		msgID := chatMsgID()
+		if messageID != "" {
+			msgID = messageID
+		}
 		records = append(records, entity.ChatMessageRecord{
-			ID:        chatMsgID(),
+			ID:        msgID,
 			SessionID: sessionID,
 			Role:      last.Role,
 			MsgType:   "text",

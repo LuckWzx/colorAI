@@ -24,9 +24,10 @@ type ChatUsage struct {
 
 // ChatResponse AI 对话响应
 type ChatResponse struct {
-	Success bool         `json:"success"`
-	Choices []ChatChoice `json:"choices"`
-	Model   string       `json:"model"`
-	Usage   *ChatUsage   `json:"usage,omitempty"`
-	Error   string       `json:"error,omitempty"`
+	Success   bool         `json:"success"`
+	Choices   []ChatChoice `json:"choices"`
+	Model     string       `json:"model"`
+	MessageID string       `json:"messageId,omitempty"` // 后端返回的消息ID（用于SSE/WebSocket场景关联）
+	Usage     *ChatUsage   `json:"usage,omitempty"`
+	Error     string       `json:"error,omitempty"`
 }
