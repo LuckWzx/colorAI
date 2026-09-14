@@ -33,13 +33,6 @@ func NewChatService(llmCfg config.LLMConfig, sessionRepo repository.SessionRepos
 }
 
 func (s *chatService) Chat(userID, sessionID, messageID string, messages []request.ChatMessage, model string) (*response.ChatResponse, error) {
-	if s.llmCfg.APIKey == "" {
-		return &response.ChatResponse{
-			Success: false,
-			Error:   "Server configuration error: LLM_API_KEY not set",
-		}, nil
-	}
-
 	if len(messages) == 0 {
 		return &response.ChatResponse{
 			Success: false,
@@ -47,92 +40,95 @@ func (s *chatService) Chat(userID, sessionID, messageID string, messages []reque
 		}, nil
 	}
 
-	if model == "" {
-		model = s.llmCfg.Model
+	// 将前端消息格式转换为 Python Agent 格式
+	agentMessages := make([]map[string]string, len(messages))
+	for i, msg := range messages {
+		agentMessages[i] = map[string]string{
+			"role":    msg.Role,
+			"content": msg.Content,
+		}
 	}
 
-	// 构建 LLM API 请求体
+	// 构建请求体
 	body := map[string]interface{}{
-		"model":       model,
-		"messages":    messages,
-		"temperature": 0.7,
-		"max_tokens":  s.llmCfg.MaxTokens,
+		"messages": agentMessages,
 	}
 	bodyBytes, _ := json.Marshal(body)
 
-	// 发送请求
-	client := &http.Client{Timeout: time.Duration(s.llmCfg.TimeoutSec) * time.Second}
-	httpReq, err := http.NewRequest("POST", s.llmCfg.APIURL, bytes.NewReader(bodyBytes))
+	// 发送请求到 Python Agent
+	client := &http.Client{Timeout: 60 * time.Second}
+	httpReq, err := http.NewRequest("POST", "http://localhost:8000/api/chat", bytes.NewReader(bodyBytes))
 	if err != nil {
 		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+s.llmCfg.APIKey)
 
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("调用 AI 服务失败: %w", err)
+		return nil, fmt.Errorf("调用 Python Agent 失败: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, _ := io.ReadAll(resp.Body)
 
-	// 解析 LLM API 响应
-	var dsResp struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-		Model string `json:"model"`
+	// 解析 Python Agent 响应
+	var agentResp struct {
+		Success bool `json:"success"`
+		Message *struct {
+			ID        string `json:"id"`
+			Role      string `json:"role"`
+			Type      string `json:"type"`
+			Content   string `json:"content"`
+			Metadata  any    `json:"metadata"`
+			CreatedAt int64  `json:"createdAt"`
+		} `json:"message"`
 		Usage *struct {
 			PromptTokens     int `json:"prompt_tokens"`
 			CompletionTokens int `json:"completion_tokens"`
 			TotalTokens      int `json:"total_tokens"`
 		} `json:"usage"`
-		Error *struct {
-			Message string `json:"message"`
-		} `json:"error"`
+		Error string `json:"error"`
 	}
-	if err := json.Unmarshal(respBody, &dsResp); err != nil {
-		return nil, fmt.Errorf("解析 AI 服务响应失败: %w", err)
+	if err := json.Unmarshal(respBody, &agentResp); err != nil {
+		return nil, fmt.Errorf("解析 Python Agent 响应失败: %w", err)
 	}
 
-	if dsResp.Error != nil {
+	if !agentResp.Success {
 		return &response.ChatResponse{
 			Success: false,
-			Error:   fmt.Sprintf("AI service error: %s", dsResp.Error.Message),
+			Error:   agentResp.Error,
 		}, nil
 	}
 
-	if len(dsResp.Choices) == 0 || dsResp.Choices[0].Message.Content == "" {
-		return nil, fmt.Errorf("AI 服务返回空响应")
+	if agentResp.Message == nil {
+		return nil, fmt.Errorf("Python Agent 返回空消息")
 	}
 
 	// 构建成功响应
 	result := &response.ChatResponse{
 		Success: true,
-		Choices: []response.ChatChoice{
-			{Message: response.ChatMessage{
-				Role:    "assistant",
-				Content: dsResp.Choices[0].Message.Content,
-			}},
+		Message: &response.MessageResponse{
+			ID:        agentResp.Message.ID,
+			Role:      agentResp.Message.Role,
+			Type:      agentResp.Message.Type,
+			Content:   agentResp.Message.Content,
+			Metadata:  agentResp.Message.Metadata,
+			CreatedAt: agentResp.Message.CreatedAt,
 		},
-		Model:     dsResp.Model,
-		MessageID: messageID, // 返回前端传入的消息ID
+		MessageID: messageID,
 	}
 
-	if dsResp.Usage != nil {
+	if agentResp.Usage != nil {
 		result.Usage = &response.ChatUsage{
-			PromptTokens:     dsResp.Usage.PromptTokens,
-			CompletionTokens: dsResp.Usage.CompletionTokens,
-			TotalTokens:      dsResp.Usage.TotalTokens,
+			PromptTokens:     agentResp.Usage.PromptTokens,
+			CompletionTokens: agentResp.Usage.CompletionTokens,
+			TotalTokens:      agentResp.Usage.TotalTokens,
 		}
 	}
 
 	// 自动保存消息到会话
 	if sessionID != "" && userID != "" {
-		s.saveMessages(userID, sessionID, messageID, messages, dsResp.Choices[0].Message.Content)
+		s.saveMessages(userID, sessionID, messageID, messages, agentResp.Message.Content)
 	}
 
 	return result, nil

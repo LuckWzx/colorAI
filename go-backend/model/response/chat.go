@@ -22,12 +22,23 @@ type ChatUsage struct {
 	TotalTokens      int `json:"totalTokens"`
 }
 
+// MessageResponse 统一消息响应（与 Python Agent 格式对齐）
+type MessageResponse struct {
+	ID        string `json:"id"`
+	Role      string `json:"role"`
+	Type      string `json:"type"`
+	Content   string `json:"content"`
+	Metadata  any    `json:"metadata"`
+	CreatedAt int64  `json:"createdAt"`
+}
+
 // ChatResponse AI 对话响应
 type ChatResponse struct {
-	Success   bool         `json:"success"`
-	Choices   []ChatChoice `json:"choices"`
-	Model     string       `json:"model"`
-	MessageID string       `json:"messageId,omitempty"` // 后端返回的消息ID（用于SSE/WebSocket场景关联）
-	Usage     *ChatUsage   `json:"usage,omitempty"`
-	Error     string       `json:"error,omitempty"`
+	Success   bool             `json:"success"`
+	Message   *MessageResponse `json:"message,omitempty"`
+	Choices   []ChatChoice     `json:"choices,omitempty"`
+	Model     string           `json:"model,omitempty"`
+	MessageID string           `json:"messageId,omitempty"` // 后端返回的消息ID（用于SSE/WebSocket场景关联）
+	Usage     *ChatUsage       `json:"usage,omitempty"`
+	Error     string           `json:"error,omitempty"`
 }
