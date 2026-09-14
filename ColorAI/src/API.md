@@ -179,6 +179,33 @@ Authorization: Bearer <token>
 
 ## AI 对话 `/api/chat`
 
+> **所有前端操作（聊天、图片校色、取色、颜色对比等）统一通过此接口调用**
+
+### 工作流程
+
+```
+用户输入 → /api/chat → 后端智能体 → 语义分析 → 选择Tool → 执行 → 统一响应
+```
+
+**说明：**
+- 前端所有操作都通过 `/api/chat` 接口发送
+- 后端智能体根据用户输入的语义，自动判断需要调用哪个 Tool
+- Tool 执行结果封装在统一的 `message` 格式中返回
+- 前端无需关心具体调用了哪个 Tool，只需根据 `message.type` 渲染不同 UI
+
+### Tool 工具列表
+
+| Tool 名称 | 触发场景 | 返回 message.type |
+|-----------|----------|-------------------|
+| image_correction | 用户上传图片，要求校色 | `correct` |
+| color_extraction | 用户上传图片，要求取色 | `pick` |
+| color_comparison | 用户上传两张图片，要求对比 | `compare` |
+| color_conversion | 用户输入颜色值，要求转换格式 | `convert` |
+| phone_correction | 用户上传手机照片，要求校色 | `phone` |
+| text_chat | 其他对话场景 | `text` |
+
+---
+
 ### 4. 发送对话消息
 
 ```
