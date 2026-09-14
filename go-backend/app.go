@@ -8,6 +8,7 @@ import (
 	"colorai-backend/config"
 	"colorai-backend/controller"
 	"colorai-backend/database"
+	"colorai-backend/model/entity"
 	"colorai-backend/repository"
 	"colorai-backend/service"
 
@@ -43,6 +44,20 @@ func NewApp(cfg *config.Config) *App {
 	// 基础设施
 	db := database.InitMySQL(cfg.Database)
 	rdb := database.InitRedis(cfg.Redis)
+
+	// 数据库迁移
+	if cfg.Database.AutoMigrate {
+		log.Println("开启数据库自动迁移...")
+		err := db.AutoMigrate(
+			&entity.User{},
+			&entity.ChatSession{},
+			&entity.ChatMessageRecord{},
+		)
+		if err != nil {
+			log.Fatalf("数据库迁移失败: %v", err)
+		}
+		log.Println("数据库迁移完成")
+	}
 
 	// Repositories
 	userRepo := repository.NewUserRepository(db)

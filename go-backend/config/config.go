@@ -32,6 +32,7 @@ type DatabaseConfig struct {
 	Name         string
 	MaxOpenConns int
 	MaxIdleConns int
+	AutoMigrate  bool
 }
 
 // RedisConfig Redis 配置
@@ -64,6 +65,7 @@ func Load() *Config {
 			Name:         getEnv("DB_NAME", "agent"),
 			MaxOpenConns: 25,
 			MaxIdleConns: 5,
+			AutoMigrate:  getEnv("DB_AUTO_MIGRATE", "false") == "true",
 		},
 		Redis: RedisConfig{
 			Addr: getEnv("REDIS_ADDR", "127.0.0.1:6379"),

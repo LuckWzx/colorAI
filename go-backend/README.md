@@ -89,6 +89,9 @@ DB_USER=your_db_user
 DB_PASS=your_db_password
 DB_NAME=your_db_name
 
+# 数据库自动迁移（true/false，开发时开启可自动同步表结构）
+DB_AUTO_MIGRATE=true
+
 # Redis 配置（用于 Token 存储）
 REDIS_ADDR=127.0.0.1:6379
 REDIS_PASS=your_redis_password
