@@ -13,19 +13,28 @@
 import { authFetch } from '@/lib/authFetch';
 
 export interface ChatMessage {
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant';
   content: string;
+  feature?: 'correct' | 'pick' | 'compare' | 'convert' | 'phone' | null;
+  images?: string[] | null;
 }
 
 export interface ChatResponse {
-  text: string;
-  model: string;
-  messageId?: string; // 后端返回的消息ID（用于SSE/WebSocket场景关联）
+  success: boolean;
+  message: {
+    id: string;
+    role: 'assistant';
+    type: 'text' | 'correct' | 'pick' | 'compare' | 'convert' | 'phone';
+    content: string;
+    metadata: unknown;
+    createdAt: number;
+  } | null;
   usage?: {
     promptTokens: number;
     completionTokens: number;
     totalTokens: number;
-  };
+  } | null;
+  error?: string;
 }
 
 /**
@@ -37,8 +46,8 @@ async function callViaProxy(messages: ChatMessage[], sessionId?: string, message
     method: 'POST',
     body: JSON.stringify({
       sessionId: sessionId || '',
-      messageId: messageId || '', // 前端生成的消息ID
-      messages: messages, // 系统提示词由后端自动注入，前端无需携带
+      messageId: messageId || '',
+      messages: messages,
     }),
     signal: AbortSignal.timeout(30000),
   });
@@ -49,22 +58,11 @@ async function callViaProxy(messages: ChatMessage[], sessionId?: string, message
   }
 
   const data = await res.json();
-  if (!data?.choices?.[0]?.message?.content) {
-    throw new Error('AI 服务返回为空');
+  if (!data?.success || !data?.message) {
+    throw new Error(data?.error || 'AI 服务返回为空');
   }
 
-  return {
-    text: data.choices[0].message.content,
-    model: data.model || 'unknown',
-    messageId: data.messageId, // 后端返回的消息ID
-    usage: data.usage
-      ? {
-          promptTokens: data.usage.prompt_tokens,
-          completionTokens: data.usage.completion_tokens,
-          totalTokens: data.usage.total_tokens,
-        }
-      : undefined,
-  };
+  return data as ChatResponse;
 }
 
 /**
@@ -76,15 +74,24 @@ export const chatService = {
    * @param userMessage 用户消息内容
    * @param history 历史对话记录
    * @param sessionId 会话ID（可选）
-   * @param messageId 消息ID（前端生成，用于SSE/WebSocket场景关联）
+   * @param messageId 消息ID（前端生成）
+   * @param feature 快捷工具标识（可选）
+   * @param images 图片数据数组（可选）
    */
   async chat(
     userMessage: string,
     history: ChatMessage[] = [],
     sessionId?: string,
-    messageId?: string
+    messageId?: string,
+    feature?: ChatMessage['feature'],
+    images?: string[]
   ): Promise<ChatResponse> {
-    const messages: ChatMessage[] = [...history, { role: 'user', content: userMessage }];
+    const messages: ChatMessage[] = [...history, {
+      role: 'user',
+      content: userMessage,
+      feature: feature || null,
+      images: images || null,
+    }];
     return callViaProxy(messages, sessionId, messageId);
   },
 };

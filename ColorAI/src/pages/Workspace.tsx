@@ -361,15 +361,26 @@ export default function Workspace() {
           return latestHistory;
         });
         try {
-          // 生成消息ID用于SSE/WebSocket场景关联
+          // 生成消息ID
           const messageId = uid();
           const response = await chatService.chat(userText, latestHistory, activeId, messageId);
-          const assistantText = response.text;
+          
+          if (!response.success || !response.message) {
+            throw new Error(response.error || 'AI 服务返回为空');
+          }
+          
+          const assistantText = response.message.content;
           setChatHistory((prev) => [...prev, { role: 'assistant', content: assistantText }]);
           setMessages((prev) =>
             prev.map((m) =>
               m.id === loadingId
-                ? { id: uid(), role: 'assistant', type: 'text' as const, text: assistantText, createdAt: Date.now() }
+                ? {
+                    id: response.message!.id,
+                    role: 'assistant',
+                    type: response.message!.type,
+                    text: assistantText,
+                    createdAt: response.message!.createdAt,
+                  }
                 : m
             )
           );
