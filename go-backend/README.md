@@ -1,6 +1,6 @@
 # 曲泉AI — Go 后端服务
 
-> 基于 Gin 框架的 RESTful API 服务，为前端提供用户认证、AI 对话、会话管理等能力。
+> 基于 Gin 框架的 RESTful API 服务，为前端提供用户认证、AI 对话、会话管理等能力。色彩校正作为智能体内部 Tool 调用，不对外暴露 HTTP 接口。
 
 ## 技术栈
 
@@ -40,6 +40,7 @@ go-backend/
 ├── service/
 │   ├── auth_service.go         # 认证业务逻辑
 │   ├── chat_service.go         # AI 对话业务逻辑
+│   ├── color_service.go        # 色彩处理（智能体内部 Tool，调用外部校色 API）
 │   └── session_service.go      # 会话管理业务逻辑
 ├── repository/
 │   ├── user_repo.go            # 用户数据访问（GORM）
@@ -55,6 +56,8 @@ go-backend/
 │   └── response/               # API 响应体（json 标签）
 │       ├── auth.go             # AuthResponse, UserResponse
 │       ├── chat.go             # ChatResponse, ChatChoice, ChatUsage
+│       ├── color.go            # CorrectResponse（内部 Tool 响应）
+│       ├── color_correction.go # ColorCorrectionResponse（外部校色 API）
 │       ├── common.go           # SuccessResponse, ErrorResponse, ListResponse
 │       └── session.go          # ChatSessionDetail, ChatSessionResponse
 ├── database/
@@ -81,6 +84,9 @@ PORT=3001
 
 # LLM API Key（当前接入 DeepSeek，服务端读取，不暴露给前端）
 LLM_API_KEY=your_llm_api_key_here
+
+# 校色 API 地址（外部服务，留空则校色功能不可用）
+COLOR_CORRECTION_API_URL=https://api3.ququan.net/quality/api/quality_check
 
 # 数据库配置
 DB_HOST=127.0.0.1
@@ -163,7 +169,7 @@ REDIS_PASS=your_redis_password
 | id | VARCHAR(64) PK | 消息 ID |
 | session_id | VARCHAR(64) | 所属会话 |
 | role | VARCHAR(16) | user / assistant |
-| msg_type | VARCHAR(32) | text |
+| msg_type | VARCHAR(32) | text / correct |
 | content | TEXT | 文本内容 |
 | payload | JSON | 扩展数据（correctResult / compareResult 等） |
 | sort_order | INT | 消息排序 |

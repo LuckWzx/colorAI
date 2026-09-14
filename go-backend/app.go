@@ -31,6 +31,7 @@ type App struct {
 	AuthService    service.AuthService
 	ChatService    service.ChatService
 	SessionService service.SessionService
+	ColorService   service.ColorService
 
 	// Controllers
 	AuthController    *controller.AuthController
@@ -67,6 +68,7 @@ func NewApp(cfg *config.Config) *App {
 	authSvc := service.NewAuthService(userRepo, rdb)
 	chatSvc := service.NewChatService(cfg.LLM, sessionRepo)
 	sessionSvc := service.NewSessionService(sessionRepo)
+	colorSvc := service.NewColorService()
 
 	// Controllers
 	authCtrl := controller.NewAuthController(authSvc)
@@ -89,6 +91,7 @@ func NewApp(cfg *config.Config) *App {
 		AuthService:       authSvc,
 		ChatService:       chatSvc,
 		SessionService:    sessionSvc,
+		ColorService:      colorSvc,
 		AuthController:    authCtrl,
 		ChatController:    chatCtrl,
 		SessionController: sessionCtrl,
