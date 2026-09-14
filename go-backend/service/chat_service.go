@@ -23,7 +23,7 @@ type ChatService interface {
 }
 
 type chatService struct {
-	llmCfg     config.LLMConfig
+	llmCfg      config.LLMConfig
 	sessionRepo repository.SessionRepository
 }
 

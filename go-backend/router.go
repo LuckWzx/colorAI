@@ -30,28 +30,6 @@ func SetupRouter(app *App) *gin.Engine {
 		authGroup.POST("/logout", app.AuthController.Logout)
 	}
 
-	// 色彩处理路由
-	colorGroup := r.Group("/api/color")
-	{
-		colorGroup.POST("/pick", app.ColorController.ColorPick)
-		// 以下为高级功能，需要登录
-		authed := colorGroup.Group("", middleware.RequireAuth(app.AuthService))
-		{
-			authed.POST("/correct", app.ColorController.ColorCorrect)
-			authed.POST("/compare", app.ColorController.ColorCompare)
-			authed.POST("/phone-correct", app.ColorController.ColorPhoneCorrect)
-		}
-	}
-
-	// 知识数据路由（公开）
-	knowledgeGroup := r.Group("/api/knowledge")
-	{
-		knowledgeGroup.GET("/color-issues", app.KnowledgeController.KnowledgeColorIssues)
-		knowledgeGroup.GET("/photo-tips", app.KnowledgeController.KnowledgePhotoTips)
-		knowledgeGroup.GET("/shops", app.KnowledgeController.KnowledgeShops)
-		knowledgeGroup.GET("/brands", app.KnowledgeController.KnowledgeBrands)
-	}
-
 	// 会话管理路由（需要登录）
 	sessionGroup := r.Group("/api/sessions", middleware.RequireAuth(app.AuthService))
 	{

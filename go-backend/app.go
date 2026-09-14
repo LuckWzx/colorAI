@@ -23,24 +23,19 @@ type App struct {
 	RDB    *redis.Client
 
 	// Repositories
-	UserRepo      repository.UserRepository
-	SessionRepo   repository.SessionRepository
-	KnowledgeRepo repository.KnowledgeRepository
+	UserRepo    repository.UserRepository
+	SessionRepo repository.SessionRepository
 
 	// Services
-	AuthService      service.AuthService
-	ChatService      service.ChatService
-	ColorService     service.ColorService
-	SessionService   service.SessionService
-	KnowledgeService service.KnowledgeService
+	AuthService    service.AuthService
+	ChatService    service.ChatService
+	SessionService service.SessionService
 
 	// Controllers
-	AuthController      *controller.AuthController
-	ChatController      *controller.ChatController
-	ColorController     *controller.ColorController
-	SessionController   *controller.SessionController
-	KnowledgeController *controller.KnowledgeController
-	UserController      *controller.UserController
+	AuthController    *controller.AuthController
+	ChatController    *controller.ChatController
+	SessionController *controller.SessionController
+	UserController    *controller.UserController
 }
 
 // NewApp 按依赖顺序组装所有组件
@@ -52,21 +47,16 @@ func NewApp(cfg *config.Config) *App {
 	// Repositories
 	userRepo := repository.NewUserRepository(db)
 	sessionRepo := repository.NewSessionRepository(db)
-	knowledgeRepo := repository.NewKnowledgeRepository(db)
 
 	// Services
 	authSvc := service.NewAuthService(userRepo, rdb)
 	chatSvc := service.NewChatService(cfg.LLM, sessionRepo)
-	colorSvc := service.NewColorService()
 	sessionSvc := service.NewSessionService(sessionRepo)
-	knowledgeSvc := service.NewKnowledgeService(knowledgeRepo)
 
 	// Controllers
 	authCtrl := controller.NewAuthController(authSvc)
 	chatCtrl := controller.NewChatController(chatSvc)
-	colorCtrl := controller.NewColorController(colorSvc)
 	sessionCtrl := controller.NewSessionController(sessionSvc)
-	knowledgeCtrl := controller.NewKnowledgeController(knowledgeSvc)
 	userCtrl := controller.NewUserController()
 
 	if err := os.MkdirAll(filepath.Join(".", "uploads"), 0755); err != nil {
@@ -76,23 +66,18 @@ func NewApp(cfg *config.Config) *App {
 	log.Println("所有组件初始化完成")
 
 	return &App{
-		Config:              cfg,
-		DB:                  db,
-		RDB:                 rdb,
-		UserRepo:            userRepo,
-		SessionRepo:         sessionRepo,
-		KnowledgeRepo:       knowledgeRepo,
-		AuthService:         authSvc,
-		ChatService:         chatSvc,
-		ColorService:        colorSvc,
-		SessionService:      sessionSvc,
-		KnowledgeService:    knowledgeSvc,
-		AuthController:      authCtrl,
-		ChatController:      chatCtrl,
-		ColorController:     colorCtrl,
-		SessionController:   sessionCtrl,
-		KnowledgeController: knowledgeCtrl,
-		UserController:      userCtrl,
+		Config:            cfg,
+		DB:                db,
+		RDB:               rdb,
+		UserRepo:          userRepo,
+		SessionRepo:       sessionRepo,
+		AuthService:       authSvc,
+		ChatService:       chatSvc,
+		SessionService:    sessionSvc,
+		AuthController:    authCtrl,
+		ChatController:    chatCtrl,
+		SessionController: sessionCtrl,
+		UserController:    userCtrl,
 	}
 }
 
