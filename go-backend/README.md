@@ -40,7 +40,6 @@ go-backend/
 ├── service/
 │   ├── auth_service.go         # 认证业务逻辑
 │   ├── chat_service.go         # AI 对话业务逻辑
-│   ├── color_service.go        # 色彩处理（智能体内部 Tool，调用外部校色 API）
 │   └── session_service.go      # 会话管理业务逻辑
 ├── repository/
 │   ├── user_repo.go            # 用户数据访问（GORM）
@@ -56,8 +55,6 @@ go-backend/
 │   └── response/               # API 响应体（json 标签）
 │       ├── auth.go             # AuthResponse, UserResponse
 │       ├── chat.go             # ChatResponse, ChatChoice, ChatUsage
-│       ├── color.go            # CorrectResponse（内部 Tool 响应）
-│       ├── color_correction.go # ColorCorrectionResponse（外部校色 API）
 │       ├── common.go           # SuccessResponse, ErrorResponse, ListResponse
 │       └── session.go          # ChatSessionDetail, ChatSessionResponse
 ├── database/
@@ -187,8 +184,7 @@ REDIS_PASS=your_redis_password
 - **前端应用** — `../ColorAI/`（React + Vite，端口 5173）
 - **Python 智能体** — `./Agent/`（LangGraph + FastAPI，端口 8000）
   - 基于 LangGraph 框架的 AI 智能体服务
-  - 支持工具调用：图片校色、取色、颜色对比等
-  - 与 Go 后端接口格式完全兼容
+  - 包含所有色彩处理工具：图片校色、取色、颜色对比等
   - 详见 [Agent/README.md](./Agent/README.md)
 
 ## 架构说明
