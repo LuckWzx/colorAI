@@ -66,7 +66,7 @@ export function ToolDockPanel({
     <div className="mb-2.5 rounded-2xl border border-brand-line bg-brand-surface p-2.5 shadow-lift animate-fade-in-up">
       <div className="flex items-center justify-between px-1.5 py-1 mb-1">
         <p className="text-[11px] font-medium text-brand-muted">全部色彩工具</p>
-        <span className="font-mono text-[10px] uppercase tracking-wider text-brand-faint">9 tools</span>
+        <span className="font-mono text-[10px] uppercase tracking-wider text-brand-faint">{DOCK_ALL.length} tools</span>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
         {DOCK_ALL.map((item) => {

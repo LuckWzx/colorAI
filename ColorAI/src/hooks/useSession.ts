@@ -28,7 +28,7 @@ export function useSession({ startNew = false }: UseSessionOptions = {}) {
   /** 并发切换序号：只采纳最后一次加载结果 */
   const openSeq = useRef(0);
 
-  // ——— 初始化：拉取列表，按需恢复最近会话 ———
+  // ——— 初始化：拉取列表，默认显示新会话欢迎页 ———
   useEffect(() => {
     let alive = true;
     void (async () => {
@@ -36,14 +36,11 @@ export function useSession({ startNew = false }: UseSessionOptions = {}) {
         const list = await sessionService.list();
         if (!alive) return;
         setSessions(list);
-        if (startNew || list.length === 0) return;
-        const recent = list[0];
-        const detail = await sessionService.get(recent.id);
-        if (!alive) return;
-        const ms = (detail?.messages ?? []) as Message[];
-        setMessages(ms.length ? ms : [welcomeMsg()]);
-        setChatHistory((detail?.history ?? []) as ChatMessage[]);
-        setActiveId(recent.id);
+        // startNew 为 true 或首次进入时都显示新会话
+        // 只有用户主动从侧栏点击历史会话时才恢复
+        if (startNew) return;
+        // 列表为空也保持新对话
+        if (list.length === 0) return;
       } catch {
         /* 保持新对话欢迎首屏 */
       }

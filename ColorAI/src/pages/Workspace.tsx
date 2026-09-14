@@ -12,12 +12,15 @@ import {
   ArrowLeft,
   History,
   Camera,
+  User,
+  LogOut,
 } from 'lucide-react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { colorService } from '@/services/colorService';
 import { chatService } from '@/services/chatService';
 import { useAppStore } from '@/store/appStore';
+import { useAuthStore } from '@/store/authStore';
 import { convertFrom, getColorName, formatColorValue, parseColor, detectColorFormat } from '@/utils/colorConverter';
 import { uid } from '@/lib/uid';
 import { FEATURES } from '@/constants/workspace';
@@ -35,6 +38,8 @@ export default function Workspace() {
   const startNew = (location.state as { newChat?: boolean } | null)?.newChat === true;
   const setCorrectedImage = useAppStore((s) => s.setCorrectedImage);
   const setPickedColor = useAppStore((s) => s.setPickedColor);
+  const { user, isAuthenticated, logout } = useAuthStore();
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   // —— 会话状态（useSession hook 管理） ——
   const {
@@ -68,6 +73,19 @@ export default function Workspace() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // —— 点击外部关闭用户菜单 ——
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (!(target as Element).closest('[aria-label="用户菜单"]') && !(target as Element).closest('.absolute.right-0.top-full')) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [userMenuOpen]);
 
   // —— 工具函数 ——
   const showToast = (text: string) => {
@@ -224,49 +242,14 @@ export default function Workspace() {
     [runPickWithFile]
   );
 
-  // —— 匹配颜色胶自动对比 ——
+  // —— 匹配颜色胶自动对比（已移除相关功能） ——
   const triggerAutoCompare = useCallback(async () => {
-    const picked = useAppStore.getState().pickedColor;
-    if (!picked) {
-      showToast('请先完成取色，再来匹配颜色胶');
-      return;
-    }
-    setMessages((prev) => [
-      ...prev,
-      { id: uid(), role: 'user', createdAt: Date.now(), text: '匹配颜色胶', feature: 'compare' as const },
-    ]);
-    const loadingId = uid();
-    setMessages((prev) => [
-      ...prev,
-      { id: loadingId, role: 'assistant', type: 'loading' as const, createdAt: Date.now() },
-    ]);
-    try {
-      const res = await colorService.matchColorGel(picked.hex);
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === loadingId
-            ? { id: uid(), role: 'assistant', type: 'compare' as const, text: '已基于您刚才取的颜色，从色卡库匹配出最接近的颜色胶：', compareResult: res, createdAt: Date.now() }
-            : m
-        )
-      );
-    } catch {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === loadingId
-            ? { id: uid(), role: 'assistant', type: 'text' as const, text: '颜色胶匹配失败，请稍后重试。', createdAt: Date.now() }
-            : m
-        )
-      );
-    }
-  }, [setMessages]);
+    showToast('匹配颜色胶功能已移除');
+  }, []);
 
-  // —— 附近商家跳转 ——
+  // —— 附近商家跳转（已移除相关页面） ——
   const goToShops = useCallback((hex?: string) => {
-    const targetHex = hex || useAppStore.getState().pickedColor?.hex;
-    const url = targetHex
-      ? `/partner-cooperation?color=${encodeURIComponent(targetHex)}`
-      : '/partner-cooperation';
-    navigate(url);
+    showToast('附近商家功能已移除');
   }, []);
 
   // —— 核心消息分发：添加用户消息 + loading + 执行工具逻辑 ——
@@ -528,13 +511,6 @@ export default function Workspace() {
         {/* 顶栏 */}
         <header className="relative z-20 shrink-0 flex items-center justify-between px-4 lg:px-8 h-14 sm:h-16 border-b border-brand-line bg-white/85 backdrop-blur-xl">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/')}
-              className="p-2 rounded-lg text-brand-muted hover:text-brand-primary hover:bg-brand-paper transition-colors"
-              aria-label="返回首页"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
             <div className="w-9 h-9 rounded-xl bg-cmyk-strip shadow-card" />
             <div>
               <div className="flex items-center gap-2">
@@ -551,6 +527,50 @@ export default function Workspace() {
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               服务在线 · AI 已连接
             </div>
+            {/* 登录/用户菜单按钮 */}
+            {isAuthenticated && user ? (
+              <div className="relative">
+                <button
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="flex items-center gap-2 pl-2 pr-1 py-1.5 rounded-lg hover:bg-brand-ink/[0.05] transition-colors"
+                  aria-label="用户菜单"
+                >
+                  <span className="w-7 h-7 rounded-md bg-brand-primary flex items-center justify-center text-white text-xs font-semibold shrink-0">
+                    {user.username.slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="hidden sm:inline text-sm text-brand-ink max-w-[80px] truncate">
+                    {user.username}
+                  </span>
+                </button>
+                {userMenuOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-56 bg-brand-surface border border-brand-line rounded-xl shadow-lift p-2 animate-fade-in-up">
+                    <div className="px-3 py-2 border-b border-brand-line mb-1">
+                      <div className="text-sm font-medium text-brand-ink truncate">{user.username}</div>
+                      <div className="text-[11px] text-brand-muted">个人中心</div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        logout();
+                        setUserMenuOpen(false);
+                        navigate('/login', { replace: true });
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-rose-600 hover:bg-rose-50 transition-colors"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      退出登录
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={() => navigate('/login')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-brand-ink border border-brand-line hover:border-brand-primary/50 hover:text-brand-primary hover:bg-white transition-all"
+              >
+                <User className="w-4 h-4" />
+                登录
+              </button>
+            )}
             <button
               onClick={() => setSidebarOpen(true)}
               className="lg:hidden p-2 rounded-lg text-brand-muted hover:text-brand-primary hover:bg-brand-paper transition-colors"
@@ -852,8 +872,7 @@ function MessageBubble({
     } else if (type === 'pick' && msg.pickResult) {
       primary = { label: '匹配颜色胶', onClick: () => onAutoCompare?.() };
     } else if (type === 'compare' && msg.compareResult) {
-      const hex = msg.compareResult.imageA.dominantColors[0]?.hex;
-      primary = { label: '附近商家', onClick: () => onGoShops?.(hex) };
+      primary = { label: '附近商家', onClick: () => onGoShops?.() };
     } else if (type === 'convert') {
       primary = { label: '去取色', onClick: () => onGoPick?.() };
     }
@@ -1181,9 +1200,6 @@ function MessageBubble({
               </div>
             </div>
           </div>
-          <Link to="/color-converter" className="btn-secondary !py-2 !px-4 text-sm inline-flex">
-            打开完整转换工作台
-          </Link>
           <ResultActions />
         </div>
       </div>

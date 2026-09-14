@@ -56,7 +56,7 @@ export default function Login() {
   // 已登录则跳转
   useEffect(() => {
     if (isAuthenticated) {
-      const from = (location.state as { from?: string })?.from || '/profile';
+      const from = (location.state as { from?: string })?.from || '/workspace';
       navigate(from, { replace: true });
     }
   }, [isAuthenticated, navigate, location.state]);
@@ -105,11 +105,11 @@ export default function Login() {
       <div className="absolute top-0 inset-x-0 h-[3px] bg-cmyk-strip" />
 
       <button
-        onClick={() => navigate('/')}
+        onClick={() => navigate('/workspace')}
         className="absolute top-6 left-6 z-20 flex items-center gap-1.5 px-3 py-2 rounded-lg text-brand-muted hover:text-brand-primary hover:bg-brand-surface transition-colors text-sm"
       >
         <ChevronLeft className="w-4 h-4" />
-        返回首页
+        返回工作台
       </button>
 
       <div className="flex-1 flex items-center justify-center p-4 relative z-10">

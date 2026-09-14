@@ -1,6 +1,6 @@
 /**
  * Workspace 常量定义
- * 工具卡片、知识库入口、工具坞配置
+ * 工具卡片、工具坞配置
  */
 
 import {
@@ -9,10 +9,6 @@ import {
   Palette,
   GitCompare,
   Smartphone,
-  Camera,
-  HelpCircle,
-  MapPin,
-  Package2,
 } from 'lucide-react';
 import type { FeatureKey } from '@/types';
 
@@ -94,63 +90,5 @@ export const DOCK_CHAT: DockItem[] = FEATURES.map((f) => ({
   color: f.accent,
 }));
 
-// ——— 知识库入口 ———
-
-export interface KnowledgeToolItem {
-  key: string;
-  path: string;
-  title: string;
-  desc: string;
-  icon: typeof HelpCircle;
-  color: string;
-}
-
-export const KNOWLEDGE_TOOLS: KnowledgeToolItem[] = [
-  {
-    key: 'issues',
-    path: '/knowledge?tab=issues',
-    title: '拍照偏色解答',
-    desc: '偏色原因专业解答',
-    icon: HelpCircle,
-    color: '#6FAE55',
-  },
-  {
-    key: 'tips',
-    path: '/knowledge?tab=tips',
-    title: '拍照真实技巧',
-    desc: '用光构图实操技巧',
-    icon: Camera,
-    color: '#2FA8A0',
-  },
-  {
-    key: 'shops',
-    path: '/knowledge?tab=shops',
-    title: '附近色胶商铺',
-    desc: '冲印微喷店铺地图',
-    icon: MapPin,
-    color: '#6B5BCD',
-  },
-  {
-    key: 'brands',
-    path: '/knowledge?tab=brands',
-    title: '工业胶品牌',
-    desc: '胶卷相纸品牌图鉴',
-    icon: Package2,
-    color: '#8A5FD0',
-  },
-];
-
-/** 全部工具（聊天 + 知识库，更多面板用） */
-export const DOCK_ALL: DockItem[] = [
-  ...DOCK_CHAT,
-  ...KNOWLEDGE_TOOLS.map((t) => ({
-    id: t.key,
-    kind: 'page' as const,
-    key: t.key,
-    path: t.path,
-    title: t.title,
-    desc: t.desc,
-    icon: t.icon,
-    color: t.color,
-  })),
-];
+/** 全部工具（更多面板用） */
+export const DOCK_ALL: DockItem[] = [...DOCK_CHAT];

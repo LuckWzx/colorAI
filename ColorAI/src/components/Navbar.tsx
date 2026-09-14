@@ -1,15 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, User, LogOut, Wallet } from 'lucide-react';
+import { Menu, X, User, LogOut } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 
 /** 站点主导航：桌面横向链接 + 移动端汉堡菜单共用 */
 const NAV_ITEMS = [
   { label: '工作台', path: '/workspace' },
-  { label: '知识库', path: '/knowledge' },
-  { label: '色彩社区', path: '/community' },
-  { label: '品牌色库', path: '/color-library' },
-  { label: '趋势报告', path: '/trend-report' },
 ] as const;
 
 /** 四色套印标：C/M/Y/K 四块，呼应品牌色彩研究基因 */
@@ -50,8 +46,6 @@ export default function Navbar() {
     return () => document.removeEventListener('mousedown', handler);
   }, [userMenuOpen]);
 
-  const goProfile = () => navigate('/profile');
-  const goWallet = () => navigate('/wallet');
   const goLogin = () => navigate('/login');
 
   const isActive = (path: string) =>
@@ -60,7 +54,7 @@ export default function Navbar() {
   const handleLogout = () => {
     logout();
     setUserMenuOpen(false);
-    navigate('/', { replace: true });
+    navigate('/login', { replace: true });
   };
 
   return (
@@ -72,7 +66,7 @@ export default function Navbar() {
       }`}
     >
       <div className="container flex items-center justify-between h-16 px-4 lg:px-8">
-        <Link to="/" className="flex items-center gap-3 group">
+        <Link to="/workspace" className="flex items-center gap-3 group">
           <BrandMark />
           <span className="font-serif text-xl font-bold text-brand-ink tracking-wide">
             曲泉AI
@@ -119,20 +113,6 @@ export default function Navbar() {
                     <div className="text-sm font-medium text-brand-ink truncate">{user.username}</div>
                     <div className="text-[11px] text-brand-muted">个人中心</div>
                   </div>
-                  <button
-                    onClick={goProfile}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-brand-ink hover:bg-brand-ink/[0.05] transition-colors"
-                  >
-                    <User className="w-4 h-4 text-brand-muted" />
-                    个人主页
-                  </button>
-                  <button
-                    onClick={() => { goWallet(); }}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-brand-ink hover:bg-brand-ink/[0.05] transition-colors"
-                  >
-                    <Wallet className="w-4 h-4 text-brand-muted" />
-                    我的钱包
-                  </button>
                   <div className="border-t border-brand-line my-1" />
                   <button
                     onClick={handleLogout}

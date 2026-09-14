@@ -81,14 +81,14 @@ export interface CompareResult {
 export interface PhoneCorrectResponse {
   success: boolean;
   originalUrl: string;
-  visualCorrectedUrl: string;
-  standardCorrectedUrl: string;
+  correctedUrl: string;
+  standardUrl: string;
   adjustment: {
-    redChannel: number;
-    greenChannel: number;
-    blueChannel: number;
+    redShift: number;
+    greenShift: number;
+    blueShift: number;
     brightness: number;
-    exposureCompensation: number;
+    exposure: number;
   };
 }
 
