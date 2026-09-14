@@ -256,7 +256,9 @@ Content-Type: application/json
   "messages": [
     {
       "role": "user",
-      "content": "这张图片的主色调是什么？"
+      "content": "这张图片的主色调是什么？",
+      "feature": null,
+      "images": ["data:image/jpeg;base64,..."]
     }
   ],
   "model": "deepseek-chat"
@@ -267,15 +269,27 @@ Content-Type: application/json
 |------|------|------|------|
 | sessionId | string | 否 | 会话ID，用于关联对话历史 |
 | messageId | string | 否 | 消息ID（前端生成，用于SSE/WebSocket场景关联） |
-| messages | ChatMessage[] | 是 | 消息数组，至少包含一条用户消息，系统提示词由后端自动注入 |
+| messages | ChatMessage[] | 是 | 消息数组，至少包含一条用户消息 |
 | model | string | 否 | 模型标识，默认 deepseek-chat |
 
 **ChatMessage 结构：**
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| role | string | `user` / `assistant`（`system` 角色由后端自动注入，前端无需传递） |
-| content | string | 消息内容 |
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| role | string | 是 | `user` / `assistant`（`system` 角色由后端自动注入） |
+| content | string | 是 | 消息文本内容 |
+| feature | string \| null | 否 | 快捷工具标识：`correct` / `pick` / `compare` / `convert` / `phone`，自由对话时为 `null` |
+| images | string[] \| null | 否 | 图片数据数组（base64 格式），用于需要图片的功能 |
+
+**请求场景示例：**
+
+| 场景 | content | feature | images |
+|------|---------|---------|--------|
+| 自由对话 | "色彩理论是什么？" | `null` | `null` |
+| 快捷校色 | "请校色" | `"correct"` | `["data:image/jpeg;base64,..."]` |
+| 快捷取色 | "请取色" | `"pick"` | `["data:image/jpeg;base64,..."]` |
+| 快捷对比 | "请对比" | `"compare"` | `["data:...", "data:..."]` |
+| 自然语言校色 | "这张图片偏色了" | `null` | `["data:image/jpeg;base64,..."]` |
 
 **成功响应：**
 
