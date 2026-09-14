@@ -488,23 +488,29 @@ GET /api/health
 
 ---
 
-## 前端本地处理接口
+## 后端工具接口（Tool）
 
-以下功能在前端本地实现，不调用后端 API：
+以下功能封装为智能体工具（Tools），通过 AI 对话接口调用返回，不直接暴露给前端：
 
-### 色彩处理（colorService）
+### 色彩处理工具
 
-| 功能 | 方法 | 说明 |
-|------|------|------|
-| 图片一键校正 | `correctImage(file, mode)` | Canvas 本地处理，支持 auto/portrait/landscape/product 模式 |
-| 智能取色 | `extractDominantColors(dataUrl, count)` | 提取图片主色调，返回 HEX + 占比 |
-| 颜色对比 | `compareImages(fileA, fileB)` | 计算 ΔE2000 色差值 |
-| 颜色胶匹配 | `matchColorGel(hex)` | 基于 HEX 生成相近颜色胶 |
-| 手机拍摄校色 | `phoneCorrectImage(file, device, scene)` | 还原手机拍摄的真实色彩 |
+| 工具名称 | 说明 | 调用方式 |
+|----------|------|----------|
+| image_correction | 图片一键校正，支持 auto/portrait/landscape/product 模式 | 智能体根据用户意图自动调用 |
+| color_extraction | 智能取色，提取图片主色调，返回 HEX + 占比 | 智能体根据用户意图自动调用 |
+| color_comparison | 颜色对比，计算 ΔE2000 色差值，量化两图相似度 | 智能体根据用户意图自动调用 |
+| color_gel_matching | 颜色胶匹配，基于 HEX 生成相近颜色胶 | 智能体根据用户意图自动调用 |
+| phone_correction | 手机拍摄校色，还原手机拍摄的真实色彩 | 智能体根据用户意图自动调用 |
+
+### 工具调用说明
+
+- **调用流程**：用户通过聊天描述需求 → 智能体解析意图 → 自动选择合适工具 → 返回处理结果
+- **参数传递**：图片文件通过 `multipart/form-data` 上传，颜色参数通过 JSON 传递
+- **响应格式**：工具执行结果封装在 AI 回复的 `tool_results` 字段中
 
 ### 色彩空间转换（colorConverter）
 
-支持格式：HEX、RGB、HSL、CMYK、Lab、HSV 互转
+支持格式：HEX、RGB、HSL、CMYK、Lab、HSV 互转（前端本地实现，用于输入输出格式转换）
 
 ---
 
