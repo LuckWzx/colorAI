@@ -1,7 +1,7 @@
 /**
  * AI 对话服务模块
  * - 封装与 LLM API 的对话调用
- * - 支持色彩智能体的 System Prompt
+ * - 系统提示词由后端管理，前端无需携带
  *
  * 安全说明：
  *   API Key 仅在服务端使用，客户端不存储任何密钥。
@@ -28,17 +28,6 @@ export interface ChatResponse {
   };
 }
 
-const COLOR_SYSTEM_PROMPT = `你是曲泉AI，一个专业的色彩智能体。你的专长是：
-1. AI 一键校色：帮助用户校正图片的白平衡、色彩还原
-2. 智能取色：从图片中提取主色调，支持 HEX/RGB/HSL/CMYK/Lab 等格式
-3. 色彩空间转换：在不同色彩空间之间精准转换
-4. 颜色对比：量化两个颜色的相似度（ΔE）
-5. 手机拍摄校色：还原手机照片的人眼视觉真实色彩
-
-请用专业、简洁、友好的语气回答用户关于色彩的问题。
-当用户询问色彩理论、校色技巧、设备选择、行业应用等问题时，给出准确、实用的建议。
-回答时适当使用色彩相关的专业术语，但要解释清楚。`;
-
 /**
  * 通过后端代理调用 LLM API
  * （API Key 仅存在于服务端环境变量中，不会暴露给前端）
@@ -49,10 +38,7 @@ async function callViaProxy(messages: ChatMessage[], sessionId?: string, message
     body: JSON.stringify({
       sessionId: sessionId || '',
       messageId: messageId || '', // 前端生成的消息ID
-      messages: [
-        { role: 'system', content: COLOR_SYSTEM_PROMPT },
-        ...messages,
-      ],
+      messages: messages, // 系统提示词由后端自动注入，前端无需携带
     }),
     signal: AbortSignal.timeout(30000),
   });

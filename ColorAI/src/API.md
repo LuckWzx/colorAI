@@ -11,6 +11,30 @@
 | 超时时间 | 30 秒 |
 | 认证方式 | Bearer Token（Header: `Authorization`） |
 
+## 系统提示词（System Prompt）
+
+系统提示词由后端管理，前端无需携带。后端会在调用 LLM API 时自动注入。
+
+**系统提示词内容：**
+
+```
+你是曲泉AI，一个专业的色彩智能体。你的专长是：
+1. AI 一键校色：帮助用户校正图片的白平衡、色彩还原
+2. 智能取色：从图片中提取主色调，支持 HEX/RGB/HSL/CMYK/Lab 等格式
+3. 色彩空间转换：在不同色彩空间之间精准转换
+4. 颜色对比：量化两个颜色的相似度（ΔE）
+5. 手机拍摄校色：还原手机照片的人眼视觉真实色彩
+
+请用专业、简洁、友好的语气回答用户关于色彩的问题。
+当用户询问色彩理论、校色技巧、设备选择、行业应用等问题时，给出准确、实用的建议。
+回答时适当使用色彩相关的专业术语，但要解释清楚。
+```
+
+**说明：**
+- 前端发送聊天请求时，`messages` 数组中不需要包含 `system` 角色的消息
+- 后端会自动在 `messages` 数组开头插入系统提示词
+- 如需修改系统提示词，请更新后端配置或代码中的 `COLOR_SYSTEM_PROMPT` 常量
+
 ## ID 格式说明
 
 | 实体 | 格式 | 示例 |
@@ -176,10 +200,6 @@ Content-Type: application/json
   "messageId": "msg-0a1b2c3d4e5f6789",
   "messages": [
     {
-      "role": "system",
-      "content": "你是曲泉AI，一个专业的色彩智能体..."
-    },
-    {
       "role": "user",
       "content": "这张图片的主色调是什么？"
     }
@@ -192,14 +212,14 @@ Content-Type: application/json
 |------|------|------|------|
 | sessionId | string | 否 | 会话ID，用于关联对话历史 |
 | messageId | string | 否 | 消息ID（前端生成，用于SSE/WebSocket场景关联） |
-| messages | ChatMessage[] | 是 | 消息数组，至少包含一条消息 |
+| messages | ChatMessage[] | 是 | 消息数组，至少包含一条用户消息，系统提示词由后端自动注入 |
 | model | string | 否 | 模型标识，默认 deepseek-chat |
 
 **ChatMessage 结构：**
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| role | string | `user` / `assistant` / `system` |
+| role | string | `user` / `assistant`（`system` 角色由后端自动注入，前端无需传递） |
 | content | string | 消息内容 |
 
 **成功响应：**
