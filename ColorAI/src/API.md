@@ -11,6 +11,14 @@
 | 超时时间 | 30 秒 |
 | 认证方式 | Bearer Token（Header: `Authorization`） |
 
+## ID 格式说明
+
+| 实体 | 格式 | 示例 |
+|------|------|------|
+| 用户 ID | `u_{UnixNano}` | `u_1694678400000000000` |
+| 会话 ID | `session-{16位hex}` | `session-0a1b2c3d4e5f6789` |
+| 消息 ID | `msg-{16位hex}` | `msg-0a1b2c3d4e5f6789` |
+
 ## 统一响应格式
 
 ### 成功响应
@@ -73,13 +81,13 @@ POST /api/auth/register
 {
   "success": true,
   "user": {
-    "id": "uuid",
+    "id": "u_1694678400000000000",
     "username": "张三",
     "phone": "13800138000",
     "avatar": "",
     "createdAt": "2026-09-14T12:00:00Z"
   },
-  "token": "jwt-token-string"
+  "token": "tk_u_1694678400000000000_a1b2c3d4e5f6"
 }
 ```
 
@@ -111,13 +119,13 @@ POST /api/auth/login
 {
   "success": true,
   "user": {
-    "id": "uuid",
+    "id": "u_1694678400000000000",
     "username": "张三",
     "phone": "13800138000",
     "avatar": "",
     "createdAt": "2026-09-14T12:00:00Z"
   },
-  "token": "jwt-token-string"
+  "token": "tk_u_1694678400000000000_a1b2c3d4e5f6"
 }
 ```
 
@@ -293,14 +301,14 @@ GET /api/sessions/:id
     "messageCount": 12,
     "messages": [
       {
-        "id": "msg-uuid",
+        "id": "msg-0a1b2c3d4e5f6789",
         "role": "user",
         "content": "这张图片偏色了",
         "timestamp": 1694678400000,
         "type": "text"
       },
       {
-        "id": "msg-uuid",
+        "id": "msg-0a1b2c3d4e5f6790",
         "role": "assistant",
         "content": "我来帮您分析一下...",
         "timestamp": 1694678460000,
@@ -371,7 +379,7 @@ PUT /api/sessions/:id
   "title": "色彩校正咨询",
   "messages": [
     {
-      "id": "msg-uuid",
+      "id": "msg-0a1b2c3d4e5f6789",
       "role": "user",
       "content": "这张图片偏色了",
       "timestamp": 1694678400000,
@@ -446,7 +454,7 @@ GET /api/user/profile
 {
   "success": true,
   "user": {
-    "id": "uuid",
+    "id": "u_1694678400000000000",
     "username": "张三",
     "phone": "13800138000",
     "avatar": "",
