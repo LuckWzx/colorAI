@@ -1,6 +1,6 @@
 # 曲泉AI — Go 后端服务
 
-> 基于 Gin 框架的 RESTful API 服务，为前端提供色彩处理、AI 对话、会话管理、用户认证等能力。
+> 基于 Gin 框架的 RESTful API 服务，为前端提供用户认证、AI 对话、会话管理等能力。
 
 ## 技术栈
 
@@ -34,38 +34,28 @@ go-backend/
 ├── controller/
 │   ├── auth_controller.go      # 用户注册/登录/登出
 │   ├── chat_controller.go      # AI 对话代理
-│   ├── color_controller.go     # 色彩处理（校色/取色/对比/手机校色）
-│   ├── knowledge_controller.go # 知识库数据查询
 │   ├── session_controller.go   # 会话历史 CRUD
 │   ├── user_controller.go      # 用户信息
 │   └── response.go             # 统一响应封装
 ├── service/
 │   ├── auth_service.go         # 认证业务逻辑
 │   ├── chat_service.go         # AI 对话业务逻辑
-│   ├── color_service.go        # 色彩处理业务逻辑（Mock + 真实实现切换）
-│   ├── knowledge_service.go    # 知识库业务逻辑
 │   └── session_service.go      # 会话管理业务逻辑
 ├── repository/
 │   ├── user_repo.go            # 用户数据访问（GORM）
-│   ├── session_repo.go         # 会话数据访问（GORM 事务）
-│   └── knowledge_repo.go       # 知识库数据访问（GORM）
+│   └── session_repo.go         # 会话数据访问（GORM 事务）
 ├── model/
 │   ├── entity/                 # 数据库表模型（GORM，json:"-"）
 │   │   ├── auth.go             # User
-│   │   ├── knowledge.go        # ColorIssue, PhotoTip, ShopDB, BrandDB
 │   │   └── session.go          # ChatSession, ChatMessageRecord
 │   ├── request/                # API 请求体（binding 标签）
 │   │   ├── auth.go             # RegisterRequest, LoginRequest
 │   │   ├── chat.go             # ChatRequest, ChatMessage
-│   │   ├── color.go            # PickRequest, CompareRequest
 │   │   └── session.go          # SaveSessionRequest
 │   └── response/               # API 响应体（json 标签）
 │       ├── auth.go             # AuthResponse, UserResponse
 │       ├── chat.go             # ChatResponse, ChatChoice, ChatUsage
-│       ├── color.go            # PickResponse, CorrectResponse, CompareResponse 等
-│       ├── color_correction.go # ColorCorrectionResponse（外部校色API）
 │       ├── common.go           # SuccessResponse, ErrorResponse, ListResponse
-│       ├── knowledge.go        # QAItem, Shop, Brand
 │       └── session.go          # ChatSessionDetail, ChatSessionResponse
 ├── database/
 │   ├── db.go                   # MySQL 连接初始化（GORM）
@@ -73,8 +63,7 @@ go-backend/
 ├── middleware/
 │   ├── auth.go                 # Token 鉴权中间件（Redis 校验）
 │   └── cors.go                 # CORS 跨域中间件
-├── data/                       # 知识库 JSON 种子数据
-├── doc/                        # 项目文档（PRD、API 契约、技术方案等）
+├── doc/                        # 项目文档（PRD、API 契约、技术方案等)
 ├── uploads/                    # 用户上传图片存储
 ├── .env.example                # 环境变量模板
 ├── app.go                      # 应用初始化（依赖注入）
@@ -92,9 +81,6 @@ PORT=3001
 
 # LLM API Key（当前接入 DeepSeek，服务端读取，不暴露给前端）
 LLM_API_KEY=your_llm_api_key_here
-
-# 校色API地址（留空则使用Mock数据）
-COLOR_CORRECTION_API_URL=https://api3.ququan.net/quality/api/quality_check
 
 # 数据库配置
 DB_HOST=127.0.0.1
@@ -130,15 +116,6 @@ REDIS_PASS=your_redis_password
 |------|------|------|------|
 | GET | `/api/user/profile` | 需登录 | 获取当前用户信息 |
 
-### 色彩处理
-
-| 方法 | 路径 | 权限 | 说明 |
-|------|------|------|------|
-| POST | `/api/color/pick` | 公开 | 图片取色（坐标 → RGB/HEX） |
-| POST | `/api/color/correct` | 需登录 | 图片一键校正（调用外部校色API） |
-| POST | `/api/color/compare` | 需登录 | 两张图片颜色对比（ΔE 色差） |
-| POST | `/api/color/phone-correct` | 需登录 | 手机拍摄视觉校色 |
-
 ### AI 对话
 
 | 方法 | 路径 | 权限 | 说明 |
@@ -154,15 +131,6 @@ REDIS_PASS=your_redis_password
 | GET | `/api/sessions/:id` | 需登录 | 获取会话详情（含消息历史） |
 | PUT | `/api/sessions/:id` | 需登录 | 全量保存会话（事务：删旧消息 → 插入新消息） |
 | DELETE | `/api/sessions/:id` | 需登录 | 删除会话及其所有消息 |
-
-### 知识库
-
-| 方法 | 路径 | 权限 | 说明 |
-|------|------|------|------|
-| GET | `/api/knowledge/color-issues` | 公开 | 拍照偏色解答列表 |
-| GET | `/api/knowledge/photo-tips` | 公开 | 拍照技巧列表 |
-| GET | `/api/knowledge/shops` | 公开 | 附近商铺列表 |
-| GET | `/api/knowledge/brands` | 公开 | 工业胶品牌列表 |
 
 ## 数据库表结构
 
@@ -192,17 +160,11 @@ REDIS_PASS=your_redis_password
 | id | VARCHAR(64) PK | 消息 ID |
 | session_id | VARCHAR(64) | 所属会话 |
 | role | VARCHAR(16) | user / assistant |
-| msg_type | VARCHAR(32) | text / correct / pick / compare / convert / phone |
+| msg_type | VARCHAR(32) | text |
 | content | TEXT | 文本内容 |
 | payload | JSON | 扩展数据（correctResult / compareResult 等） |
 | sort_order | INT | 消息排序 |
 | created_at | BIGINT | 创建时间戳 |
-
-### 知识库表
-- `color_issues` — 拍照偏色解答
-- `photo_tips` — 拍照技巧
-- `shops` — 附近商铺
-- `brands` — 工业胶品牌
 
 ## 认证流程
 
