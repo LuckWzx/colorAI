@@ -11,7 +11,6 @@ import { sessionService } from '@/services/sessionService';
 import type { ChatSessionDTO } from '@/services/sessionService';
 import type { ChatMessage } from '@/services/chatService';
 import type { Message } from '@/types';
-import { uid } from '@/lib/uid';
 import { welcomeMsg } from '@/utils/workspace';
 
 export interface UseSessionOptions {
@@ -64,12 +63,20 @@ export function useSession({ startNew = false }: UseSessionOptions = {}) {
     } catch { /* 保持欢迎首屏 */ }
   }, [activeId]);
 
-  /** 新建空会话 */
-  const createSession = useCallback(() => {
-    const newId = uid();
-    setMessages([welcomeMsg()]);
-    setChatHistory([]);
-    setActiveId(newId);
+  /** 新建空会话（调用后端创建，ID 由后端生成） */
+  const createSession = useCallback(async () => {
+    try {
+      const session = await sessionService.create();
+      setMessages([welcomeMsg()]);
+      setChatHistory([]);
+      setActiveId(session.id);
+      // 将新会话添加到列表顶部
+      setSessions((prev) => [session, ...prev]);
+      return session.id;
+    } catch {
+      // 创建失败时保持当前状态
+      return null;
+    }
   }, []);
 
   /** 删除会话 */

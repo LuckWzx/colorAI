@@ -129,7 +129,7 @@ export default function Workspace() {
   };
 
   const startNewChat = async () => {
-    createSession();
+    await createSession();
     setSelectedFeature(null);
     setPendingImages([]);
     setPendingPreview([]);
