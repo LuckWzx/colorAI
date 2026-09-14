@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"colorai-backend/agent"
 	"colorai-backend/config"
 
 	"github.com/joho/godotenv"
@@ -15,6 +16,13 @@ func main() {
 
 	// 加载配置
 	cfg := config.Load()
+
+	// 启动 Python Agent
+	agentMgr := agent.NewManager()
+	if err := agentMgr.Start(); err != nil {
+		log.Printf("警告: Python Agent 启动失败: %v", err)
+	}
+	defer agentMgr.Stop()
 
 	// 初始化所有组件（数据库 → 仓库 → 服务 → 控制器）
 	app := NewApp(cfg)
