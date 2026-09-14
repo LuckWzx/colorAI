@@ -14,9 +14,9 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
     
-    # 服务器配置
+    # 服务器配置（使用 AGENT_PORT 避免与 Go 后端的 PORT 冲突）
     HOST: str = "0.0.0.0"
-    PORT: int = 8000
+    AGENT_PORT: int = 8000
     
     # DeepSeek API配置
     DEEPSEEK_API_KEY: str = ""

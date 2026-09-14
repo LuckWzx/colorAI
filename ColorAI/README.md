@@ -134,3 +134,27 @@ paths: { "@/*": ["./src/*"] }
 ## 相关项目
 
 - **Go 后端** — `../go-backend/`（Gin 框架，端口 3001）
+  - 用户认证、会话管理、数据库操作
+  - 启动时自动拉起 Python Agent
+- **Python 智能体** — `../go-backend/Agent/`（LangGraph + FastAPI，端口 8000）
+  - AI 智能对话、色彩处理工具
+  - 随 Go 后端自动启动/停止
+
+## 三层架构
+
+```
+前端 (React :5173) → Go 后端 (Gin :3001) → Python Agent (FastAPI :8000) → DeepSeek API
+```
+
+启动方式：只需启动 Go 后端，Python Agent 会自动随之启动：
+
+```bash
+cd ../go-backend
+go run main.go
+```
+
+然后在另一个终端启动前端：
+
+```bash
+npm run dev
+```
