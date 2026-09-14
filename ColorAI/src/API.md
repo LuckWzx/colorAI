@@ -227,16 +227,14 @@ Content-Type: application/json
 ```json
 {
   "success": true,
-  "choices": [
-    {
-      "message": {
-        "role": "assistant",
-        "content": "根据您上传的图片，主色调是..."
-      }
-    }
-  ],
-  "model": "deepseek-chat",
-  "messageId": "msg-0a1b2c3d4e5f6789",
+  "message": {
+    "id": "msg-0a1b2c3d4e5f6789",
+    "role": "assistant",
+    "type": "text",
+    "content": "根据您上传的图片，主色调是...",
+    "metadata": null,
+    "createdAt": 1694678400000
+  },
   "usage": {
     "promptTokens": 1234,
     "completionTokens": 567,
@@ -249,14 +247,28 @@ Content-Type: application/json
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| choices | ChatChoice[] | 回复选项数组 |
-| choices[].message.role | string | 固定为 `assistant` |
-| choices[].message.content | string | AI 回复内容 |
-| model | string | 使用的模型标识 |
-| messageId | string | 消息ID（前端传入，后端原样返回，用于SSE/WebSocket场景关联） |
+| message | Message | 统一消息对象 |
+| message.id | string | 消息唯一标识 |
+| message.role | string | 固定为 `assistant` |
+| message.type | string | 消息类型：`text` / `correct` / `pick` / `compare` / `convert` / `phone` |
+| message.content | string | 消息文本内容（AI 回复或工具结果描述） |
+| message.metadata | object \| null | 工具结果数据（仅工具类型消息包含） |
+| message.createdAt | number | 消息创建时间（epoch 毫秒） |
+| usage | object \| null | Token 用量统计（AI 对话时返回） |
 | usage.promptTokens | number | 输入 token 数 |
 | usage.completionTokens | number | 输出 token 数 |
 | usage.totalTokens | number | 总 token 数 |
+
+**消息类型说明：**
+
+| type | 说明 | metadata 结构 |
+|------|------|---------------|
+| `text` | 智能体文本回复 | `null` |
+| `correct` | 图片校色结果 | `{ originalImage, correctedImage, metadata: { brightness, contrast, saturation, whiteBalance } }` |
+| `pick` | 取色结果 | `{ color: FullColorValues, colorName: string }` |
+| `compare` | 颜色对比结果 | `{ similarity, deltaE, imageA, imageB }` |
+| `convert` | 颜色转换结果 | `{ input, detectedFormat, color: FullColorValues, colorName }` |
+| `phone` | 手机拍摄校色结果 | `{ originalUrl, correctedUrl, standardUrl, adjustment }` |
 
 ---
 
