@@ -1,29 +1,29 @@
-# Web框架
+# Web Framework
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 
-# LangGraph智能体框架
+# LangGraph Agent Framework
 langgraph==0.2.28
 langchain==0.3.1
 langchain-openai==0.2.1
 langchain-community==0.3.1
 
-# OpenAI兼容API（DeepSeek）
+# OpenAI Compatible API (DeepSeek)
 openai==1.54.0
 
-# 数据验证
-pydantic==2.5.2
-pydantic-settings==2.1.0
+# Data Validation
+pydantic>=2.7.0,<3.0.0
+pydantic-settings>=2.1.0
 
-# 环境变量管理
+# Environment Variables
 python-dotenv==1.0.0
 
-# 图像处理
+# Image Processing
 Pillow==10.1.0
 
-# HTTP客户端
+# HTTP Client
 httpx==0.25.2
 
-# 日志
+# Logging
 loguru==0.7.2

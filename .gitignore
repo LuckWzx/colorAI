@@ -31,6 +31,15 @@ pnpm-debug.log*
 *.out
 go-backend/go-backend
 
+# === Python ===
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+logs/
+
 # === 上传文件 ===
 **/uploads/*
 !**/uploads/.gitkeep
