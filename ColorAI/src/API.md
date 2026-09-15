@@ -447,6 +447,18 @@ GET /api/sessions/:id
 POST /api/sessions
 ```
 
+**请求体：**
+
+```json
+{
+  "title": "色彩校正咨询"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| title | string | 否 | 会话标题，不传则默认为"新对话"，推荐传入用户首条消息前26字符作为标题 |
+
 **成功响应：**
 
 ```json
@@ -455,7 +467,7 @@ HTTP 201
   "success": true,
   "session": {
     "id": "session-uuid",
-    "title": "",
+    "title": "色彩校正咨询",
     "createdAt": 1694678400000,
     "updatedAt": 1694678400000,
     "messageCount": 0
@@ -463,67 +475,13 @@ HTTP 201
 }
 ```
 
----
-
-### 8. 保存会话
-
-```
-PUT /api/sessions/:id
-```
-
-**路径参数：**
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| id | string | 会话ID |
-
-**请求体：**
-
-```json
-{
-  "title": "色彩校正咨询",
-  "messages": [
-    {
-      "id": "msg-0a1b2c3d4e5f6789",
-      "role": "user",
-      "content": "这张图片偏色了",
-      "timestamp": 1694678400000,
-      "type": "text"
-    }
-  ],
-  "history": [
-    {
-      "role": "user",
-      "content": "这张图片偏色了"
-    }
-  ]
-}
-```
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| title | string | 是 | 会话标题 |
-| messages | Message[] | 否 | UI 渲染用消息数组 |
-| history | ChatMessage[] | 否 | LLM 对话历史 |
-
-**成功响应：**
-
-```json
-{
-  "success": true,
-  "session": {
-    "id": "session-uuid",
-    "title": "色彩校正咨询",
-    "createdAt": 1694678400000,
-    "updatedAt": 1694679000000,
-    "messageCount": 6
-  }
-}
-```
+**说明：**
+- 创建时机：用户在新会话中发送第一条消息时触发
+- 标题来源：取用户消息前26个字符作为会话标题
 
 ---
 
-### 9. 删除会话
+### 8. 删除会话
 
 ```
 DELETE /api/sessions/:id

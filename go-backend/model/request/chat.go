@@ -6,8 +6,10 @@ package request
 
 // ChatMessage 对话消息
 type ChatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string   `json:"role"`
+	Content string   `json:"content"`
+	Feature *string  `json:"feature,omitempty"` // 快捷工具标识：correct / pick / compare / convert / phone
+	Images  []string `json:"images,omitempty"`  // 图片数据数组（base64 格式）
 }
 
 // ChatRequest AI 对话请求

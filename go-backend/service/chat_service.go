@@ -41,12 +41,19 @@ func (s *chatService) Chat(userID, sessionID, messageID string, messages []reque
 	}
 
 	// 将前端消息格式转换为 Python Agent 格式
-	agentMessages := make([]map[string]string, len(messages))
+	agentMessages := make([]map[string]interface{}, len(messages))
 	for i, msg := range messages {
-		agentMessages[i] = map[string]string{
+		agentMsg := map[string]interface{}{
 			"role":    msg.Role,
 			"content": msg.Content,
 		}
+		if msg.Feature != nil {
+			agentMsg["feature"] = *msg.Feature
+		}
+		if len(msg.Images) > 0 {
+			agentMsg["images"] = msg.Images
+		}
+		agentMessages[i] = agentMsg
 	}
 
 	// 构建请求体
@@ -147,13 +154,27 @@ func (s *chatService) saveMessages(userID, sessionID, messageID string, userMess
 		if messageID != "" {
 			msgID = messageID
 		}
+
+		// 构建 payload，保存 feature 和 images 信息
+		payload := map[string]interface{}{}
+		if last.Feature != nil {
+			payload["feature"] = *last.Feature
+		}
+		if len(last.Images) > 0 {
+			payload["images"] = last.Images
+		}
+		payloadJSON, _ := json.Marshal(payload)
+		if len(payload) == 0 {
+			payloadJSON = []byte("null")
+		}
+
 		records = append(records, entity.ChatMessageRecord{
 			ID:        msgID,
 			SessionID: sessionID,
 			Role:      last.Role,
 			MsgType:   "text",
 			Content:   last.Content,
-			Payload:   "null",
+			Payload:   string(payloadJSON),
 			CreatedAt: now,
 		})
 	}

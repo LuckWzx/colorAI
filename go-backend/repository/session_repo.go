@@ -129,13 +129,13 @@ func (r *mysqlSessionRepository) Save(sessionID, userID, title string, messages 
 				if msgType == "" {
 					msgType = "text"
 				}
-				text, _ := m["text"].(string)
+				text, _ := m["content"].(string)
 				msgCreatedAt, _ := m["createdAt"].(float64)
 
 				// 把额外字段打包为 payload
 				payload := map[string]interface{}{}
 				for k, v := range m {
-					if k != "id" && k != "role" && k != "type" && k != "text" && k != "createdAt" {
+					if k != "id" && k != "role" && k != "type" && k != "content" && k != "createdAt" {
 						payload[k] = v
 					}
 				}
@@ -248,7 +248,7 @@ func (r *mysqlSessionRepository) loadMessages(sessionID string) (messages []inte
 			"createdAt": m.CreatedAt,
 		}
 		if m.Content != "" {
-			msg["text"] = m.Content
+			msg["content"] = m.Content
 		}
 
 		if m.Payload != "" && m.Payload != "null" && m.Payload != "{}" {

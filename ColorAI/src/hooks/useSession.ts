@@ -56,7 +56,12 @@ export function useSession({ startNew = false }: UseSessionOptions = {}) {
     try {
       const detail = await sessionService.get(targetId);
       if (seq !== openSeq.current) return;
-      const ms = (detail?.messages ?? []) as Message[];
+      // 后端返回 content 字段，前端使用 text 字段，需要映射
+      const rawMsgs = (detail?.messages ?? []) as any[];
+      const ms: Message[] = rawMsgs.map((m) => ({
+        ...m,
+        text: m.text ?? m.content, // content -> text
+      })) as Message[];
       setMessages(ms.length ? ms : [welcomeMsg()]);
       setChatHistory((detail?.history ?? []) as ChatMessage[]);
       setActiveId(targetId);
@@ -64,11 +69,12 @@ export function useSession({ startNew = false }: UseSessionOptions = {}) {
   }, [activeId]);
 
   /** 新建空会话（调用后端创建，ID 由后端生成） */
-  const createSession = useCallback(async () => {
+  const createSession = useCallback(async (title?: string) => {
     try {
-      const session = await sessionService.create();
-      setMessages([welcomeMsg()]);
-      setChatHistory([]);
+      const session = await sessionService.create(title);
+      // 注意：不在这里重置消息，由调用者决定是否重置
+      // setMessages([welcomeMsg()]);
+      // setChatHistory([]);
       setActiveId(session.id);
       // 将新会话添加到列表顶部
       setSessions((prev) => [session, ...prev]);

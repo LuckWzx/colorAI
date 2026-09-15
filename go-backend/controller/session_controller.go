@@ -64,7 +64,13 @@ func (h *SessionController) GetSession(c *gin.Context) {
 func (h *SessionController) CreateSession(c *gin.Context) {
 	userID := getUserID(c)
 
-	session, err := h.sessionSvc.Create(userID)
+	var req request.CreateSessionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		// 允许空 body，title 为可选参数
+		req.Title = ""
+	}
+
+	session, err := h.sessionSvc.Create(userID, req.Title)
 	if err != nil {
 		HandleServiceError(c, err)
 		return

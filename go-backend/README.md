@@ -1,6 +1,6 @@
 # 曲泉AI — Go 后端服务
 
-> 基于 Gin 框架的 RESTful API 服务，为前端提供用户认证、AI 对话、会话管理等能力。色彩校正作为智能体内部 Tool 调用，不对外暴露 HTTP 接口。
+> 基于 Gin 框架的 RESTful API 服务，为前端提供用户认证、会话管理、数据库操作，并将 AI 对话请求代理转发至 Python 智能体服务。
 
 ## 技术栈
 
@@ -19,7 +19,7 @@
 # 1. 复制环境变量配置
 cp .env.example .env
 
-# 2. 编辑 .env，填入数据库、Redis、LLM API Key 等配置
+# 2. 编辑 .env，填入数据库、Redis、Agent 服务地址等配置
 
 # 3. 启动服务（默认端口 3001）
 go run main.go
@@ -29,17 +29,18 @@ go run main.go
 
 ```
 go-backend/
+├── Agent/                      # Python 智能体服务（LangGraph + FastAPI）
 ├── config/
 │   └── config.go               # 配置结构体 + 环境变量加载
 ├── controller/
 │   ├── auth_controller.go      # 用户注册/登录/登出
-│   ├── chat_controller.go      # AI 对话代理
+│   ├── chat_controller.go      # AI 对话代理（转发至 Agent 服务）
 │   ├── session_controller.go   # 会话历史 CRUD
 │   ├── user_controller.go      # 用户信息
 │   └── response.go             # 统一响应封装
 ├── service/
 │   ├── auth_service.go         # 认证业务逻辑
-│   ├── chat_service.go         # AI 对话业务逻辑
+│   ├── chat_service.go         # AI 对话代理（HTTP 转发至 Agent 服务）
 │   └── session_service.go      # 会话管理业务逻辑
 ├── repository/
 │   ├── user_repo.go            # 用户数据访问（GORM）
@@ -63,7 +64,7 @@ go-backend/
 ├── middleware/
 │   ├── auth.go                 # Token 鉴权中间件（Redis 校验）
 │   └── cors.go                 # CORS 跨域中间件
-├── doc/                        # 项目文档（PRD、API 契约、技术方案等)
+├── doc/                        # 项目文档（PRD、API 契约、技术方案等）
 ├── uploads/                    # 用户上传图片存储
 ├── .env.example                # 环境变量模板
 ├── app.go                      # 应用初始化（依赖注入）
@@ -79,11 +80,8 @@ go-backend/
 # 服务端口（默认 3001）
 PORT=3001
 
-# LLM API Key（当前接入 DeepSeek，服务端读取，不暴露给前端）
-LLM_API_KEY=your_llm_api_key_here
-
-# 校色 API 地址（外部服务，留空则校色功能不可用）
-COLOR_CORRECTION_API_URL=https://api3.ququan.net/quality/api/quality_check
+# Python 智能体服务地址（Go 后端将 AI 对话请求转发至此）
+AGENT_URL=http://localhost:8000
 
 # 数据库配置
 DB_HOST=127.0.0.1
@@ -126,7 +124,7 @@ REDIS_PASS=your_redis_password
 
 | 方法 | 路径 | 权限 | 说明 |
 |------|------|------|------|
-| POST | `/api/chat` | 需登录 | 发送对话消息，代理调用 LLM API（当前接入 DeepSeek） |
+| POST | `/api/chat` | 需登录 | 发送对话消息，代理转发至 Python 智能体服务 |
 
 ### 会话管理
 
@@ -184,7 +182,7 @@ REDIS_PASS=your_redis_password
 - **前端应用** — `../ColorAI/`（React + Vite，端口 5173）
 - **Python 智能体** — `./Agent/`（LangGraph + FastAPI，端口 8000）
   - 基于 LangGraph 框架的 AI 智能体服务
-  - 包含所有色彩处理工具：图片校色、取色、颜色对比等
+  - 内置色彩处理工具：图片校色、取色、颜色对比、颜色转换、手机校色
   - 详见 [Agent/README.md](./Agent/README.md)
 
 ## 架构说明
@@ -194,10 +192,10 @@ REDIS_PASS=your_redis_password
 │   前端      │────▶│  Go 后端    │────▶│ Python 智能体│────▶│ DeepSeek API│
 │  (React)    │◀────│  (Gin)      │◀────│  (LangGraph)│◀────│             │
 └─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
-       端口 5173          端口 3001          端口 8000
+      端口 5173          端口 3001          端口 8000
 
 职责划分：
-- 前端：UI渲染、用户交互
+- 前端：UI 渲染、用户交互
 - Go 后端：用户认证、会话管理、数据库操作、代理转发
-- Python 智能体：语义分析、工具选择、LLM调用、工具执行
+- Python 智能体：语义分析、工具选择、LLM 调用、工具执行
 ```

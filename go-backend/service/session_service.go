@@ -18,7 +18,7 @@ import (
 type SessionService interface {
 	ListByUser(userID string) ([]entity.ChatSession, error)
 	GetByID(userID, sessionID string) (*response.ChatSessionDetail, error)
-	Create(userID string) (*response.ChatSessionDetail, error)
+	Create(userID, title string) (*response.ChatSessionDetail, error)
 	Save(userID, sessionID string, req request.SaveSessionRequest) (*response.ChatSessionDetail, error)
 	Delete(userID, sessionID string) error
 }
@@ -44,21 +44,26 @@ func (s *sessionService) GetByID(userID, sessionID string) (*response.ChatSessio
 	return detail, err
 }
 
-func (s *sessionService) Create(userID string) (*response.ChatSessionDetail, error) {
+func (s *sessionService) Create(userID, title string) (*response.ChatSessionDetail, error) {
 	id := fmt.Sprintf("session-%016x", func() int64 {
 		n, _ := rand.Int(rand.Reader, big.NewInt(1<<62))
 		return n.Int64()
 	}())
 	now := time.Now().UnixMilli()
 
-	if err := s.sessionRepo.Create(id, userID, "新对话", now); err != nil {
+	// 如果没有传入标题，使用默认标题
+	if title == "" {
+		title = "新对话"
+	}
+
+	if err := s.sessionRepo.Create(id, userID, title, now); err != nil {
 		return nil, fmt.Errorf("创建会话失败: %w", err)
 	}
 
 	return &response.ChatSessionDetail{
 		ChatSessionResponse: response.ChatSessionResponse{
 			ID:           id,
-			Title:        "新对话",
+			Title:        title,
 			CreatedAt:    now,
 			UpdatedAt:    now,
 			MessageCount: 0,

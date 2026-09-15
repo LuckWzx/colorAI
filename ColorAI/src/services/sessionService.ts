@@ -35,7 +35,7 @@ export interface ChatSessionService {
   /** 单个会话详情（含 messages/history），不存在返回 null */
   get(id: string): Promise<ChatSessionDTO | null>;
   /** 创建新会话，返回后端生成的会话ID和详情 */
-  create(): Promise<ChatSessionDTO>;
+  create(title?: string): Promise<ChatSessionDTO>;
   /** 全量保存（upsert：同 id 覆盖，保留原 createdAt），返回落库后的完整 DTO */
   save(input: SaveSessionInput): Promise<ChatSessionDTO>;
   /** 删除会话 */
@@ -66,8 +66,11 @@ export const sessionService: ChatSessionService = {
     return data.session as ChatSessionDTO;
   },
 
-  async create() {
-    const res = await authFetch('/api/sessions', { method: 'POST' });
+  async create(title?: string) {
+    const res = await authFetch('/api/sessions', {
+      method: 'POST',
+      body: JSON.stringify({ title }),
+    });
     if (!res.ok) throw new Error(`Failed to create session: ${res.status}`);
     const data = await res.json();
     if (!data?.success || !data.session) {

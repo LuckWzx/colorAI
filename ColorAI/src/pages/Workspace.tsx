@@ -25,7 +25,7 @@ import { convertFrom, getColorName, formatColorValue, parseColor, detectColorFor
 import { uid } from '@/lib/uid';
 import { FEATURES } from '@/constants/workspace';
 import type { DockItem } from '@/constants/workspace';
-import { dataUrlToFile } from '@/utils/workspace';
+import { dataUrlToFile, welcomeMsg } from '@/utils/workspace';
 import { useSession } from '@/hooks/useSession';
 import type { FeatureKey, UserMessage, Message } from '@/types';
 
@@ -44,7 +44,7 @@ export default function Workspace() {
   // —— 会话状态（useSession hook 管理） ——
   const {
     sessions, activeId, messages, chatHistory,
-    setMessages, setChatHistory,
+    setMessages, setChatHistory, setActiveId,
     switchSession, createSession, deleteSession,
   } = useSession({ startNew });
 
@@ -128,8 +128,11 @@ export default function Workspace() {
     setSidebarOpen(false);
   };
 
-  const startNewChat = async () => {
-    await createSession();
+  const startNewChat = () => {
+    // 不再立即创建会话，只显示欢迎界面
+    setActiveId(null);
+    setMessages([welcomeMsg()]);
+    setChatHistory([]);
     setSelectedFeature(null);
     setPendingImages([]);
     setPendingPreview([]);
@@ -363,7 +366,19 @@ export default function Workspace() {
         try {
           // 生成消息ID
           const messageId = uid();
-          const response = await chatService.chat(userText, latestHistory, activeId, messageId);
+          
+          // 如果没有活动会话ID，先创建会话
+          let currentSessionId = activeId;
+          if (!currentSessionId) {
+            // 用用户第一条消息的前26个字符作为会话标题
+            const title = userText.slice(0, 26) || '新对话';
+            const newSessionId = await createSession(title);
+            if (newSessionId) {
+              currentSessionId = newSessionId;
+            }
+          }
+          
+          const response = await chatService.chat(userText, latestHistory, currentSessionId, messageId);
           
           if (!response.success || !response.message) {
             throw new Error(response.error || 'AI 服务返回为空');
