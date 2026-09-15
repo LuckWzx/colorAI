@@ -38,7 +38,7 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = Field(None, alias="sessionId")
     message_id: Optional[str] = Field(None, alias="messageId")
     messages: list[ChatMessage]
-    model: Optional[str] = "deepseek-chat"
+    model: Optional[str] = "deepseek-flash"
 
 
 class MessageResponse(BaseModel):

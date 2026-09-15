@@ -355,7 +355,7 @@ Content-Type: application/json
     { "role": "system", "content": "你是曲泉AI，一个专业的色彩智能体..." },
     { "role": "user", "content": "照片偏黄怎么校正？" }
   ],
-  "model": "deepseek-chat"
+  "model": "deepseek-flash"
 }
 ```
 
@@ -364,7 +364,7 @@ Content-Type: application/json
 | `messages` | Array | 是 | 对话消息数组,不能为空 |
 | `messages[].role` | string | 是 | `system` / `user` / `assistant` |
 | `messages[].content` | string | 是 | 消息内容 |
-| `model` | string | 否 | 模型名,默认 `deepseek-chat` |
+| `model` | string | 否 | 模型名,默认 `deepseek-flash`(旧的 `deepseek-chat` 已于 2026-07-24 停用) |
 
 **成功响应:**
 
@@ -378,7 +378,7 @@ Content-Type: application/json
       }
     }
   ],
-  "model": "deepseek-chat",
+  "model": "deepseek-flash",
   "usage": {
     "promptTokens": 156,
     "completionTokens": 89,

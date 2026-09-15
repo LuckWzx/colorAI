@@ -67,12 +67,21 @@ class ColorAgent:
     def __init__(self):
         """初始化智能体"""
         # 初始化LLM
+        # 注意：deepseek-flash 默认开启「思考模式」。本智能体始终 bind_tools（请求带 tools），
+        # 而官方规定「带 tools 的请求必须把每轮的 reasoning_content 原样回传，否则返回 400」，
+        # langchain-openai 0.2.1 不会回传该字段，故默认关闭思考模式（DEEPSEEK_THINKING=False）。
+        # 另：思考模式下 temperature 会被静默忽略，关闭后 temperature 才生效。
         self.llm = ChatOpenAI(
             model=settings.DEEPSEEK_MODEL,
             openai_api_key=settings.DEEPSEEK_API_KEY,
             openai_api_base=settings.DEEPSEEK_API_BASE,
             temperature=settings.AGENT_TEMPERATURE,
             max_tokens=settings.AGENT_MAX_TOKENS,
+            extra_body={
+                "thinking": {
+                    "type": "enabled" if settings.DEEPSEEK_THINKING else "disabled"
+                }
+            },
         )
         
         # 获取工具列表

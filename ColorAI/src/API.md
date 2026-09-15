@@ -258,7 +258,7 @@ Content-Type: application/json
     { "role": "assistant", "content": "我来帮您分析一下这张图片的白平衡…" },
     { "role": "user", "content": "请取色", "feature": "pick", "images": ["data:image/jpeg;base64,..."] }
   ],
-  "model": "deepseek-chat"
+  "model": "deepseek-flash"
 }
 ```
 
@@ -267,7 +267,7 @@ Content-Type: application/json
 | sessionId | string | 否 | 会话ID，用于关联对话历史 |
 | messageId | string | 否 | 消息ID（前端生成，用于SSE/WebSocket场景关联） |
 | messages | ChatMessage[] | 是 | **完整对话历史**（按时间正序的 `user` / `assistant` 轮次），最后一条必须是当前用户消息。详见下文「messages 语义」 |
-| model | string | 否 | 模型标识，默认 deepseek-chat |
+| model | string | 否 | 模型标识，默认 `deepseek-flash`（旧的 `deepseek-chat` 已于 2026-07-24 停用） |
 
 **ChatMessage 结构：**
 

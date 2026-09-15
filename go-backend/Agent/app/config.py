@@ -21,7 +21,11 @@ class Settings(BaseSettings):
     # DeepSeek API配置
     DEEPSEEK_API_KEY: str = ""
     DEEPSEEK_API_BASE: str = "https://api.deepseek.com"
-    DEEPSEEK_MODEL: str = "deepseek-chat"
+    # 注意：旧的 deepseek-chat / deepseek-reasoner 已于 2026-07-24 停用（404）
+    DEEPSEEK_MODEL: str = "deepseek-flash"
+    # 思考模式开关。deepseek-flash 默认开启思考；本智能体带 tools 调用时
+    # 需要回传 reasoning_content（LangChain 不回传会导致 400），故默认关闭。
+    DEEPSEEK_THINKING: bool = False
     
     # 智能体配置
     AGENT_TEMPERATURE: float = 0.7
