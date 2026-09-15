@@ -195,14 +195,23 @@ Authorization: Bearer <token>
 
 ### Tool 工具列表
 
-| Tool 名称 | 触发场景 | 返回 message.type |
-|-----------|----------|-------------------|
-| image_correction | 用户上传图片，要求校色 | `correct` |
-| color_extraction | 用户上传图片，要求取色 | `pick` |
-| color_comparison | 用户上传两张图片，要求对比 | `compare` |
-| color_conversion | 用户输入颜色值，要求转换格式 | `convert` |
-| phone_correction | 用户上传手机照片，要求校色 | `phone` |
-| text_chat | 其他对话场景 | `text` |
+| Tool 名称 | 触发场景 | 返回 message.type | 状态 |
+|-----------|----------|-------------------|------|
+| image_correction | 用户上传图片，要求校色 | `correct` | ✅ 已上线（对接搭档真实接口） |
+| color_extraction | 用户上传图片，要求取色 | `pick` | ⛔ 未实现（**未注册**，LLM 无法调用） |
+| color_comparison | 用户上传两张图片，要求对比 | `compare` | ⛔ 未实现（未注册） |
+| color_conversion | 用户输入颜色值，要求转换格式 | `convert` | ⛔ 未实现（未注册） |
+| phone_correction | 用户上传手机照片，要求校色 | `phone` | ⛔ 未实现（未注册） |
+| text_chat | 其他对话场景 | `text` | ✅ |
+
+> ⚠️ **未实现的工具不会注册进 `get_all_tools()`**，原因与各能力的实现前提见
+> `agent/app/tools/color_tools.py` 末尾的说明块。
+> 未上线的能力由系统提示词兜住：Agent 会**如实告知「还没上线」**，
+> 不会返回编造数据，也不会用 `image_correction` 去冒充。
+> 实现一个 → 在 `get_all_tools()` 注册一个 → 在 `FEATURE_TOOL_MAPPING` 登记一个。
+>
+> 下表（含 `pick` / `compare` / `convert` / `phone` 的 metadata 结构）是**目标契约**，
+> 供实现时对齐，不代表这些能力当前可用。
 
 ### 前端交互流程
 
@@ -214,7 +223,8 @@ Authorization: Bearer <token>
 
 **示例：**
 - 用户点击"一键校色" → 自动发送 `{ feature: 'correct', text: '请校色' }` → 后端调用 `image_correction` Tool
-- 用户点击"智能取色" → 自动发送 `{ feature: 'pick', text: '请取色' }` → 后端调用 `color_extraction` Tool
+- 用户点击"智能取色" → 该功能尚未上线，Agent 会如实回复「功能还没上线」（返回 `type: text`），
+  **不会返回色值**；`feature: 'pick'` 因此不在 `FEATURE_TOOL_MAPPING` 里，不会触发短路
 
 **前端行为：**
 - 点击快捷工具按钮后，**禁用/隐藏输入框**
@@ -357,13 +367,69 @@ Content-Type: application/json
 | type | 说明 | metadata 结构 |
 |------|------|---------------|
 | `text` | 智能体文本回复 | `null` |
-| `correct` | 图片校色结果 | `{ originalImage: string, correctedImage: string, metadata: { brightness: number, contrast: number, saturation: number, whiteBalance: 'warm' \| 'cool' \| 'neutral' } }` |
-| `pick` | 取色结果 | `{ color: FullColorValues, colorName: string }` |
-| `compare` | 颜色对比结果 | `{ similarity: number, deltaE: number, imageA: { imageUrl: string, dominantColors: Array<{ hex: string, ratio: number }> }, imageB: { imageUrl: string, dominantColors: Array<{ hex: string, ratio: number }> } }` |
-| `convert` | 颜色转换结果 | `{ input: string, detectedFormat: string, color: FullColorValues, colorName: string }` |
-| `phone` | 手机拍摄校色结果 | `{ originalUrl: string, correctedUrl: string, standardUrl: string, adjustment: { redShift: number, greenShift: number, blueShift: number, brightness: number, exposure: number } }` |
+| `correct` | 图片校色结果 | 见下方「correct 的 metadata 结构」 |
+| `pick` | 取色结果 | ⛔ 未上线 · `{ color: FullColorValues, colorName: string }` |
+| `compare` | 颜色对比结果 | ⛔ 未上线 · `{ similarity: number, deltaE: number, imageA: { imageUrl: string, dominantColors: Array<{ hex: string, ratio: number }> }, imageB: { imageUrl: string, dominantColors: Array<{ hex: string, ratio: number }> } }` |
+| `convert` | 颜色转换结果 | ⛔ 未上线 · `{ input: string, detectedFormat: string, color: FullColorValues, colorName: string }` |
+| `phone` | 手机拍摄校色结果 | ⛔ 未上线 · `{ originalUrl: string, correctedUrl: string, standardUrl: string, adjustment: { redShift: number, greenShift: number, blueShift: number, brightness: number, exposure: number } }` |
+
+> ⛔ 标记的四类结果**当前不会出现**（工具未实现、未注册）。表中结构是**目标契约**，
+> 实现时按它对齐即可，不要另创结构。目前唯一会返回 metadata 的 type 是 `correct`。
+> 用户请求未上线的能力时，Agent 返回 `type: text` 如实说明，不会编造数值。
 
 > 以上结构即前端 `src/types/index.ts` 的类型定义（`CorrectionResult` / `CompareResult` / `PhoneCorrectResponse` 等），后端工具返回值必须与之逐字段对齐，否则结果卡片渲染为空白。
+
+**`correct` 的 metadata 结构（对齐校色接口真实返回）：**
+
+```json
+{
+  "success": true,
+  "passed": true,
+  "originalImage": "https://.../xxx_orig.jpg",
+  "candidates": [
+    {
+      "correctedImage": "https://.../xxx_corr_0.jpg",
+      "distance": 0.0576,
+      "modelName": "Apple iPhone17e/IMG_9895_1.jpg"
+    },
+    {
+      "correctedImage": "https://.../xxx_corr_1.jpg",
+      "distance": 0.0665,
+      "modelName": "Apple iPhone17e/indoor_804_15.00_2_IMG_8432_1.00_2_IMG_8432"
+    }
+  ],
+  "distance": 0.2399,
+  "threshold": 0.6,
+  "brand": "Unknown",
+  "deviceInfo": "未知设备",
+  "elapsedTime": 6.26,
+  "error": null
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `success` | boolean | 工具是否执行成功。**`passed=false` 时它仍是 `true`** |
+| `passed` | boolean | 拍摄环境是否达标（`distance < threshold`）。**false 是正常业务分支，不是错误** |
+| `originalImage` | string | 原图 URL（由校色服务托管，会过期） |
+| `candidates` | array | 候选校正图，按 `distance` 升序。`passed=true` 时至少一张 |
+| `candidates[].correctedImage` | string | 校正后图片 URL |
+| `candidates[].distance` | number | 该候选与标准环境的距离，越小越接近 |
+| `candidates[].modelName` | string | 校正所用的参考机型 / 场景 |
+| `distance` | number | 原图与标准环境的距离 |
+| `threshold` | number | 达标阈值 |
+| `brand` | string? | 检测到的品牌 |
+| `deviceInfo` | string? | 设备描述 |
+| `elapsedTime` | number? | 处理耗时（秒） |
+| `error` | string? | 仅 `passed=false` 或执行失败时有值，可直接展示给用户 |
+
+> ⚠️ 校色接口**不返回** `brightness` / `contrast` / `saturation` / `whiteBalance` 这类"调整量"，
+> 也不返回单个 `correctedImage`。前端卡片必须读 `candidates[0]`，不要读 `res.correctedImage`。
+> 历史上这里写错过一次，直接导致 `res.metadata.brightness` 抛 TypeError、整页白屏。
+
+> 图片字段一律是 **URL 而不是 base64**（Go 侧落盘后替换），且 URL 会过期。
+> 前端统一用 `src/components/SmartImage.tsx` 渲染，它在 `onError` 时会重试一次，
+> 仍失败才显示「图片已过期」占位。
 
 **FullColorValues 结构（`pick` / `convert` 的 `color` 字段）：**
 

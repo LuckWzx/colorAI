@@ -1,10 +1,9 @@
 package main
 
 import (
-	"path/filepath"
-
 	"colorai-backend/controller"
 	"colorai-backend/middleware"
+	"colorai-backend/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -16,8 +15,10 @@ func SetupRouter(app *App) *gin.Engine {
 	// 中间件
 	r.Use(middleware.CORS(app.Config.CORS.Origins))
 
-	// 静态文件：提供上传文件的访问
-	r.Static("/uploads", filepath.Join(".", "uploads"))
+	// 静态文件：提供上传文件的访问。
+	// 目录取自 config.Storage.LocalDir，与 service/storage.go 的 UploadURLPrefix 一一对应，
+	// 避免两处各自硬编码导致 URL 拼出来打不开。
+	r.Static(service.UploadURLPrefix, app.Config.Storage.LocalDir)
 
 	// 健康检查
 	r.GET("/api/health", controller.Health)

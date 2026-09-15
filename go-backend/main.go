@@ -18,7 +18,7 @@ func main() {
 	cfg := config.Load()
 
 	// 启动 Python Agent
-	agentMgr := agent.NewManager()
+	agentMgr := agent.NewManager(cfg.AgentURL)
 	if err := agentMgr.Start(); err != nil {
 		log.Printf("警告: Python Agent 启动失败: %v", err)
 	}

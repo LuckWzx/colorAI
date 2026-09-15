@@ -49,7 +49,9 @@ async function callViaProxy(messages: ChatMessage[], sessionId?: string, message
       messageId: messageId || '',
       messages: messages,
     }),
-    signal: AbortSignal.timeout(30000),
+    // 校色链路实测约 11~15s（图片下载 + 校色接口 ~6s + LLM 两轮），
+    // 大图会更久，30s 太紧，放宽到 90s（见 doc/图片校色Tool封装设计.md 决策 5）
+    signal: AbortSignal.timeout(90000),
   });
 
   if (!res.ok) {

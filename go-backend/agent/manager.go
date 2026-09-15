@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -12,20 +11,23 @@ import (
 
 // Manager Python Agent 进程管理器
 type Manager struct {
-	cmd   *exec.Cmd
-	dir   string
-	port  int
-	ready bool
+	cmd *exec.Cmd
+	dir string
+	// baseURL Python 智能体基地址，来自 config.AgentURL（勿硬编码）
+	baseURL string
+	ready   bool
 }
 
 // NewManager 创建 Agent 管理器
-func NewManager() *Manager {
+//
+// baseURL 形如 http://localhost:8000，必须与 Python 实际监听的地址一致。
+func NewManager(baseURL string) *Manager {
 	dir, _ := os.Getwd()
 	agentDir := filepath.Join(dir, "agent")
 
 	return &Manager{
-		dir:  agentDir,
-		port: 8000,
+		dir:     agentDir,
+		baseURL: baseURL,
 	}
 }
 
@@ -75,7 +77,7 @@ func (m *Manager) Start() error {
 
 // waitForReady 等待 Python Agent 就绪
 func (m *Manager) waitForReady() {
-	url := fmt.Sprintf("http://localhost:%d/health", m.port)
+	url := m.baseURL + "/health"
 	client := &http.Client{Timeout: 2 * time.Second}
 
 	maxWait := 15 * time.Second
@@ -86,7 +88,7 @@ func (m *Manager) waitForReady() {
 		if err == nil && resp.StatusCode == 200 {
 			resp.Body.Close()
 			m.ready = true
-			log.Printf("[Agent] Python Agent 就绪 (端口: %d)", m.port)
+			log.Printf("[Agent] Python Agent 就绪 (%s)", m.baseURL)
 			return
 		}
 		if resp != nil {
@@ -95,7 +97,7 @@ func (m *Manager) waitForReady() {
 		time.Sleep(500 * time.Millisecond)
 	}
 
-	log.Printf("[Agent] Python Agent 启动超时，请手动检查")
+	log.Printf("[Agent] Python Agent 启动超时，请手动检查 %s", url)
 }
 
 // Stop 停止 Python Agent

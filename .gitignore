@@ -44,6 +44,9 @@ logs/
 **/uploads/*
 !**/uploads/.gitkeep
 
+# === 工具测试产物 ===
+go-backend/tool-test-output/
+
 # === Qoder ===
 .qoder/
 

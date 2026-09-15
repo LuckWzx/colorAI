@@ -84,11 +84,8 @@ cp .env.example .env
 # 服务端口
 PORT=3001
 
-# Python 智能体服务地址
+# Python 智能体服务地址（必须与 agent/.env 的 AGENT_PORT 一致）
 AGENT_URL=http://localhost:8000
-
-# LLM API Key（当前接入 DeepSeek）
-LLM_API_KEY=your_llm_api_key_here
 
 # 数据库配置
 DB_HOST=127.0.0.1
@@ -96,10 +93,27 @@ DB_PORT=3306
 DB_USER=your_db_user
 DB_PASS=your_db_password
 DB_NAME=your_db_name
+DB_AUTO_MIGRATE=true
 
 # Redis 配置
 REDIS_ADDR=127.0.0.1:6379
 REDIS_PASS=your_redis_password
+
+# 图片存储（本地磁盘驱动）
+STORAGE_DRIVER=local
+UPLOADS_DIR=uploads
+# 图片对外访问 URL 前缀。切阿里云 OSS 时只改这一个值
+PUBLIC_BASE_URL=http://localhost:3001
+MAX_UPLOAD_BYTES=10485760
+```
+
+> **LLM / 校色服务的密钥不在 Go 侧。** Go 只做代理转发，实际调用方是 Python 智能体，
+> 因此 DeepSeek Key 配在 `go-backend/agent/.env` 的 `DEEPSEEK_API_KEY`，
+> 校色服务地址配在 `CORRECTION_API_URL`。
+
+```bash
+cd go-backend/agent
+cp .env.example .env   # 填入 DEEPSEEK_API_KEY 等
 ```
 
 ### 启动开发环境
@@ -158,6 +172,7 @@ colorAI/
     ├── service/             # 业务逻辑层
     │   ├── auth_service.go         # 认证逻辑
     │   ├── chat_service.go         # AI 对话代理
+    │   ├── storage.go              # 图片存储抽象（local / 预留 OSS）
     │   └── session_service.go      # 会话管理
     ├── repository/          # 数据访问层
     │   ├── user_repo.go            # 用户数据

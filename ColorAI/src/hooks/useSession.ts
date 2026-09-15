@@ -10,8 +10,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { sessionService } from '@/services/sessionService';
 import type { ChatSessionDTO } from '@/services/sessionService';
 import type { ChatMessage } from '@/services/chatService';
-import type { Message } from '@/types';
-import { welcomeMsg } from '@/utils/workspace';
+import type { AssistantMessage, Message } from '@/types';
+import { welcomeMsg, buildResultFields } from '@/utils/workspace';
 
 export interface UseSessionOptions {
   /** 是否跳过恢复最近会话（首页「立即体验」传 true） */
@@ -56,12 +56,18 @@ export function useSession({ startNew = false }: UseSessionOptions = {}) {
     try {
       const detail = await sessionService.get(targetId);
       if (seq !== openSeq.current) return;
-      // 后端返回 content 字段，前端使用 text 字段，需要映射
+      // 后端返回 content 字段，前端使用 text 字段，需要映射。
+      // 同时要把落库的 metadata 重新展开成 correctResult / pickResult… ——
+      // 否则刷新或切换会话后，结果卡片会因为拿不到这些字段而退化成纯文本。
       const rawMsgs = (detail?.messages ?? []) as Array<Record<string, unknown>>;
-      const ms = rawMsgs.map((m) => ({
-        ...m,
-        text: (m.text ?? m.content) as string | undefined, // content -> text
-      })) as Message[];
+      const ms = rawMsgs.map((m) => {
+        const type = m.type as AssistantMessage['type'];
+        return {
+          ...m,
+          text: (m.text ?? m.content) as string | undefined, // content -> text
+          ...buildResultFields(type, m.metadata),
+        };
+      }) as Message[];
       setMessages(ms.length ? ms : [welcomeMsg()]);
       setChatHistory((detail?.history ?? []) as ChatMessage[]);
       setActiveId(targetId);

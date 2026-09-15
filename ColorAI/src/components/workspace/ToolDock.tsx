@@ -22,24 +22,35 @@ export default function ToolDock({ selectedFeature, onSelect }: ToolDockProps) {
         {DOCK_CHAT.map((item) => {
           const Icon = item.icon;
           const active = selectedFeature === item.key;
+          // 后端未实现的能力：置灰并标注，避免用户点进去得到「功能还没上线」
+          const disabled = !item.available;
           return (
             <button
               key={item.key}
-              onClick={() => onSelect(item)}
+              onClick={() => {
+                if (!disabled) onSelect(item);
+              }}
+              disabled={disabled}
+              title={disabled ? '该功能尚未上线，敬请期待' : undefined}
               className={cn(
                 'shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors',
-                active
-                  ? 'border-brand-primary bg-brand-primary text-white shadow-sm'
-                  : 'border-brand-line bg-brand-surface text-brand-muted hover:text-brand-ink hover:border-brand-lineStrong'
+                disabled
+                  ? 'border-brand-line bg-brand-paper text-brand-faint cursor-not-allowed'
+                  : active
+                    ? 'border-brand-primary bg-brand-primary text-white shadow-sm'
+                    : 'border-brand-line bg-brand-surface text-brand-muted hover:text-brand-ink hover:border-brand-lineStrong'
               )}
             >
               <Icon className="w-3.5 h-3.5" />
               {item.title}
+              {disabled && (
+                <span className="text-[9px] px-1 py-0.5 rounded bg-brand-line/70 text-brand-muted">开发中</span>
+              )}
             </button>
           );
         })}
         <button
-          onClick={() => onSelect({ id: moreOpenId, kind: 'chat', key: moreOpenId, title: '更多', desc: '', icon: LayoutGrid, color: '' })}
+          onClick={() => onSelect({ id: moreOpenId, kind: 'chat', key: moreOpenId, title: '更多', desc: '', icon: LayoutGrid, color: '', available: true })}
           className={cn(
             'shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors',
             'border-brand-line bg-brand-surface text-brand-muted hover:text-brand-ink hover:border-brand-lineStrong'
@@ -72,13 +83,22 @@ export function ToolDockPanel({
         {DOCK_ALL.map((item) => {
           const Icon = item.icon;
           const active = item.kind === 'chat' && selectedFeature === item.key;
+          const disabled = !item.available;
           return (
             <button
               key={item.id}
-              onClick={() => onSelect(item)}
+              onClick={() => {
+                if (!disabled) onSelect(item);
+              }}
+              disabled={disabled}
+              title={disabled ? '该功能尚未上线，敬请期待' : undefined}
               className={cn(
                 'flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors',
-                active ? 'bg-brand-accent/10 ring-1 ring-inset ring-brand-accent/30' : 'hover:bg-brand-paper'
+                disabled
+                  ? 'opacity-50 cursor-not-allowed'
+                  : active
+                    ? 'bg-brand-accent/10 ring-1 ring-inset ring-brand-accent/30'
+                    : 'hover:bg-brand-paper'
               )}
             >
               <span
@@ -88,7 +108,12 @@ export function ToolDockPanel({
                 <Icon className="w-4 h-4" style={{ color: item.color }} />
               </span>
               <div className="min-w-0">
-                <p className="text-xs font-medium text-brand-ink truncate">{item.title}</p>
+                <p className="text-xs font-medium text-brand-ink truncate flex items-center gap-1.5">
+                  <span className="truncate">{item.title}</span>
+                  {disabled && (
+                    <span className="text-[9px] px-1 py-0.5 rounded bg-brand-line/70 text-brand-muted shrink-0">开发中</span>
+                  )}
+                </p>
                 <p className="text-[10px] text-brand-muted truncate">{item.desc}</p>
               </div>
             </button>

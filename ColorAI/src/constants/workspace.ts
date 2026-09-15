@@ -21,6 +21,16 @@ export interface FeatureItem {
   icon: typeof ImageIcon;
   gradient: string;
   accent: string;
+  /**
+   * 后端是否已实现该能力。
+   *
+   * false 的功能**点了也没有结果**：Agent 侧没有对应工具（未注册），
+   * 只会如实回复「功能还没上线」。置灰是为了不让用户走进死路 ——
+   * 详见 go-backend/doc/图片校色Tool封装设计.md §8.2。
+   *
+   * 后端实现并注册工具后，把这里改成 true 即可（同时补 FEATURE_TOOL_MAPPING）。
+   */
+  available: boolean;
 }
 
 export const FEATURES: FeatureItem[] = [
@@ -31,6 +41,7 @@ export const FEATURES: FeatureItem[] = [
     icon: ImageIcon,
     gradient: 'from-[#FF6B35] to-[#F7C59F]',
     accent: '#FF6B35',
+    available: true,
   },
   {
     key: 'pick',
@@ -39,6 +50,7 @@ export const FEATURES: FeatureItem[] = [
     icon: Pipette,
     gradient: 'from-[#4ECDC4] to-[#0E4D64]',
     accent: '#4ECDC4',
+    available: false,
   },
   {
     key: 'convert',
@@ -47,6 +59,7 @@ export const FEATURES: FeatureItem[] = [
     icon: Palette,
     gradient: 'from-[#A855F7] to-[#EC4899]',
     accent: '#A855F7',
+    available: false,
   },
   {
     key: 'compare',
@@ -55,6 +68,7 @@ export const FEATURES: FeatureItem[] = [
     icon: GitCompare,
     gradient: 'from-[#3B82F6] to-[#8B5CF6]',
     accent: '#3B82F6',
+    available: false,
   },
   {
     key: 'phone',
@@ -63,8 +77,15 @@ export const FEATURES: FeatureItem[] = [
     icon: Smartphone,
     gradient: 'from-[#10B981] to-[#059669]',
     accent: '#10B981',
+    available: false,
   },
 ];
+
+/** 按 key 查功能是否已上线；key 不存在时按"不可用"处理（保守） */
+export function isFeatureAvailable(key: string | null | undefined): boolean {
+  if (!key) return false;
+  return FEATURES.find((f) => f.key === key)?.available ?? false;
+}
 
 // ——— 工具坞 ———
 
@@ -77,6 +98,7 @@ export interface DockItem {
   desc: string;
   icon: typeof ImageIcon;
   color: string;
+  available: boolean;
 }
 
 /** 聊天处理的 5 个核心工具（常驻工具坞） */
@@ -88,6 +110,7 @@ export const DOCK_CHAT: DockItem[] = FEATURES.map((f) => ({
   desc: f.desc,
   icon: f.icon,
   color: f.accent,
+  available: f.available,
 }));
 
 /** 全部工具（更多面板用） */

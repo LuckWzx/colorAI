@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import type { ReactNode } from 'react';
 import {
   ImagePlus,
   Send,
@@ -14,6 +15,7 @@ import {
   Camera,
   User,
   LogOut,
+  AlertTriangle,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -22,47 +24,21 @@ import { useAppStore } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
 import { formatColorValue, detectColorFormat } from '@/utils/colorConverter';
 import { uid } from '@/lib/uid';
-import { FEATURES } from '@/constants/workspace';
+import { FEATURES, isFeatureAvailable } from '@/constants/workspace';
 import type { DockItem } from '@/constants/workspace';
-import { fileToDataUrl, welcomeMsg } from '@/utils/workspace';
+import { fileToDataUrl, welcomeMsg, buildResultFields } from '@/utils/workspace';
 import { useSession } from '@/hooks/useSession';
+import SmartImage from '@/components/SmartImage';
 import type {
   FeatureKey,
   UserMessage,
   Message,
-  AssistantMessage,
   CorrectionResult,
-  CompareResult,
-  PhoneCorrectResponse,
   ColorSpace,
 } from '@/types';
 
 import ChatSidebar from '@/components/workspace/ChatSidebar';
 import ToolDock, { ToolDockPanel } from '@/components/workspace/ToolDock';
-
-/** 结果卡片字段：由后端返回的 metadata 提取（契约见 API.md「消息类型说明」） */
-type ResultFields = Pick<
-  AssistantMessage,
-  'correctResult' | 'pickResult' | 'compareResult' | 'convertResult' | 'phoneResult'
->;
-
-function buildResultFields(type: AssistantMessage['type'], metadata: unknown): ResultFields {
-  if (!metadata || typeof metadata !== 'object') return {};
-  switch (type) {
-    case 'correct':
-      return { correctResult: metadata as CorrectionResult };
-    case 'pick':
-      return { pickResult: metadata as NonNullable<AssistantMessage['pickResult']> };
-    case 'compare':
-      return { compareResult: metadata as CompareResult };
-    case 'convert':
-      return { convertResult: metadata as NonNullable<AssistantMessage['convertResult']> };
-    case 'phone':
-      return { phoneResult: metadata as PhoneCorrectResponse };
-    default:
-      return {};
-  }
-}
 
 export default function Workspace() {
   const navigate = useNavigate();
@@ -179,6 +155,9 @@ export default function Workspace() {
         return;
       }
       setMoreToolsOpen(false);
+      // 未上线的功能不给选：即使有别的入口传进来（比如以后新增的快捷方式），
+      // 也不能让用户走到「功能还没上线」的死路。可用性以 FEATURES 为唯一来源。
+      if (item.kind === 'chat' && !isFeatureAvailable(item.key)) return;
       if (item.kind === 'chat') {
         if (selectedFeature === item.key) {
           setSelectedFeature(null);
@@ -199,7 +178,9 @@ export default function Workspace() {
     setPendingImages([]);
     setPendingPreview([]);
     setInput('');
-    if (imageUrl && imageUrl.startsWith('data:')) {
+    // 校色结果现在是**服务端 URL**（不再是 base64），所以 data: 和 http(s): 都要认。
+    // 后端拿到 http URL 会原样透传，不会重复落盘。
+    if (imageUrl && (imageUrl.startsWith('data:') || imageUrl.startsWith('http'))) {
       void addUserMessageAndRun(
         { text: '对校色后的图片进行取色', images: [imageUrl], feature: 'pick' },
         [imageUrl]
@@ -275,7 +256,8 @@ export default function Workspace() {
 
       // 结果卡片按后端返回的 type + metadata 渲染（契约见 API.md「消息类型说明」）
       const fields = buildResultFields(reply.type, reply.metadata);
-      if (fields.correctResult) setCorrectedImage(fields.correctResult.correctedImage);
+      // 校色结果取第一个候选（已按 distance 升序）作为"当前校正图"
+      if (fields.correctResult) setCorrectedImage(fields.correctResult.candidates?.[0]?.correctedImage);
       if (fields.pickResult) setPickedColor(fields.pickResult.color);
 
       setMessages((prev) =>
@@ -758,6 +740,167 @@ export default function Workspace() {
 // 消息气泡渲染（内部组件，按 type 分支渲染）
 // ─────────────────────────────────────────────────
 
+/** 助手头像。提到模块作用域，方便被下面的独立卡片组件复用 */
+function Avatar() {
+  return <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-cmyk-strip shadow-card mr-3" />;
+}
+
+/** 数值格式化：接口可能不返回某些字段，兜底显示 — */
+function fmtNum(v?: number, digits = 4) {
+  return typeof v === 'number' ? v.toFixed(digits) : '—';
+}
+
+/** 只读信息块（区别于 StatChip：那个是带正负号的"调整量"，校色接口不返回这类数据） */
+function InfoChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="px-3 py-2 rounded-xl bg-brand-paper/70 border border-brand-line">
+      <div className="text-brand-muted text-[11px] mb-0.5">{label}</div>
+      <div className="font-semibold text-brand-text truncate" title={value}>{value}</div>
+    </div>
+  );
+}
+
+/**
+ * 图片校色结果卡片。
+ *
+ * 单独抽成组件（而不是内联在 MessageBubble 的分支里）是因为要用 useState 记住
+ * 「当前选中第几个候选」—— 在条件分支里调 hook 会违反 Hooks 规则。
+ */
+function CorrectCard({ res, footer }: { res: CorrectionResult; footer?: ReactNode }) {
+  const candidates = res.candidates ?? [];
+  const [selected, setSelected] = useState(0);
+  const active = candidates[selected] ?? candidates[0];
+
+  // —— 工具执行失败（图片拉不到、校色服务异常…）：success=false ——
+  if (res.success === false) {
+    return (
+      <div className="flex items-start animate-fade-in-up">
+        <Avatar />
+        <div className="glass-card p-5 rounded-2xl rounded-tl-md max-w-full w-full sm:max-w-[90%]">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="w-4 h-4 text-amber-600" />
+            <h4 className="font-semibold">校色未完成</h4>
+          </div>
+          <p className="text-sm text-brand-text leading-relaxed mb-3">
+            {res.error || '校色服务暂时不可用，请稍后重试。'}
+          </p>
+          <div className="text-xs text-brand-muted leading-relaxed">
+            可以稍后重试，或换一张图片再试。
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // —— passed=false：拍摄环境不达标 ——
+  // 注意这不是"请求失败"，是正常的业务分支（接口返回 HTTP 200），
+  // 所以渲染成一张引导重拍的卡片，而不是一句报错。
+  if (!res.passed) {
+    return (
+      <div className="flex items-start animate-fade-in-up">
+        <Avatar />
+        <div className="glass-card p-5 rounded-2xl rounded-tl-md max-w-full w-full sm:max-w-[90%]">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="w-4 h-4 text-amber-600" />
+            <h4 className="font-semibold">拍摄环境不达标</h4>
+          </div>
+          <p className="text-sm text-brand-text leading-relaxed mb-4">
+            {res.error || '当前拍摄环境与标准环境差距过大，无法可靠校色。'}
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4 text-xs">
+            <InfoChip label="环境距离" value={fmtNum(res.distance)} />
+            <InfoChip label="达标阈值" value={fmtNum(res.threshold)} />
+            <InfoChip label="设备" value={res.deviceInfo || res.brand || '未知设备'} />
+          </div>
+          <div className="text-xs text-brand-muted leading-relaxed">
+            建议：在标准光源下重新拍摄，避开强逆光、混色光与大面积反光，再试一次。
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // —— passed=true：展示原图 + 候选校正图 ——
+  return (
+    <div className="flex items-start animate-fade-in-up">
+      <Avatar />
+      <div className="glass-card p-5 rounded-2xl rounded-tl-md max-w-full w-full sm:max-w-[90%]">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="w-2 h-2 rounded-full bg-brand-teal" />
+          <h4 className="font-semibold">图片校色完成</h4>
+          <span className="text-xs text-brand-muted">拍摄环境达标</span>
+        </div>
+        <div className="text-[11px] text-brand-muted mb-4">
+          {res.deviceInfo || res.brand || '未知设备'}
+          {' · '}环境距离 {fmtNum(res.distance)}（阈值 {fmtNum(res.threshold)}）
+          {typeof res.elapsedTime === 'number' && ` · 耗时 ${res.elapsedTime.toFixed(1)}s`}
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-3 mb-4">
+          <div>
+            <div className="text-[11px] text-brand-muted mb-1.5">原图</div>
+            <SmartImage
+              src={res.originalImage}
+              alt="原图"
+              className="max-w-full max-h-[420px] object-contain w-full h-auto rounded-xl"
+              wrapperClassName="border-brand-line bg-brand-paper/60"
+            />
+          </div>
+          <div>
+            <div className="text-[11px] text-brand-muted mb-1.5 flex items-center gap-1">
+              校正后 <span className="text-brand-teal">·推荐下载</span>
+            </div>
+            <SmartImage
+              src={active?.correctedImage}
+              alt="校正后"
+              className="max-w-full max-h-[420px] object-contain w-full h-auto rounded-xl"
+              wrapperClassName="border-brand-teal/40 bg-brand-teal/5"
+            />
+          </div>
+        </div>
+
+        {candidates.length > 1 && (
+          <div className="mb-4">
+            <div className="text-[11px] text-brand-muted mb-1.5">
+              候选方案（按匹配度排序，点击切换）
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {candidates.map((c, i) => (
+                <button
+                  key={c.correctedImage || i}
+                  onClick={() => setSelected(i)}
+                  className={cn(
+                    'px-3 py-1.5 rounded-lg text-xs border transition-colors',
+                    i === selected
+                      ? 'border-brand-teal bg-brand-teal/10 text-brand-text font-semibold'
+                      : 'border-brand-line bg-brand-paper/60 text-brand-muted hover:border-brand-teal/60',
+                  )}
+                >
+                  方案 {i + 1}
+                  <span className="ml-1 opacity-70">{fmtNum(c.distance)}</span>
+                </button>
+              ))}
+            </div>
+            {active?.modelName && (
+              <div className="text-[11px] text-brand-muted mt-1.5">参考：{active.modelName}</div>
+            )}
+          </div>
+        )}
+
+        <a
+          href={active?.correctedImage}
+          download="ququan-corrected.jpg"
+          className="btn-primary !py-2 !px-4 text-sm inline-flex"
+        >
+          <Download className="w-4 h-4" />
+          下载校正图
+        </a>
+        {footer}
+      </div>
+    </div>
+  );
+}
+
 function MessageBubble({
   msg,
   onCopy,
@@ -773,38 +916,46 @@ function MessageBubble({
   onAutoCompare?: () => void;
   onGoShops?: (hex?: string) => void;
 }) {
-  const Avatar = () => (
-    <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-cmyk-strip shadow-card mr-3" />
-  );
-
   const ResultActions = () => {
     if (msg.role !== 'assistant') return null;
     const type = msg.type;
     let primary: { label: string; onClick: () => void } | null = null;
     if (type === 'correct' || type === 'phone') {
-      const correctedUrl =
-        type === 'correct' ? msg.correctResult?.correctedImage : msg.phoneResult?.correctedUrl;
-      primary = { label: '去取色', onClick: () => onGoPick?.(correctedUrl) };
-    } else if (type === 'pick' && msg.pickResult) {
+      // 「去取色」指向取色功能。取色未上线时**不给这个入口** —— 否则用户点进去只会
+      // 得到「功能还没上线」，是条死路。取色上线后 isFeatureAvailable('pick') 自动为真。
+      if (isFeatureAvailable('pick')) {
+        const correctedUrl =
+          type === 'correct'
+            ? msg.correctResult?.candidates?.[0]?.correctedImage
+            : msg.phoneResult?.correctedUrl;
+        primary = { label: '去取色', onClick: () => onGoPick?.(correctedUrl) };
+      }
+    } else if (type === 'pick' && msg.pickResult && isFeatureAvailable('compare')) {
       primary = { label: '匹配颜色胶', onClick: () => onAutoCompare?.() };
     } else if (type === 'compare' && msg.compareResult) {
       primary = { label: '附近商家', onClick: () => onGoShops?.() };
-    } else if (type === 'convert') {
+    } else if (type === 'convert' && isFeatureAvailable('pick')) {
       primary = { label: '去取色', onClick: () => onGoPick?.() };
     }
-    if (!primary) return null;
+
+    // 没有可用的后续动作时，仍然保留「返回首屏」—— 否则用户在这一步没有出口
+    if (!primary && !onReset) return null;
     return (
       <div className="mt-5 pt-4 border-t border-brand-line flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
-        <div className="text-xs text-brand-muted font-medium mr-0 sm:mr-2 px-1">本次操作已完成，接下来：</div>
+        <div className="text-xs text-brand-muted font-medium mr-0 sm:mr-2 px-1">
+          {primary ? '本次操作已完成，接下来：' : '本次操作已完成。'}
+        </div>
         <div className="flex gap-2 flex-1">
-          <button
-            type="button"
-            onClick={primary.onClick}
-            className="btn-primary flex-1 !py-2.5 !px-4 text-sm inline-flex items-center justify-center gap-1.5"
-          >
-            <ArrowRight className="w-4 h-4" />
-            {primary.label}
-          </button>
+          {primary && (
+            <button
+              type="button"
+              onClick={primary.onClick}
+              className="btn-primary flex-1 !py-2.5 !px-4 text-sm inline-flex items-center justify-center gap-1.5"
+            >
+              <ArrowRight className="w-4 h-4" />
+              {primary.label}
+            </button>
+          )}
           <button
             type="button"
             onClick={onReset}
@@ -905,58 +1056,9 @@ function MessageBubble({
     );
   }
 
-  // —— 图片校正 ——
+  // —— 图片校色 ——
   if (msg.type === 'correct' && msg.correctResult) {
-    const res = msg.correctResult;
-    return (
-      <div className="flex items-start animate-fade-in-up">
-        <Avatar />
-        <div className="glass-card p-5 rounded-2xl rounded-tl-md max-w-full w-full sm:max-w-[90%]">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-2 h-2 rounded-full bg-brand-accent" />
-            <h4 className="font-semibold">图片校正完成</h4>
-            <span className="text-xs text-brand-muted">亮度/对比度/饱和度已调整</span>
-          </div>
-          <div className="grid md:grid-cols-2 gap-3 mb-4">
-            <div>
-              <div className="text-[11px] text-brand-muted mb-1.5">原图</div>
-              <div className="w-full rounded-xl border border-brand-line bg-brand-paper/60 flex items-center justify-center overflow-hidden">
-                <img src={res.originalImage} className="max-w-full max-h-[420px] object-contain w-full h-auto rounded-xl" />
-              </div>
-            </div>
-            <div>
-              <div className="text-[11px] text-brand-muted mb-1.5 flex items-center gap-1">
-                校正后 <span className="text-brand-teal">·推荐下载</span>
-              </div>
-              <div className="w-full rounded-xl border border-brand-teal/40 bg-brand-teal/5 flex items-center justify-center overflow-hidden shadow-inner">
-                <img src={res.correctedImage} className="max-w-full max-h-[420px] object-contain w-full h-auto rounded-xl" />
-              </div>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4 text-xs">
-            <StatChip label="亮度" value={res.metadata.brightness} suffix="%" />
-            <StatChip label="对比度" value={res.metadata.contrast} suffix="%" />
-            <StatChip label="饱和度" value={res.metadata.saturation} suffix="%" />
-            <div className="px-3 py-2 rounded-xl bg-brand-paper/70 border border-brand-line">
-              <div className="text-brand-muted text-[11px] mb-0.5">白平衡</div>
-              <div className={cn(
-                'font-semibold',
-                res.metadata.whiteBalance === 'warm' && 'text-amber-600',
-                res.metadata.whiteBalance === 'cool' && 'text-sky-700',
-                res.metadata.whiteBalance === 'neutral' && 'text-brand-text'
-              )}>
-                {res.metadata.whiteBalance === 'warm' ? '偏暖校正' : res.metadata.whiteBalance === 'cool' ? '偏冷校正' : '中性白平衡'}
-              </div>
-            </div>
-          </div>
-          <a href={res.correctedImage} download="ququan-corrected.jpg" className="btn-primary !py-2 !px-4 text-sm inline-flex">
-            <Download className="w-4 h-4" />
-            下载校正图
-          </a>
-          <ResultActions />
-        </div>
-      </div>
-    );
+    return <CorrectCard res={msg.correctResult} footer={<ResultActions />} />;
   }
 
   // —— 取色结果（含校色图） ——
@@ -970,9 +1072,11 @@ function MessageBubble({
             <div className="w-2 h-2 rounded-full bg-brand-teal" />
             <h4 className="font-semibold">取色分析结果</h4>
           </div>
-          <img
-            src={msg.correctResult.correctedImage}
-            className="w-full max-h-64 object-contain rounded-xl border border-brand-line mb-4"
+          <SmartImage
+            src={msg.correctResult.candidates?.[0]?.correctedImage}
+            alt="校色图"
+            className="w-full max-h-64 object-contain rounded-xl"
+            wrapperClassName="border-brand-line mb-4"
           />
           <div className="flex flex-col sm:flex-row gap-4 items-start">
             <div
@@ -1174,6 +1278,19 @@ function MessageBubble({
     );
   }
 
+  // 兜底：类型分支没命中但仍有文案（例如 metadata 缺失的历史消息），退化成文本气泡。
+  // 之前这里直接 return null，一旦 metadata 结构对不上就会**整条消息渲染成空白**。
+  if (msg.text) {
+    return (
+      <div className="flex items-start animate-fade-in-up">
+        <Avatar />
+        <div className="glass-card px-5 py-4 rounded-2xl rounded-tl-md max-w-[85%] text-sm text-brand-text leading-relaxed">
+          {msg.text}
+        </div>
+      </div>
+    );
+  }
+
   return null;
 }
 
@@ -1187,19 +1304,6 @@ function ArrowRight({ className }: { className?: string }) {
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
     </svg>
-  );
-}
-
-function StatChip({ label, value, suffix = '' }: { label: string; value: number; suffix?: string }) {
-  const pos = value > 0;
-  return (
-    <div className="px-3 py-2 rounded-xl bg-brand-paper/70 border border-brand-line">
-      <div className="text-brand-muted text-[11px] mb-0.5">{label}</div>
-      <div className={cn('font-semibold', pos ? 'text-emerald-600' : value < 0 ? 'text-orange-600' : 'text-brand-text')}>
-        {pos ? '+' : ''}{value.toFixed(1)}{suffix}
-        {pos ? ' ↑' : value < 0 ? ' ↓' : ''}
-      </div>
-    </div>
   );
 }
 

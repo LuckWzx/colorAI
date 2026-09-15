@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"os"
-	"path/filepath"
 
 	"colorai-backend/config"
 	"colorai-backend/controller"
@@ -64,8 +63,9 @@ func NewApp(cfg *config.Config) *App {
 	sessionRepo := repository.NewSessionRepository(db)
 
 	// Services
+	storage := service.NewStorage(cfg.Storage)
 	authSvc := service.NewAuthService(userRepo, rdb)
-	chatSvc := service.NewChatService(cfg.LLM, sessionRepo)
+	chatSvc := service.NewChatService(sessionRepo, storage, cfg.AgentURL)
 	sessionSvc := service.NewSessionService(sessionRepo)
 
 	// Controllers
@@ -74,8 +74,8 @@ func NewApp(cfg *config.Config) *App {
 	sessionCtrl := controller.NewSessionController(sessionSvc)
 	userCtrl := controller.NewUserController()
 
-	if err := os.MkdirAll(filepath.Join(".", "uploads"), 0755); err != nil {
-		log.Printf("警告: 创建 uploads 目录失败: %v", err)
+	if err := os.MkdirAll(cfg.Storage.LocalDir, 0755); err != nil {
+		log.Printf("警告: 创建图片存储目录 %s 失败: %v", cfg.Storage.LocalDir, err)
 	}
 
 	log.Println("所有组件初始化完成")

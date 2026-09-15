@@ -4,7 +4,48 @@
  */
 
 import { uid } from '@/lib/uid';
-import type { AssistantMessage } from '@/types';
+import type {
+  AssistantMessage,
+  CorrectionResult,
+  CompareResult,
+  PhoneCorrectResponse,
+} from '@/types';
+
+/** 结果卡片字段：由后端返回的 metadata 提取（契约见 API.md「消息类型说明」） */
+export type ResultFields = Pick<
+  AssistantMessage,
+  'correctResult' | 'pickResult' | 'compareResult' | 'convertResult' | 'phoneResult'
+>;
+
+/**
+ * 把后端返回的 `{ type, metadata }` 展开成前端渲染卡片用的字段。
+ *
+ * **两条路径都要用**：
+ *   1. 实时对话 —— Workspace 收到 /api/chat 响应后
+ *   2. 恢复历史会话 —— useSession.switchSession 从 DB 读回消息后
+ *
+ * 只做其中一处会导致「刚发完能渲染、刷新后卡片变纯文本」。
+ */
+export function buildResultFields(
+  type: AssistantMessage['type'],
+  metadata: unknown,
+): ResultFields {
+  if (!metadata || typeof metadata !== 'object') return {};
+  switch (type) {
+    case 'correct':
+      return { correctResult: metadata as CorrectionResult };
+    case 'pick':
+      return { pickResult: metadata as NonNullable<AssistantMessage['pickResult']> };
+    case 'compare':
+      return { compareResult: metadata as CompareResult };
+    case 'convert':
+      return { convertResult: metadata as NonNullable<AssistantMessage['convertResult']> };
+    case 'phone':
+      return { phoneResult: metadata as PhoneCorrectResponse };
+    default:
+      return {};
+  }
+}
 
 /** 欢迎消息工厂（新会话 / 返回首屏 / 初始加载共用） */
 export const welcomeMsg = (): AssistantMessage => ({

@@ -13,8 +13,6 @@ import (
 	"math/big"
 	"net/http"
 	"time"
-
-	"colorai-backend/config"
 )
 
 // ChatService AI 对话业务接口
@@ -23,13 +21,42 @@ type ChatService interface {
 }
 
 type chatService struct {
-	llmCfg      config.LLMConfig
 	sessionRepo repository.SessionRepository
+	storage     Storage
+	// agentURL Python 智能体基地址，来自 config.AgentURL（勿硬编码，见 MEMORY 里的部署地雷）
+	agentURL string
 }
 
 // NewChatService 创建 ChatService 实例
-func NewChatService(llmCfg config.LLMConfig, sessionRepo repository.SessionRepository) ChatService {
-	return &chatService{llmCfg: llmCfg, sessionRepo: sessionRepo}
+func NewChatService(sessionRepo repository.SessionRepository, storage Storage, agentURL string) ChatService {
+	return &chatService{sessionRepo: sessionRepo, storage: storage, agentURL: agentURL}
+}
+
+// resolveImages 把 messages 里的图片 dataURL 落盘并换成完整 URL。
+//
+// 这是「图片永不进入 Agent / tool / LLM」这条约定的落地点：
+// 前端传的是 base64 dataURL，在转发给 Agent 之前统一换成 URL。
+// 已经是 URL 的原样保留（幂等），落盘失败直接返回错误而不是静默降级 ——
+// 否则 tool 拿不到图片，用户会看到一个莫名其妙的校色失败。
+func (s *chatService) resolveImages(messages []request.ChatMessage) ([]request.ChatMessage, error) {
+	resolved := make([]request.ChatMessage, len(messages))
+	copy(resolved, messages)
+
+	for i := range resolved {
+		if len(resolved[i].Images) == 0 {
+			continue
+		}
+		urls := make([]string, len(resolved[i].Images))
+		for j, raw := range resolved[i].Images {
+			url, err := s.storage.SaveDataURL(raw)
+			if err != nil {
+				return nil, fmt.Errorf("第 %d 条消息的第 %d 张图片保存失败: %w", i+1, j+1, err)
+			}
+			urls[j] = url
+		}
+		resolved[i].Images = urls
+	}
+	return resolved, nil
 }
 
 func (s *chatService) Chat(userID, sessionID, messageID string, messages []request.ChatMessage, model string) (*response.ChatResponse, error) {
@@ -40,9 +67,15 @@ func (s *chatService) Chat(userID, sessionID, messageID string, messages []reque
 		}, nil
 	}
 
+	// 先落盘换 URL，后续 Agent 调用与落库都用这份
+	resolved, err := s.resolveImages(messages)
+	if err != nil {
+		return &response.ChatResponse{Success: false, Error: err.Error()}, nil
+	}
+
 	// 将前端消息格式转换为 Python Agent 格式
-	agentMessages := make([]map[string]interface{}, len(messages))
-	for i, msg := range messages {
+	agentMessages := make([]map[string]interface{}, len(resolved))
+	for i, msg := range resolved {
 		agentMsg := map[string]interface{}{
 			"role":    msg.Role,
 			"content": msg.Content,
@@ -64,7 +97,8 @@ func (s *chatService) Chat(userID, sessionID, messageID string, messages []reque
 
 	// 发送请求到 Python Agent
 	client := &http.Client{Timeout: 60 * time.Second}
-	httpReq, err := http.NewRequest("POST", "http://localhost:8000/api/chat", bytes.NewReader(bodyBytes))
+	agentChatURL := s.agentURL + "/api/chat"
+	httpReq, err := http.NewRequest("POST", agentChatURL, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
@@ -135,27 +169,37 @@ func (s *chatService) Chat(userID, sessionID, messageID string, messages []reque
 
 	// 自动保存消息到会话
 	if sessionID != "" && userID != "" {
-		s.saveMessages(userID, sessionID, messageID, messages, agentResp.Message.Content)
+		s.saveMessages(userID, sessionID, messageID, resolved, &response.MessageResponse{
+			ID:       agentResp.Message.ID,
+			Role:     agentResp.Message.Role,
+			Type:     agentResp.Message.Type,
+			Content:  agentResp.Message.Content,
+			Metadata: agentResp.Message.Metadata,
+		})
 	}
 
 	return result, nil
 }
 
 // saveMessages 将用户消息和 AI 回复保存到会话
-func (s *chatService) saveMessages(userID, sessionID, messageID string, userMessages []request.ChatMessage, assistantReply string) {
+//
+// 落库规则（与 API.md 对齐）：
+//   - 只落「最后一条用户消息 + AI 回复」，历史轮次不重复落库
+//   - 用户消息的 payload 存 feature 与 images（**图片存 URL，不存 base64**）
+//   - AI 回复的 msgType 必须等于响应里的 message.type，payload 存 metadata，
+//     否则刷新页面后卡片会退化成纯文本（loadMessages 会把 payload 摊平进消息对象）
+func (s *chatService) saveMessages(userID, sessionID, messageID string, userMessages []request.ChatMessage, assistant *response.MessageResponse) {
 	now := time.Now().UnixMilli()
 	records := make([]entity.ChatMessageRecord, 0, len(userMessages)+1)
 
-	// 保存最后一条用户消息（前端只发最新一条）
+	// 保存最后一条用户消息
 	if len(userMessages) > 0 {
 		last := userMessages[len(userMessages)-1]
-		// 使用前端传入的消息ID（如果有），否则生成新的
 		msgID := chatMsgID()
 		if messageID != "" {
 			msgID = messageID
 		}
 
-		// 构建 payload，保存 feature 和 images 信息
 		payload := map[string]interface{}{}
 		if last.Feature != nil {
 			payload["feature"] = *last.Feature
@@ -179,14 +223,27 @@ func (s *chatService) saveMessages(userID, sessionID, messageID string, userMess
 		})
 	}
 
-	// 保存 AI 回复
+	// 保存 AI 回复：msgType 用真实的卡片类型，payload 存 metadata
+	assistantType := "text"
+	assistantPayload := "null"
+	if assistant != nil {
+		if assistant.Type != "" {
+			assistantType = assistant.Type
+		}
+		if assistant.Metadata != nil {
+			if b, err := json.Marshal(map[string]interface{}{"metadata": assistant.Metadata}); err == nil {
+				assistantPayload = string(b)
+			}
+		}
+	}
+
 	records = append(records, entity.ChatMessageRecord{
 		ID:        chatMsgID(),
 		SessionID: sessionID,
 		Role:      "assistant",
-		MsgType:   "text",
-		Content:   assistantReply,
-		Payload:   "null",
+		MsgType:   assistantType,
+		Content:   assistant.Content,
+		Payload:   assistantPayload,
 		CreatedAt: now,
 	})
 
