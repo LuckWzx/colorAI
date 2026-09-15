@@ -17,20 +17,52 @@ import {
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { colorService } from '@/services/colorService';
 import { chatService } from '@/services/chatService';
 import { useAppStore } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
-import { convertFrom, getColorName, formatColorValue, parseColor, detectColorFormat } from '@/utils/colorConverter';
+import { formatColorValue, detectColorFormat } from '@/utils/colorConverter';
 import { uid } from '@/lib/uid';
 import { FEATURES } from '@/constants/workspace';
 import type { DockItem } from '@/constants/workspace';
-import { dataUrlToFile, welcomeMsg } from '@/utils/workspace';
+import { fileToDataUrl, welcomeMsg } from '@/utils/workspace';
 import { useSession } from '@/hooks/useSession';
-import type { FeatureKey, UserMessage, Message } from '@/types';
+import type {
+  FeatureKey,
+  UserMessage,
+  Message,
+  AssistantMessage,
+  CorrectionResult,
+  CompareResult,
+  PhoneCorrectResponse,
+  ColorSpace,
+} from '@/types';
 
 import ChatSidebar from '@/components/workspace/ChatSidebar';
 import ToolDock, { ToolDockPanel } from '@/components/workspace/ToolDock';
+
+/** 结果卡片字段：由后端返回的 metadata 提取（契约见 API.md「消息类型说明」） */
+type ResultFields = Pick<
+  AssistantMessage,
+  'correctResult' | 'pickResult' | 'compareResult' | 'convertResult' | 'phoneResult'
+>;
+
+function buildResultFields(type: AssistantMessage['type'], metadata: unknown): ResultFields {
+  if (!metadata || typeof metadata !== 'object') return {};
+  switch (type) {
+    case 'correct':
+      return { correctResult: metadata as CorrectionResult };
+    case 'pick':
+      return { pickResult: metadata as NonNullable<AssistantMessage['pickResult']> };
+    case 'compare':
+      return { compareResult: metadata as CompareResult };
+    case 'convert':
+      return { convertResult: metadata as NonNullable<AssistantMessage['convertResult']> };
+    case 'phone':
+      return { phoneResult: metadata as PhoneCorrectResponse };
+    default:
+      return {};
+  }
+}
 
 export default function Workspace() {
   const navigate = useNavigate();
@@ -97,13 +129,6 @@ export default function Workspace() {
     navigator.clipboard?.writeText(text).then(() => showToast(label));
   };
 
-  const handleContinue = useCallback(() => {
-    setPendingImages([]);
-    setPendingPreview([]);
-    setInput('');
-    setTimeout(() => textareaRef.current?.focus(), 50);
-  }, []);
-
   // —— 会话操作 ——
   const openSession = async (id: string) => {
     if (id === activeId) return;
@@ -168,82 +193,21 @@ export default function Workspace() {
     [navigate, selectedFeature]
   );
 
-  // —— 取色流程核心逻辑 ——
-  const runPickWithFile = useCallback(
-    async (file: File, previewUrl: string, userText?: string) => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: uid(), role: 'user', createdAt: Date.now(),
-          text: userText || '', images: [previewUrl], feature: 'pick' as const,
-        },
-      ]);
-
-      const loadingId = uid();
-      setMessages((prev) => [
-        ...prev,
-        { id: loadingId, role: 'assistant', type: 'loading' as const, createdAt: Date.now() },
-      ]);
-
-      try {
-        const correctRes = await colorService.correctImage(file, 'auto');
-        setCorrectedImage(correctRes.correctedImage);
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.src = correctRes.correctedImage;
-        await new Promise<void>((res) => { img.onload = () => res(); });
-        const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        const ctx = canvas.getContext('2d')!;
-        ctx.drawImage(img, 0, 0);
-        const cx = Math.floor(img.naturalWidth / 2);
-        const cy = Math.floor(img.naturalHeight / 2);
-        const d = ctx.getImageData(cx, cy, 1, 1).data;
-        const color = convertFrom('rgb', { r: d[0], g: d[1], b: d[2] });
-        const colorName = getColorName(color.hex);
-        setPickedColor(color);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === loadingId
-              ? {
-                  id: uid(), role: 'assistant', type: 'pick' as const,
-                  text: '已为你分析图片中心主色调，可点击原图任意位置取色，这里是图像中心点颜色：',
-                  pickResult: { color, colorName },
-                  correctResult: correctRes,
-                  createdAt: Date.now(),
-                }
-              : m
-          )
-        );
-      } catch {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === loadingId
-              ? { id: uid(), role: 'assistant', type: 'text' as const, text: '取色失败，请稍后重试。', createdAt: Date.now() }
-              : m
-          )
-        );
-      }
-    },
-    [setCorrectedImage, setPickedColor, setMessages]
-  );
-
-  const goToPick = useCallback(
-    (imageUrl?: string) => {
-      setSelectedFeature('pick');
-      setPendingImages([]);
-      setPendingPreview([]);
-      setInput('');
-      if (imageUrl && imageUrl.startsWith('data:')) {
-        const file = dataUrlToFile(imageUrl, 'corrected.jpg');
-        runPickWithFile(file, imageUrl, '对校色后的图片进行取色');
-        return;
-      }
-      setTimeout(() => textareaRef.current?.focus(), 50);
-    },
-    [runPickWithFile]
-  );
+  // —— 取色入口：把校色结果图交给后端智能体处理 ——
+  const goToPick = (imageUrl?: string) => {
+    setSelectedFeature('pick');
+    setPendingImages([]);
+    setPendingPreview([]);
+    setInput('');
+    if (imageUrl && imageUrl.startsWith('data:')) {
+      void addUserMessageAndRun(
+        { text: '对校色后的图片进行取色', images: [imageUrl], feature: 'pick' },
+        [imageUrl]
+      );
+      return;
+    }
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  };
 
   // —— 匹配颜色胶自动对比（已移除相关功能） ——
   const triggerAutoCompare = useCallback(async () => {
@@ -251,12 +215,17 @@ export default function Workspace() {
   }, []);
 
   // —— 附近商家跳转（已移除相关页面） ——
-  const goToShops = useCallback((hex?: string) => {
+  const goToShops = useCallback(() => {
     showToast('附近商家功能已移除');
   }, []);
 
-  // —— 核心消息分发：添加用户消息 + loading + 执行工具逻辑 ——
-  const addUserMessageAndRun = async (msg: Omit<UserMessage, 'id' | 'createdAt' | 'role'>) => {
+  // —— 核心消息分发：添加用户消息 + loading + 统一交给后端智能体 ——
+  // 说明：图像处理不再在浏览器本地进行（不再使用 Canvas），统一通过 /api/chat
+  //      交给后端智能体处理；后端后续会把这些能力封装成 agent tool 供智能体调用。
+  const addUserMessageAndRun = async (
+    msg: Omit<UserMessage, 'id' | 'createdAt' | 'role'>,
+    imageDataUrls?: string[]
+  ) => {
     const userMsg: UserMessage = {
       id: uid(), role: 'user', createdAt: Date.now(), ...msg,
     };
@@ -268,147 +237,69 @@ export default function Workspace() {
     ]);
 
     try {
-      if (msg.feature === 'correct' && msg.images?.[0]) {
-        const file = pendingImages[0];
-        const res = await colorService.correctImage(file, 'auto');
-        setCorrectedImage(res.correctedImage);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === loadingId
-              ? { id: uid(), role: 'assistant', type: 'correct' as const, correctResult: res, createdAt: Date.now() }
-              : m
-          )
-        );
-      } else if (msg.feature === 'pick' && msg.images?.[0]) {
-        const file = pendingImages[0];
-        const correctRes = await colorService.correctImage(file, 'auto');
-        setCorrectedImage(correctRes.correctedImage);
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.src = correctRes.correctedImage;
-        await new Promise<void>((res) => { img.onload = () => res(); });
-        const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        const ctx = canvas.getContext('2d')!;
-        ctx.drawImage(img, 0, 0);
-        const cx = Math.floor(img.naturalWidth / 2);
-        const cy = Math.floor(img.naturalHeight / 2);
-        const d = ctx.getImageData(cx, cy, 1, 1).data;
-        const color = convertFrom('rgb', { r: d[0], g: d[1], b: d[2] });
-        const colorName = getColorName(color.hex);
-        setPickedColor(color);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === loadingId
-              ? {
-                  id: uid(), role: 'assistant', type: 'pick' as const,
-                  text: '已为你分析图片中心主色调，可点击原图任意位置取色，这里是图像中心点颜色：',
-                  pickResult: { color, colorName },
-                  correctResult: correctRes,
-                  createdAt: Date.now(),
-                }
-              : m
-          )
-        );
-      } else if (msg.feature === 'compare' && msg.images?.length >= 2) {
-        const res = await colorService.compareImages(pendingImages[0], pendingImages[1]);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === loadingId
-              ? { id: uid(), role: 'assistant', type: 'compare' as const, compareResult: res, createdAt: Date.now() }
-              : m
-          )
-        );
-      } else if (msg.feature === 'convert' && msg.text?.trim()) {
-        const text = msg.text.trim();
-        const detected = detectColorFormat(text);
-        let color;
-        try {
-          color = parseColor(text);
-        } catch {
-          color = convertFrom('hex', '#888888');
-        }
-        const addHistory = useAppStore.getState?.().addColorToHistory;
-        if (addHistory && color?.hex) addHistory(color.hex);
-        const colorName = getColorName(color.hex);
-        const detectLabel: any = detected !== 'unknown' ? detected : 'hex';
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === loadingId
-              ? {
-                  id: uid(), role: 'assistant', type: 'convert' as const,
-                  text: `已识别输入格式：${detectLabel.toUpperCase()}，以下是全部 6 种色彩空间的转换结果：`,
-                  convertResult: { input: text, detectedFormat: detectLabel, color, colorName },
-                  createdAt: Date.now(),
-                }
-              : m
-          )
-        );
-      } else if (msg.feature === 'phone' && msg.images?.[0]) {
-        const file = pendingImages[0];
-        const res = await colorService.phoneCorrectImage(file, 'auto', 'outdoor');
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === loadingId
-              ? { id: uid(), role: 'assistant', type: 'phone' as const, phoneResult: res, createdAt: Date.now() }
-              : m
-          )
-        );
-      } else {
-        const userText = msg.text?.trim() || '你好';
-        // 用函数式更新获取最新 chatHistory，避免闭包过期
-        let latestHistory = chatHistory;
-        setChatHistory((prev) => {
-          latestHistory = [...prev, { role: 'user', content: userText }];
-          return latestHistory;
-        });
-        try {
-          // 生成消息ID
-          const messageId = uid();
-          
-          // 如果没有活动会话ID，先创建会话
-          let currentSessionId = activeId;
-          if (!currentSessionId) {
-            // 用用户第一条消息的前26个字符作为会话标题
-            const title = userText.slice(0, 26) || '新对话';
-            const newSessionId = await createSession(title);
-            if (newSessionId) {
-              currentSessionId = newSessionId;
-            }
-          }
-          
-          const response = await chatService.chat(userText, latestHistory, currentSessionId, messageId);
-          
-          if (!response.success || !response.message) {
-            throw new Error(response.error || 'AI 服务返回为空');
-          }
-          
-          const assistantText = response.message.content;
-          setChatHistory((prev) => [...prev, { role: 'assistant', content: assistantText }]);
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === loadingId
-                ? {
-                    id: response.message!.id,
-                    role: 'assistant',
-                    type: response.message!.type,
-                    text: assistantText,
-                    createdAt: response.message!.createdAt,
-                  }
-                : m
-            )
-          );
-        } catch {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === loadingId
-                ? { id: uid(), role: 'assistant', type: 'text' as const, text: '抱歉，AI 服务暂时不可用，请稍后重试或选择上方功能卡片使用。', createdAt: Date.now() }
-                : m
-            )
-          );
-        }
+      // 图片统一转 dataURL 交给后端处理（真正的图像计算在后端完成）
+      const images = imageDataUrls ?? (await Promise.all(pendingImages.map(fileToDataUrl)));
+
+      // 用户文本：优先输入内容，其次功能名（便于智能体判断意图）
+      const featureTitle = msg.feature ? FEATURES.find((f) => f.key === msg.feature)?.title : undefined;
+      const userText = msg.text?.trim() || featureTitle || '你好';
+
+      // LLM 对话上下文（仅文本）。chatHistory 只含「本轮之前」的轮次；
+      // 当前用户消息由 chatService.chat 追加（带 feature/images），此处不可再拼一次，
+      // 否则 /api/chat 会收到连续两条重复的用户消息。
+      const latestHistory = [...chatHistory, { role: 'user' as const, content: userText }];
+      setChatHistory(latestHistory);
+
+      // 没有活动会话时先创建（标题取用户首条消息前 26 字符）
+      let currentSessionId = activeId;
+      if (!currentSessionId) {
+        const newSessionId = await createSession((msg.text?.trim() || featureTitle || '新对话').slice(0, 26));
+        if (newSessionId) currentSessionId = newSessionId;
       }
+
+      const response = await chatService.chat(
+        userText,
+        chatHistory,
+        currentSessionId,
+        uid(),
+        msg.feature ?? null,
+        images.length ? images : undefined
+      );
+
+      if (!response.success || !response.message) {
+        throw new Error(response.error || 'AI 服务返回为空');
+      }
+
+      const reply = response.message;
+      setChatHistory((prev) => [...prev, { role: 'assistant', content: reply.content }]);
+
+      // 结果卡片按后端返回的 type + metadata 渲染（契约见 API.md「消息类型说明」）
+      const fields = buildResultFields(reply.type, reply.metadata);
+      if (fields.correctResult) setCorrectedImage(fields.correctResult.correctedImage);
+      if (fields.pickResult) setPickedColor(fields.pickResult.color);
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === loadingId
+            ? {
+                id: reply.id,
+                role: 'assistant' as const,
+                type: reply.type,
+                text: reply.content,
+                createdAt: reply.createdAt,
+                ...fields,
+              }
+            : m
+        )
+      );
+    } catch {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === loadingId
+            ? { id: uid(), role: 'assistant', type: 'text' as const, text: '抱歉，AI 服务暂时不可用，请稍后重试或选择上方功能卡片使用。', createdAt: Date.now() }
+            : m
+        )
+      );
     } finally {
       setPendingImages([]);
       setPendingPreview([]);
@@ -620,7 +511,6 @@ export default function Workspace() {
                 key={msg.id}
                 msg={msg}
                 onCopy={copyToClipboard}
-                onContinue={handleContinue}
                 onReset={handleReset}
                 onGoPick={goToPick}
                 onAutoCompare={triggerAutoCompare}
@@ -871,7 +761,6 @@ export default function Workspace() {
 function MessageBubble({
   msg,
   onCopy,
-  onContinue,
   onReset,
   onGoPick,
   onAutoCompare,
@@ -879,7 +768,6 @@ function MessageBubble({
 }: {
   msg: Message;
   onCopy: (t: string, l?: string) => void;
-  onContinue?: () => void;
   onReset?: () => void;
   onGoPick?: (imageUrl?: string) => void;
   onAutoCompare?: () => void;
@@ -895,8 +783,8 @@ function MessageBubble({
     let primary: { label: string; onClick: () => void } | null = null;
     if (type === 'correct' || type === 'phone') {
       const correctedUrl =
-        type === 'correct' ? msg.correctResult?.correctedImage : (msg.phoneResult as Record<string, string>)?.correctedUrl;
-      primary = { label: '去取色', onClick: () => onGoPick?.(correctedUrl as string) };
+        type === 'correct' ? msg.correctResult?.correctedImage : msg.phoneResult?.correctedUrl;
+      primary = { label: '去取色', onClick: () => onGoPick?.(correctedUrl) };
     } else if (type === 'pick' && msg.pickResult) {
       primary = { label: '匹配颜色胶', onClick: () => onAutoCompare?.() };
     } else if (type === 'compare' && msg.compareResult) {
@@ -1097,8 +985,8 @@ function MessageBubble({
                 {(['hex', 'rgb', 'hsl', 'cmyk', 'lab', 'hsv'] as const).map((k) => (
                   <div key={k} className="flex items-center gap-3 bg-brand-paper/60 rounded-lg px-3 py-2 border border-brand-line">
                     <span className="text-[11px] uppercase text-brand-muted w-14">{k}</span>
-                    <span className="font-mono text-sm flex-1 min-w-0 truncate">{formatColorValue(k, color as any)}</span>
-                    <button onClick={() => onCopy?.(formatColorValue(k, color as any), `${k.toUpperCase()} 已复制`)}>
+                    <span className="font-mono text-sm flex-1 min-w-0 truncate">{formatColorValue(k, color)}</span>
+                    <button onClick={() => onCopy?.(formatColorValue(k, color), `${k.toUpperCase()} 已复制`)}>
                       <Copy className="w-4 h-4 text-brand-muted hover:text-brand-primary" />
                     </button>
                   </div>
@@ -1188,7 +1076,7 @@ function MessageBubble({
   // —— 色彩空间转换 ——
   if (msg.type === 'convert' && msg.convertResult) {
     const res = msg.convertResult;
-    const SPACES: Array<{ key: any; label: string }> = [
+    const SPACES: Array<{ key: ColorSpace; label: string }> = [
       { key: 'hex', label: 'HEX' },
       { key: 'rgb', label: 'RGB' },
       { key: 'hsl', label: 'HSL' },
@@ -1219,8 +1107,8 @@ function MessageBubble({
                 {SPACES.map(({ key, label }) => (
                   <div key={key} className="flex items-center gap-3 bg-brand-paper/60 rounded-lg px-3 py-2 border border-brand-line">
                     <span className="text-[11px] uppercase text-brand-muted w-14">{label}</span>
-                    <span className="font-mono text-sm flex-1 min-w-0 truncate">{formatColorValue(key as any, res.color as any)}</span>
-                    <button onClick={() => onCopy?.(formatColorValue(key as any, res.color as any), `${label} 已复制`)}>
+                    <span className="font-mono text-sm flex-1 min-w-0 truncate">{formatColorValue(key, res.color)}</span>
+                    <button onClick={() => onCopy?.(formatColorValue(key, res.color), `${label} 已复制`)}>
                       <Copy className="w-4 h-4 text-brand-muted hover:text-brand-primary" />
                     </button>
                   </div>
@@ -1236,7 +1124,7 @@ function MessageBubble({
 
   // —— 手机拍摄校色 ——
   if (msg.type === 'phone' && msg.phoneResult) {
-    const res = msg.phoneResult as any;
+    const res = msg.phoneResult;
     return (
       <div className="flex items-start animate-fade-in-up">
         <Avatar />

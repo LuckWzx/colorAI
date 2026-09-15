@@ -24,7 +24,7 @@
 ### 1. 安装依赖
 
 ```bash
-cd go-backend/Agent
+cd go-backend/agent
 pip install -r requirements.txt
 ```
 
@@ -52,7 +52,7 @@ python -m app.main
 ### 使用 docker-compose
 
 ```bash
-cd go-backend/Agent
+cd go-backend/agent
 
 # 设置环境变量
 export DEEPSEEK_API_KEY=your_api_key_here
@@ -121,7 +121,7 @@ GET /health
 ## 项目结构
 
 ```
-Agent/
+agent/
 ├── app/
 │   ├── api/            # API路由
 │   │   ├── chat.py     # 聊天接口

@@ -187,27 +187,44 @@ export function labToRgb(l: number, a: number, b: number): { r: number; g: numbe
   return xyzToRgb(x, y, z);
 }
 
-export function convertFrom(space: ColorSpace, value: any): ColorFormats {
+/** convertFrom 的入参：按目标色彩空间传入字符串或对应分量对象 */
+type ColorInputValue =
+  | string
+  | { r: number; g: number; b: number }
+  | { h: number; s: number; l: number }
+  | { h: number; s: number; v: number }
+  | { c: number; m: number; y: number; k: number }
+  | { l: number; a: number; b: number };
+
+export function convertFrom(space: ColorSpace, value: ColorInputValue): ColorFormats {
   let rgb = { r: 0, g: 0, b: 0 };
   switch (space) {
     case "hex":
       rgb = hexToRgb(value as string);
       break;
     case "rgb":
-      rgb = { r: value.r, g: value.g, b: value.b };
+      rgb = value as { r: number; g: number; b: number };
       break;
-    case "hsl":
-      rgb = hslToRgb(value.h, value.s, value.l);
+    case "hsl": {
+      const v = value as { h: number; s: number; l: number };
+      rgb = hslToRgb(v.h, v.s, v.l);
       break;
-    case "hsv":
-      rgb = hsvToRgb(value.h, value.s, value.v);
+    }
+    case "hsv": {
+      const v = value as { h: number; s: number; v: number };
+      rgb = hsvToRgb(v.h, v.s, v.v);
       break;
-    case "cmyk":
-      rgb = cmykToRgb(value.c, value.m, value.y, value.k);
+    }
+    case "cmyk": {
+      const v = value as { c: number; m: number; y: number; k: number };
+      rgb = cmykToRgb(v.c, v.m, v.y, v.k);
       break;
-    case "lab":
-      rgb = labToRgb(value.l, value.a, value.b);
+    }
+    case "lab": {
+      const v = value as { l: number; a: number; b: number };
+      rgb = labToRgb(v.l, v.a, v.b);
       break;
+    }
   }
   const { r, g, b } = rgb;
   return {

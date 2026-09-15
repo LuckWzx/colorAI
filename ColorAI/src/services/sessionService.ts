@@ -4,8 +4,9 @@
  * 约定后端 REST 接口（字段与 ChatSessionDTO 对齐）：
  *   GET    /api/sessions         → 会话元数据列表（按 updatedAt 倒序，不含 messages/history）
  *   GET    /api/sessions/:id     → 会话详情（含 messages / history）
- *   PUT    /api/sessions/:id     → 全量保存（新建时 id 由前端预生成，服务端 upsert 并保留 createdAt）
  *   DELETE /api/sessions/:id     → 删除会话
+ *
+ * 消息保存由后端 /api/chat 自动完成（AppendMessages），前端不再主动保存。
  *
  * 时间戳统一为 epoch 毫秒（number）；未知消息结构以 unknown 透传，由业务层收窄类型。
  */
@@ -21,14 +22,6 @@ export interface ChatSessionDTO {
   history?: unknown[];
 }
 
-/** 保存入参：业务层只提供内容字段，时间戳与计数由存储层维护 */
-export interface SaveSessionInput {
-  id: string;
-  title: string;
-  messages?: unknown[];
-  history?: unknown[];
-}
-
 export interface ChatSessionService {
   /** 会话元数据列表（按最近更新倒序） */
   list(): Promise<ChatSessionDTO[]>;
@@ -36,8 +29,6 @@ export interface ChatSessionService {
   get(id: string): Promise<ChatSessionDTO | null>;
   /** 创建新会话，返回后端生成的会话ID和详情 */
   create(title?: string): Promise<ChatSessionDTO>;
-  /** 全量保存（upsert：同 id 覆盖，保留原 createdAt），返回落库后的完整 DTO */
-  save(input: SaveSessionInput): Promise<ChatSessionDTO>;
   /** 删除会话 */
   remove(id: string): Promise<void>;
 }
@@ -75,23 +66,6 @@ export const sessionService: ChatSessionService = {
     const data = await res.json();
     if (!data?.success || !data.session) {
       throw new Error('Invalid response from create session API');
-    }
-    return data.session as ChatSessionDTO;
-  },
-
-  async save(input) {
-    const res = await authFetch(`/api/sessions/${encodeURIComponent(input.id)}`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        title: input.title,
-        messages: input.messages,
-        history: input.history,
-      }),
-    });
-    if (!res.ok) throw new Error(`Failed to save session: ${res.status}`);
-    const data = await res.json();
-    if (!data?.success || !data.session) {
-      throw new Error('Invalid response from save session API');
     }
     return data.session as ChatSessionDTO;
   },

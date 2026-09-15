@@ -3,7 +3,6 @@ package controller
 import (
 	"colorai-backend/model/request"
 	"colorai-backend/model/response"
-	"net/http"
 
 	"colorai-backend/service"
 
@@ -77,27 +76,6 @@ func (h *SessionController) CreateSession(c *gin.Context) {
 	}
 
 	Created(c, gin.H{"session": session})
-}
-
-// SaveSession 保存会话
-// PUT /api/sessions/:id
-func (h *SessionController) SaveSession(c *gin.Context) {
-	userID := getUserID(c)
-	sessionID := c.Param("id")
-
-	var req request.SaveSessionRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		Fail(c, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	session, err := h.sessionSvc.Save(userID, sessionID, req)
-	if err != nil {
-		HandleServiceError(c, err)
-		return
-	}
-
-	OK(c, gin.H{"session": session})
 }
 
 // DeleteSession 删除会话

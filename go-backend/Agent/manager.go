@@ -21,7 +21,7 @@ type Manager struct {
 // NewManager 创建 Agent 管理器
 func NewManager() *Manager {
 	dir, _ := os.Getwd()
-	agentDir := filepath.Join(dir, "Agent")
+	agentDir := filepath.Join(dir, "agent")
 
 	return &Manager{
 		dir:  agentDir,

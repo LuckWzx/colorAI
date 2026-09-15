@@ -2,9 +2,12 @@
 LangGraph 智能体核心模块
 """
 
-from typing import Annotated, TypedDict
+import json
+import time
+from typing import Annotated, Optional, TypedDict
+
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
+from langchain_core.messages import HumanMessage, SystemMessage, BaseMessage, ToolMessage
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
@@ -34,6 +37,23 @@ SYSTEM_PROMPT = """你是曲泉AI，一个专业的色彩智能体。你的专�
 
 根据用户的意图，选择合适的工具来执行。如果用户没有明确指定工具，但提供了图片，你可以根据上下文判断使用哪个工具。
 """
+
+
+# 工具名 → 消息类型映射（与前端消息卡片类型对齐）
+TOOL_TYPE_MAPPING = {
+    "image_correction": "correct",
+    "color_extraction": "pick",
+    "color_comparison": "compare",
+    "color_conversion": "convert",
+    "phone_correction": "phone",
+}
+
+
+def _to_data_url(image: str) -> str:
+    """图片入参兼容两种形式：已是 dataURL 则原样返回，裸 base64 则补全前缀"""
+    if image.startswith("data:"):
+        return image
+    return f"data:image/jpeg;base64,{image}"
 
 
 class AgentState(TypedDict):
@@ -132,75 +152,59 @@ class ColorAgent:
         """
         try:
             # 转换消息格式
-            langchain_messages = []
-            
-            # 添加系统提示词
-            langchain_messages.append(SystemMessage(content=SYSTEM_PROMPT))
+            langchain_messages = [SystemMessage(content=SYSTEM_PROMPT)]
             
             # 处理用户消息
             for msg in messages:
-                if msg["role"] == "user":
-                    content = msg["content"]
-                    
-                    # 如果有图片，添加到消息中
-                    if msg.get("images"):
-                        content_parts = [{"type": "text", "text": content}]
-                        for img in msg["images"]:
-                            content_parts.append({
-                                "type": "image_url",
-                                "image_url": {"url": f"data:image/jpeg;base64,{img}"}
-                            })
-                        langchain_messages.append(HumanMessage(content=content_parts))
-                    else:
-                        langchain_messages.append(HumanMessage(content=content))
+                if msg["role"] != "user":
+                    continue
+                content = msg["content"]
+                
+                # 如果有图片，添加到消息中
+                if msg.get("images"):
+                    content_parts = [{"type": "text", "text": content}]
+                    for img in msg["images"]:
+                        content_parts.append({
+                            "type": "image_url",
+                            "image_url": {"url": _to_data_url(img)}
+                        })
+                    langchain_messages.append(HumanMessage(content=content_parts))
+                else:
+                    langchain_messages.append(HumanMessage(content=content))
             
             # 调用智能体
             result = await self.graph.ainvoke({"messages": langchain_messages})
+            all_messages = result["messages"]
             
-            # 获取最后一条AI消息
-            ai_message = result["messages"][-1]
+            # 最后一条 AI 消息即最终回复
+            final_message = all_messages[-1]
+            content = final_message.content or ""
             
-            # 构建响应
-            response = {
+            # 提取工具调用结果（tools -> agent 回环后，工具结果在 ToolMessage 上，
+            # 最后一条 AI 消息不再携带 tool_calls，因此必须回扫整段历史）
+            tool_name, tool_result = self._extract_tool_result(all_messages)
+            
+            message_type = "text"
+            metadata = None
+            if tool_result is not None:
+                message_type = TOOL_TYPE_MAPPING.get(tool_name or "", "text")
+                metadata = tool_result
+                if not content:
+                    content = f"已为您完成{tool_name}操作"
+            
+            now = int(time.time() * 1000)
+            return {
                 "success": True,
                 "message": {
-                    "id": f"msg_{hash(ai_message.content) % 1000000:06d}",
+                    "id": f"msg_{now}",
                     "role": "assistant",
-                    "type": "text",
-                    "content": ai_message.content,
-                    "metadata": None,
-                    "createdAt": int(__import__('time').time() * 1000)
+                    "type": message_type,
+                    "content": content,
+                    "metadata": metadata,
+                    "createdAt": now,
                 },
-                "usage": None
+                "usage": None,
             }
-            
-            # 检查是否有工具调用结果
-            if hasattr(ai_message, "tool_calls") and ai_message.tool_calls:
-                # 如果有工具调用，尝试从后续消息中获取结果
-                for msg in reversed(result["messages"]):
-                    if hasattr(msg, "content") and msg.content and not hasattr(msg, "tool_calls"):
-                        # 解析工具返回的JSON结果
-                        try:
-                            import json
-                            tool_result = json.loads(msg.content)
-                            if tool_result.get("success"):
-                                # 根据工具类型设置message.type
-                                tool_name = ai_message.tool_calls[0]["function"]["name"]
-                                type_mapping = {
-                                    "image_correction": "correct",
-                                    "color_extraction": "pick",
-                                    "color_comparison": "compare",
-                                    "color_conversion": "convert",
-                                    "phone_correction": "phone"
-                                }
-                                response["message"]["type"] = type_mapping.get(tool_name, "text")
-                                response["message"]["metadata"] = tool_result
-                                response["message"]["content"] = f"已为您完成{tool_name}操作"
-                        except json.JSONDecodeError:
-                            pass
-                        break
-            
-            return response
             
         except Exception as e:
             return {
@@ -209,6 +213,43 @@ class ColorAgent:
                 "usage": None,
                 "error": str(e)
             }
+    
+    @staticmethod
+    def _extract_tool_result(all_messages: list[BaseMessage]) -> tuple[Optional[str], Optional[dict]]:
+        """
+        从整段消息序列中提取「最后一次成功的工具调用」的工具名与结果
+        
+        工具执行结果存放在 ToolMessage 上，而不是最终回复的 AIMessage，
+        因此不能只看最后一条消息的 tool_calls。
+        
+        Returns:
+            (tool_name, tool_result)；没有任何成功的工具调用时返回 (None, None)
+        """
+        # 记录 tool_call_id → 工具名，作为 ToolMessage.name 缺失时的兜底
+        tool_names: dict[str, str] = {}
+        for msg in all_messages:
+            for call in getattr(msg, "tool_calls", None) or []:
+                call_id = call.get("id")
+                name = call.get("name") or call.get("function", {}).get("name")
+                if call_id and name:
+                    tool_names[call_id] = name
+        
+        tool_name: Optional[str] = None
+        tool_result: Optional[dict] = None
+        
+        for msg in all_messages:
+            if not isinstance(msg, ToolMessage):
+                continue
+            try:
+                parsed = json.loads(msg.content)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if not isinstance(parsed, dict) or not parsed.get("success"):
+                continue
+            tool_name = getattr(msg, "name", None) or tool_names.get(msg.tool_call_id)
+            tool_result = parsed
+        
+        return tool_name, tool_result
 
 
 # 全局智能体实例

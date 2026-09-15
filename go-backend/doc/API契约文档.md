@@ -452,6 +452,8 @@ server: {
 }
 ```
 
-### 图像处理的前端降级策略
+### 图像/色彩处理的职责划分
 
-前端 `src/services/colorService.ts` 已在浏览器端通过 Canvas 实现了完整的图像处理,不依赖后端。Go 后端的 `/api/color/*` 接口当前为 mock,后续可用 Go + OpenCV 实现真正的服务端图像处理。
+前端不再做任何本地图像处理(原 `src/services/colorService.ts` 的 Canvas 实现已移除)。所有图像与色彩相关操作统一走智能体:前端把原图/参数通过 `POST /api/chat` 交给 Python Agent,LangGraph 调度对应 tool 完成处理,结果以 `message.metadata` 回传,前端仅负责渲染。
+
+Go 后端的 `/api/color/*` 接口当前仍为 mock 占位,后续将由后端(Go + OpenCV 或 Python)实现真正的服务端处理,并封装为 tool 供 Agent 调用。

@@ -158,7 +158,7 @@ export interface AssistantMessage extends BaseMessage {
     color: FullColorValues;
     colorName: string;
   };
-  phoneResult?: unknown;
+  phoneResult?: PhoneCorrectResponse;
 }
 
 export type Message = UserMessage | AssistantMessage;

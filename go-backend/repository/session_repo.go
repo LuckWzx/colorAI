@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/big"
 
 	"gorm.io/gorm"
@@ -17,7 +16,6 @@ type SessionRepository interface {
 	ListByUser(userID string) ([]entity.ChatSession, error)
 	FindByID(sessionID, userID string) (*response.ChatSessionDetail, error)
 	Create(sessionID, userID, title string, now int64) error
-	Save(sessionID, userID, title string, messages []interface{}, now int64) error
 	AppendMessages(sessionID, userID string, messages []entity.ChatMessageRecord, now int64) error
 	Delete(sessionID, userID string) error
 }
@@ -71,100 +69,6 @@ func (r *mysqlSessionRepository) Create(sessionID, userID, title string, now int
 		UpdatedAt:    now,
 	}
 	return r.db.Create(&session).Error
-}
-
-func (r *mysqlSessionRepository) Save(sessionID, userID, title string, messages []interface{}, now int64) error {
-	msgCount := len(messages)
-
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		// upsert 会话元数据
-		var session entity.ChatSession
-		err := tx.Where("id = ? AND user_id = ?", sessionID, userID).First(&session).Error
-
-		if err == gorm.ErrRecordNotFound {
-			// 创建新会话
-			session = entity.ChatSession{
-				ID:           sessionID,
-				UserID:       userID,
-				Title:        title,
-				MessageCount: msgCount,
-				CreatedAt:    now,
-				UpdatedAt:    now,
-			}
-			if err := tx.Create(&session).Error; err != nil {
-				return fmt.Errorf("创建会话失败: %w", err)
-			}
-		} else if err != nil {
-			return fmt.Errorf("查询会话失败: %w", err)
-		} else {
-			// 更新现有会话
-			if err := tx.Model(&session).Updates(map[string]interface{}{
-				"title":         title,
-				"message_count": msgCount,
-				"updated_at":    now,
-			}).Error; err != nil {
-				return fmt.Errorf("更新会话失败: %w", err)
-			}
-		}
-
-		// 删除旧消息
-		if err := tx.Where("session_id = ?", sessionID).Delete(&entity.ChatMessageRecord{}).Error; err != nil {
-			return fmt.Errorf("删除旧消息失败: %w", err)
-		}
-
-		// 批量插入新消息
-		if len(messages) > 0 {
-			msgRecords := make([]entity.ChatMessageRecord, 0, len(messages))
-			for order, raw := range messages {
-				m, ok := raw.(map[string]interface{})
-				if !ok {
-					continue
-				}
-				msgID, _ := m["id"].(string)
-				if msgID == "" {
-					msgID = genMsgID()
-				}
-				role, _ := m["role"].(string)
-				msgType, _ := m["type"].(string)
-				if msgType == "" {
-					msgType = "text"
-				}
-				text, _ := m["content"].(string)
-				msgCreatedAt, _ := m["createdAt"].(float64)
-
-				// 把额外字段打包为 payload
-				payload := map[string]interface{}{}
-				for k, v := range m {
-					if k != "id" && k != "role" && k != "type" && k != "content" && k != "createdAt" {
-						payload[k] = v
-					}
-				}
-				payloadJSON, _ := json.Marshal(payload)
-				if len(payload) == 0 {
-					payloadJSON = []byte("null")
-				}
-
-				msgRecords = append(msgRecords, entity.ChatMessageRecord{
-					ID:        msgID,
-					SessionID: sessionID,
-					Role:      role,
-					MsgType:   msgType,
-					Content:   text,
-					Payload:   string(payloadJSON),
-					SortOrder: order,
-					CreatedAt: int64(msgCreatedAt),
-				})
-			}
-
-			if len(msgRecords) > 0 {
-				if err := tx.CreateInBatches(msgRecords, 100).Error; err != nil {
-					log.Printf("批量插入消息失败: %v", err)
-				}
-			}
-		}
-
-		return nil
-	})
 }
 
 func (r *mysqlSessionRepository) Delete(sessionID, userID string) error {

@@ -13,7 +13,8 @@ export interface User {
   username: string;
   phone: string;
   avatar?: string;
-  createdAt: number;
+  /** RFC3339 时间字符串（后端 time.Time 序列化结果），如 "2026-09-14T12:00:00Z" */
+  createdAt: string;
 }
 
 interface AuthState {

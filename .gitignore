@@ -46,3 +46,8 @@ logs/
 
 # === Qoder ===
 .qoder/
+
+# === WorkBuddy ===
+.workbuddy-ai/memory/
+/.workbuddy-ai/memory/2026-09-15.md
+/.workbuddy-ai/memory/MEMORY.md

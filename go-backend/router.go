@@ -36,7 +36,6 @@ func SetupRouter(app *App) *gin.Engine {
 		sessionGroup.GET("", app.SessionController.ListSessions)
 		sessionGroup.POST("", app.SessionController.CreateSession)
 		sessionGroup.GET("/:id", app.SessionController.GetSession)
-		sessionGroup.PUT("/:id", app.SessionController.SaveSession)
 		sessionGroup.DELETE("/:id", app.SessionController.DeleteSession)
 	}
 

@@ -45,7 +45,7 @@ export function useSession({ startNew = false }: UseSessionOptions = {}) {
       }
     })();
     return () => { alive = false; };
-  }, []);
+  }, [startNew]);
 
   // ——— 操作方法 ———
 
@@ -57,10 +57,10 @@ export function useSession({ startNew = false }: UseSessionOptions = {}) {
       const detail = await sessionService.get(targetId);
       if (seq !== openSeq.current) return;
       // 后端返回 content 字段，前端使用 text 字段，需要映射
-      const rawMsgs = (detail?.messages ?? []) as any[];
-      const ms: Message[] = rawMsgs.map((m) => ({
+      const rawMsgs = (detail?.messages ?? []) as Array<Record<string, unknown>>;
+      const ms = rawMsgs.map((m) => ({
         ...m,
-        text: m.text ?? m.content, // content -> text
+        text: (m.text ?? m.content) as string | undefined, // content -> text
       })) as Message[];
       setMessages(ms.length ? ms : [welcomeMsg()]);
       setChatHistory((detail?.history ?? []) as ChatMessage[]);

@@ -65,8 +65,15 @@ const HTML_ENTITIES: Record<string, string> = {
 /** HTML 实体转义，防 XSS */
 export function escapeHtml(str: string | null | undefined): string {
   if (!str) return '';
-  return String(str).replace(/[&<>"'`=\/]/g, (c) => HTML_ENTITIES[c]);
+  return String(str).replace(/[&<>"'`=/]/g, (c) => HTML_ENTITIES[c]);
 }
+
+/** 零宽字符（ZWSP / ZWNJ / ZWJ / BOM） */
+const ZERO_WIDTH_RE = /[\u200B-\u200D\uFEFF]/g;
+
+/** C0 控制字符（保留 \t \n \r）—— 有意匹配控制字符，故关闭该规则 */
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARS_RE = /[\x00-\x08\x0B-\x1F\x7F]/g;
 
 /**
  * 输入净化：trim + 移除零宽字符 + HTML 转义
@@ -77,8 +84,8 @@ export function sanitizeInput(str: string | null | undefined): string {
   // 移除零宽字符（ZWSP/ZWNJ/ZWJ 等）和控制字符
   const cleaned = String(str)
     .trim()
-    .replace(/[\u200B-\u200D\uFEFF]/g, '')
-    .replace(/[\x00-\x08\x0B-\x1F\x7F]/g, '');
+    .replace(ZERO_WIDTH_RE, '')
+    .replace(CONTROL_CHARS_RE, '');
   return escapeHtml(cleaned);
 }
 
@@ -90,8 +97,8 @@ export function sanitizeText(str: string | null | undefined): string {
   if (!str) return '';
   return String(str)
     .trim()
-    .replace(/[\u200B-\u200D\uFEFF]/g, '')
-    .replace(/[\x00-\x08\x0B-\x1F\x7F]/g, '');
+    .replace(ZERO_WIDTH_RE, '')
+    .replace(CONTROL_CHARS_RE, '');
 }
 
 /** 限制字符串最大长度，超出截断 */

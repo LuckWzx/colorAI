@@ -251,15 +251,12 @@ Content-Type: application/json
 
 ```json
 {
-  "sessionId": "session-uuid",
+  "sessionId": "session-0a1b2c3d4e5f6789",
   "messageId": "msg-0a1b2c3d4e5f6789",
   "messages": [
-    {
-      "role": "user",
-      "content": "这张图片的主色调是什么？",
-      "feature": null,
-      "images": ["data:image/jpeg;base64,..."]
-    }
+    { "role": "user", "content": "这张图片偏色了", "images": ["data:image/jpeg;base64,..."] },
+    { "role": "assistant", "content": "我来帮您分析一下这张图片的白平衡…" },
+    { "role": "user", "content": "请取色", "feature": "pick", "images": ["data:image/jpeg;base64,..."] }
   ],
   "model": "deepseek-chat"
 }
@@ -269,7 +266,7 @@ Content-Type: application/json
 |------|------|------|------|
 | sessionId | string | 否 | 会话ID，用于关联对话历史 |
 | messageId | string | 否 | 消息ID（前端生成，用于SSE/WebSocket场景关联） |
-| messages | ChatMessage[] | 是 | 消息数组，至少包含一条用户消息 |
+| messages | ChatMessage[] | 是 | **完整对话历史**（按时间正序的 `user` / `assistant` 轮次），最后一条必须是当前用户消息。详见下文「messages 语义」 |
 | model | string | 否 | 模型标识，默认 deepseek-chat |
 
 **ChatMessage 结构：**
@@ -278,8 +275,35 @@ Content-Type: application/json
 |------|------|------|------|
 | role | string | 是 | `user` / `assistant`（`system` 角色由后端自动注入） |
 | content | string | 是 | 消息文本内容 |
-| feature | string \| null | 否 | 快捷工具标识：`correct` / `pick` / `compare` / `convert` / `phone`，自由对话时为 `null` |
-| images | string[] \| null | 否 | 图片数据数组（base64 格式），用于需要图片的功能 |
+| feature | string \| null | 否 | 快捷工具标识：`correct` / `pick` / `compare` / `convert` / `phone`；自由对话时为 `null`。**只挂在当前用户消息（最后一条）上**，详见下文「feature 与工具选择」 |
+| images | string[] \| null | 否 | 图片数据数组（base64 / dataURL），**只挂在当前用户消息（最后一条）上** |
+
+### messages 语义：完整对话历史
+
+`messages` 是**完整对话历史**，不是仅当前这一条：
+
+- 按时间正序排列，包含本轮之前所有 `user` / `assistant` 轮次，**最后一条是当前用户消息**。
+- 用途：会话记忆。后端需把完整历史转发给 Agent，供 LLM 建立多轮上下文。
+- 前端**每次发送完整历史**；后端**只需持久化最后一条用户消息 + AI 回复**，不要重复落库历史轮次（否则会重复计数）。
+- `feature` / `images` 只挂在当前用户消息上，历史轮次不携带。
+
+### feature 字段与工具选择
+
+`feature` 是**工具选择的最高优先级信号**，由前端在用户点击快捷工具按钮时设置：
+
+| feature | 必须调用的 Tool | 返回 message.type |
+|---------|-----------------|-------------------|
+| `correct` | `image_correction` | `correct` |
+| `pick` | `color_extraction` | `pick` |
+| `compare` | `color_comparison` | `compare` |
+| `convert` | `color_conversion` | `convert` |
+| `phone` | `phone_correction` | `phone` |
+| `null` | 由 Agent 语义分析决定（可能调用某个 Tool，也可能纯文本回复） | 依实际调用 |
+
+**选择规则（后端与 Agent 必须遵守）：**
+
+1. `feature` 非 `null`（用户点击快捷工具按钮）→ 后端**原样透传**给 Agent，Agent **确定性地调用**映射的 Tool，**不做语义判断**，避免 LLM 选错工具。
+2. `feature` 为 `null`（用户在输入框自由输入）→ Agent 通过语义分析自行判断是否调用 Tool、调用哪一个；无法判断时走纯文本回复（`message.type = "text"`）。
 
 **请求场景示例：**
 
@@ -333,11 +357,44 @@ Content-Type: application/json
 | type | 说明 | metadata 结构 |
 |------|------|---------------|
 | `text` | 智能体文本回复 | `null` |
-| `correct` | 图片校色结果 | `{ originalImage, correctedImage, metadata: { brightness, contrast, saturation, whiteBalance } }` |
+| `correct` | 图片校色结果 | `{ originalImage: string, correctedImage: string, metadata: { brightness: number, contrast: number, saturation: number, whiteBalance: 'warm' \| 'cool' \| 'neutral' } }` |
 | `pick` | 取色结果 | `{ color: FullColorValues, colorName: string }` |
-| `compare` | 颜色对比结果 | `{ similarity, deltaE, imageA, imageB }` |
-| `convert` | 颜色转换结果 | `{ input, detectedFormat, color: FullColorValues, colorName }` |
-| `phone` | 手机拍摄校色结果 | `{ originalUrl, correctedUrl, standardUrl, adjustment }` |
+| `compare` | 颜色对比结果 | `{ similarity: number, deltaE: number, imageA: { imageUrl: string, dominantColors: Array<{ hex: string, ratio: number }> }, imageB: { imageUrl: string, dominantColors: Array<{ hex: string, ratio: number }> } }` |
+| `convert` | 颜色转换结果 | `{ input: string, detectedFormat: string, color: FullColorValues, colorName: string }` |
+| `phone` | 手机拍摄校色结果 | `{ originalUrl: string, correctedUrl: string, standardUrl: string, adjustment: { redShift: number, greenShift: number, blueShift: number, brightness: number, exposure: number } }` |
+
+> 以上结构即前端 `src/types/index.ts` 的类型定义（`CorrectionResult` / `CompareResult` / `PhoneCorrectResponse` 等），后端工具返回值必须与之逐字段对齐，否则结果卡片渲染为空白。
+
+**FullColorValues 结构（`pick` / `convert` 的 `color` 字段）：**
+
+```json
+{
+  "hex": "#FF6B35",
+  "rgb": { "r": 255, "g": 107, "b": 53 },
+  "hsl": { "h": 16, "s": 100, "l": 60 },
+  "cmyk": { "c": 0, "m": 58, "y": 79, "k": 0 },
+  "lab": { "l": 63.4, "a": 45.2, "b": 48.1 },
+  "hsv": { "h": 16, "s": 79, "v": 100 },
+  "format": "hex",
+  "originalInput": "#FF6B35"
+}
+```
+
+> `format` 取 `hex` / `rgb` / `hsl` / `cmyk` / `lab` / `hsv` / `unknown`。注意 `color` 必须是**结构化分量对象**，不能返回 `"rgb(255, 107, 53)"` 这类预格式化字符串——前端 `formatColorValue()` 需要读取 `color.rgb.r` 等分量自行格式化。
+
+**消息持久化（会话记忆）：**
+
+`/api/chat` 成功后，后端必须把本轮消息落库，供 `GET /api/sessions/:id` 还原：
+
+| 落库字段 | 取值 |
+|----------|------|
+| 用户消息 `role` | `user`，`content` 取当前用户消息文本 |
+| 用户消息 `payload` | `{ feature, images }`（无则 `null`），用于还原快捷工具与图片 |
+| AI 回复 `role` | `assistant` |
+| AI 回复 `msgType` | **必须等于响应的 `message.type`**（`text` / `correct` / `pick` / …），不可恒为 `text` |
+| AI 回复 `payload` | **必须序列化响应的 `message.metadata`**，不可恒为 `null` |
+
+> 若把 `msgType` 恒写为 `text`、`payload` 恒写为 `null`，则刷新或切换会话后所有结果卡片会退化成纯文本气泡。
 
 ---
 
@@ -408,16 +465,17 @@ GET /api/sessions/:id
       {
         "id": "msg-0a1b2c3d4e5f6789",
         "role": "user",
+        "type": "text",
         "content": "这张图片偏色了",
-        "timestamp": 1694678400000,
-        "type": "text"
+        "createdAt": 1694678400000,
+        "images": ["data:image/jpeg;base64,..."]
       },
       {
         "id": "msg-0a1b2c3d4e5f6790",
         "role": "assistant",
+        "type": "text",
         "content": "我来帮您分析一下...",
-        "timestamp": 1694678460000,
-        "type": "text"
+        "createdAt": 1694678460000
       }
     ],
     "history": [
@@ -436,8 +494,10 @@ GET /api/sessions/:id
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| messages | Message[] | UI 渲染用消息数组（含 id、type 等） |
-| history | ChatMessage[] | LLM 对话历史（仅 role + content） |
+| messages | Message[] | UI 渲染用消息数组。字段：`id` / `role` / `type` / `content` / `createdAt`；用户消息额外含 `feature` / `images` |
+| history | ChatMessage[] | LLM 对话历史（仅 `role` + `content`），用于恢复前端多轮上下文 |
+
+> 注意：`messages[].type` 取 `text` / `correct` / `pick` / `compare` / `convert` / `phone`，与 `/api/chat` 响应的 `message.type` 同义；工具结果类消息的 `metadata` 需持久化后才能在此处还原卡片（见下文「消息持久化」）。
 
 ---
 
@@ -505,7 +565,7 @@ DELETE /api/sessions/:id
 
 ## 用户信息 `/api/user`
 
-### 10. 获取用户信息
+### 9. 获取用户信息
 
 ```
 GET /api/user/profile
@@ -530,7 +590,7 @@ GET /api/user/profile
 
 ## 健康检查 `/api/health`
 
-### 11. 服务健康检查
+### 10. 服务健康检查
 
 ```
 GET /api/health
@@ -558,18 +618,18 @@ GET /api/health
 | image_correction | 图片一键校正，支持 auto/portrait/landscape/product 模式 | 智能体根据用户意图自动调用 |
 | color_extraction | 智能取色，提取图片主色调，返回 HEX + 占比 | 智能体根据用户意图自动调用 |
 | color_comparison | 颜色对比，计算 ΔE2000 色差值，量化两图相似度 | 智能体根据用户意图自动调用 |
-| color_gel_matching | 颜色胶匹配，基于 HEX 生成相近颜色胶 | 智能体根据用户意图自动调用 |
+| color_conversion | 色彩空间转换，HEX / RGB / HSL / CMYK / Lab / HSV 互转 | 智能体根据用户意图自动调用 |
 | phone_correction | 手机拍摄校色，还原手机拍摄的真实色彩 | 智能体根据用户意图自动调用 |
 
 ### 工具调用说明
 
 - **调用流程**：用户通过聊天描述需求 → 智能体解析意图 → 自动选择合适工具 → 返回处理结果
-- **参数传递**：图片文件通过 `multipart/form-data` 上传，颜色参数通过 JSON 传递
-- **响应格式**：工具执行结果封装在 AI 回复的 `tool_results` 字段中
+- **参数传递**：图片以 base64（dataURL）放在 `/api/chat` 消息的 `images` 字段中提交，颜色参数通过消息文本传递
+- **响应格式**：工具执行结果封装在 AI 回复的 `message.metadata` 字段中，消息 `type` 标识对应的结果卡片（见上文「消息类型说明」）
 
 ### 色彩空间转换（colorConverter）
 
-支持格式：HEX、RGB、HSL、CMYK、Lab、HSV 互转（前端本地实现，用于输入输出格式转换）
+支持格式：HEX、RGB、HSL、CMYK、Lab、HSV 互转（转换由后端智能体工具 `color_conversion` 完成；前端仅负责输入格式识别与结果展示格式化）
 
 ---
 
@@ -591,6 +651,8 @@ GET /api/health
 ## 认证流程说明
 
 1. **登录/注册**：调用 `/api/auth/login` 或 `/api/auth/register` 获取 `token`
-2. **Token 存储**：前端通过 Zustand 持久化至 `localStorage`（key: `colorai_auth`）
-3. **请求携带**：Axios 拦截器自动在 Header 中注入 `Authorization: Bearer <token>`
-4. **401 处理**：响应拦截器捕获 401，自动清除登录态并跳转至登录页
+2. **Token 存储**：前端通过 Zustand 持久化至 `localStorage`（key: `colorai_auth`，结构为 `{ state: { user, token, isAuthenticated } }`）
+3. **请求携带**：前端有两条请求通道，均自动注入 `Authorization: Bearer <token>`
+   - **认证接口**（`/api/auth/*`）：Axios 实例 `services/api.ts`，请求拦截器从 `localStorage` 读取 token
+   - **业务接口**（`/api/chat`、`/api/sessions/*`）：`authFetch`（`lib/authFetch.ts`），直接从 Zustand store 读取 token
+4. **401 处理**：**当前仅 Axios 通道有 401 拦截**（`services/api.ts`）——捕获 401 后清除登录态并跳转登录页。`authFetch` 通道（聊天、会话）**尚未实现 401 自动登出**，token 过期时前端仅提示错误。后端返回 401 时应保持语义一致（`{ success: false, error: "Unauthorized" }`），前端后续会补齐统一处理。

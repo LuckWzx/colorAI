@@ -2,7 +2,6 @@ package service
 
 import (
 	"colorai-backend/model/entity"
-	"colorai-backend/model/request"
 	"colorai-backend/model/response"
 	"crypto/rand"
 	"fmt"
@@ -19,7 +18,6 @@ type SessionService interface {
 	ListByUser(userID string) ([]entity.ChatSession, error)
 	GetByID(userID, sessionID string) (*response.ChatSessionDetail, error)
 	Create(userID, title string) (*response.ChatSessionDetail, error)
-	Save(userID, sessionID string, req request.SaveSessionRequest) (*response.ChatSessionDetail, error)
 	Delete(userID, sessionID string) error
 }
 
@@ -70,39 +68,6 @@ func (s *sessionService) Create(userID, title string) (*response.ChatSessionDeta
 		},
 		Messages: []interface{}{},
 		History:  []interface{}{},
-	}, nil
-}
-
-func (s *sessionService) Save(userID, sessionID string, req request.SaveSessionRequest) (*response.ChatSessionDetail, error) {
-	now := time.Now().UnixMilli()
-	title := req.Title
-	if title == "" {
-		title = "新对话"
-	}
-
-	var messages []interface{}
-	if req.Messages != nil {
-		if msgs, ok := req.Messages.([]interface{}); ok {
-			messages = msgs
-		}
-	}
-	if messages == nil {
-		messages = []interface{}{}
-	}
-
-	if err := s.sessionRepo.Save(sessionID, userID, title, messages, now); err != nil {
-		return nil, fmt.Errorf("保存会话失败: %w", err)
-	}
-
-	return &response.ChatSessionDetail{
-		ChatSessionResponse: response.ChatSessionResponse{
-			ID:           sessionID,
-			Title:        title,
-			UpdatedAt:    now,
-			MessageCount: len(messages),
-		},
-		Messages: messages,
-		History:  req.History,
 	}, nil
 }
 
