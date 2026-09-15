@@ -977,8 +977,13 @@ function MessageBubble({
             </div>
           )}
           {msg.text && (
-            <div className="inline-block px-5 py-3 rounded-2xl rounded-br-md bg-brand-primary text-white text-sm leading-relaxed shadow-card">
-              {msg.text}
+            // 必须再包一层 flex justify-end：外层容器是 max-w-[85%]，宽度由最宽的子元素决定，
+            // 带图片时会被图片撑到 85% 宽，此时 inline-block 的气泡会贴在容器**左边缘**。
+            // 别改用 text-right —— text-align 会继承进气泡内部，多行文字也会被右对齐。
+            <div className="flex justify-end">
+              <div className="inline-block px-5 py-3 rounded-2xl rounded-br-md bg-brand-primary text-white text-sm leading-relaxed shadow-card">
+                {msg.text}
+              </div>
             </div>
           )}
         </div>
