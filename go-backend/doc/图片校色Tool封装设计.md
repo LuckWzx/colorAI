@@ -619,8 +619,12 @@ curl -X POST http://localhost:8000/api/chat -H 'Content-Type: application/json' 
 | `src/pages/Workspace.tsx` | `handleDockSelect` 加防御性守卫（`!isFeatureAvailable(item.key)` 直接 return），保证任何入口都选不中未上线功能；`ResultActions` 的「去取色」按 `isFeatureAvailable('pick')` 门控 |
 
 **`ResultActions` 的连带修正**：原来 `if (!primary) return null` —— 一旦取色不可用、
-「去取色」不再生成，**整个底栏（含「返回首屏」）会一起消失**，用户在那一步就没有出口了。
-改成 `if (!primary && !onReset) return null`，并在无 primary 时只渲染「返回首屏」。
+「去取色」不再生成，**整个底栏（含「返回首屏」）会一起消失**。
+
+> 后续（2026-09-15）用户明确要求**去掉「返回首屏」按钮**（原话「没啥用」）：
+> 校色卡片自带「下载校正图」，渲染完就是终点，不需要再塞一个"重新开始"的出口。
+> 所以现在的规则是：**`primary` 为空就整条底栏不渲染**（`if (!primary) return null`）。
+> 连带删除了 `onReset` prop、`handleReset` 包装函数与 `ArrowLeft` 导入（都只服务于这个按钮）。
 
 > 这样"后端实现一个工具"→ 前端只需把 `available` 改成 `true`，两处入口同时打开，
 > 不需要再改 UI 代码。**唯一的可用性来源是 `FEATURES`，别再在组件里写死判断。**
@@ -634,7 +638,8 @@ curl -X POST http://localhost:8000/api/chat -H 'Content-Type: application/json' 
     {"色彩空间转换开发中",禁用:true},
     {"颜色相似度对比开发中",禁用:true},
     {"手机拍摄校色开发中",禁用:true}]
-2) 跑一次校色后的卡片底部按钮: ["返回首屏"]      ← 不再有「去取色」
+2) 跑一次校色后的卡片底部按钮: []               ← 底栏整条不渲染（无「去取色」也无「返回首屏」）
+   卡片内保留: 「下载校正图」
 3) 卡片标题: ["图片校色完成"]
 4) console: 仅 vite 连接日志 + React DevTools 提示，无 error
 ```

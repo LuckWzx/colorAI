@@ -10,7 +10,6 @@ import {
   Download,
   Copy,
   Check,
-  ArrowLeft,
   History,
   Camera,
   User,
@@ -140,10 +139,6 @@ export default function Workspace() {
     setInput('');
     setSidebarOpen(false);
     setTimeout(() => textareaRef.current?.focus(), 50);
-  };
-
-  const handleReset = () => {
-    void startNewChat();
   };
 
   // —— 工具坞选择 ——
@@ -493,7 +488,6 @@ export default function Workspace() {
                 key={msg.id}
                 msg={msg}
                 onCopy={copyToClipboard}
-                onReset={handleReset}
                 onGoPick={goToPick}
                 onAutoCompare={triggerAutoCompare}
                 onGoShops={goToShops}
@@ -904,14 +898,12 @@ function CorrectCard({ res, footer }: { res: CorrectionResult; footer?: ReactNod
 function MessageBubble({
   msg,
   onCopy,
-  onReset,
   onGoPick,
   onAutoCompare,
   onGoShops,
 }: {
   msg: Message;
   onCopy: (t: string, l?: string) => void;
-  onReset?: () => void;
   onGoPick?: (imageUrl?: string) => void;
   onAutoCompare?: () => void;
   onGoShops?: (hex?: string) => void;
@@ -938,31 +930,21 @@ function MessageBubble({
       primary = { label: '去取色', onClick: () => onGoPick?.() };
     }
 
-    // 没有可用的后续动作时，仍然保留「返回首屏」—— 否则用户在这一步没有出口
-    if (!primary && !onReset) return null;
+    // 没有后续动作就整条底栏都不渲染。
+    // 校色卡片自带「下载校正图」，本来也不需要「返回首屏」这个出口 ——
+    // 卡片渲染完就是终点，再塞一个"重新开始"只会占位置。
+    if (!primary) return null;
     return (
       <div className="mt-5 pt-4 border-t border-brand-line flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
-        <div className="text-xs text-brand-muted font-medium mr-0 sm:mr-2 px-1">
-          {primary ? '本次操作已完成，接下来：' : '本次操作已完成。'}
-        </div>
+        <div className="text-xs text-brand-muted font-medium mr-0 sm:mr-2 px-1">本次操作已完成，接下来：</div>
         <div className="flex gap-2 flex-1">
-          {primary && (
-            <button
-              type="button"
-              onClick={primary.onClick}
-              className="btn-primary flex-1 !py-2.5 !px-4 text-sm inline-flex items-center justify-center gap-1.5"
-            >
-              <ArrowRight className="w-4 h-4" />
-              {primary.label}
-            </button>
-          )}
           <button
             type="button"
-            onClick={onReset}
-            className="btn-secondary flex-1 !py-2.5 !px-4 text-sm inline-flex items-center justify-center gap-1.5"
+            onClick={primary.onClick}
+            className="btn-primary flex-1 !py-2.5 !px-4 text-sm inline-flex items-center justify-center gap-1.5"
           >
-            <ArrowLeft className="w-4 h-4" />
-            返回首屏
+            <ArrowRight className="w-4 h-4" />
+            {primary.label}
           </button>
         </div>
       </div>
