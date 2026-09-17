@@ -411,6 +411,18 @@ cd go-backend && go build -o D:/tmp/colorai-backend.exe . && D:/tmp/colorai-back
 （本机实测：3 个并行 Edit 到 `config.go`，其中 1 个被覆盖掉，工具仍报 success。）
 改同一个文件必须**串行**，改完 Read 复核一遍。
 
+**坑 5：删文件后立刻 `git status`，别信 `git rm` 只动了你给的路径。**
+本机实测：`git rm` 3 个组件文件后，`git status` 里这 3 个是已暂存删除（`D `），
+但同目录下**另外 25 个文件全变成了未暂存删除**（` D`）—— 整个 `src/` 从工作区消失。
+（`git rm` 自己只报告了 3 个文件，根因未确定。）
+
+**坑 6：`git restore --worktree` 必须限定路径，永远不要用 `-- .`。**
+`git restore --worktree -- .` 会把**所有未暂存的改动**一起还原 ——
+你本来只想救回「误删的文件」，结果把「还没提交的编辑」也一起销毁了
+（本机实测：救回 25 个文件的同时，把两个 README 的 122 行未提交改动全抹了）。
+正确写法：`git restore --worktree -- ColorAI/src`。
+**推论：想删东西之前，先把已完成的改动 commit 掉** —— 有 commit 兜底，restore 才敢用。
+
 Windows 控制台是 GBK，脚本开头要 `sys.stdout.reconfigure(encoding="utf-8")`，
 否则中文输出报 `UnicodeEncodeError`。含反斜杠路径的 docstring 用 `r"""` 前缀。
 

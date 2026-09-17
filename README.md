@@ -6,11 +6,30 @@
 
 ## 功能特性
 
+> 当前版本聚焦**智能体问答模块**（AI 聊天工作台），首页等其余模块暂不在计划内。
+
 | 功能 | 说明 | 路由 |
 |------|------|------|
-| 首页 | 品牌展示 + 功能导航卡片 | `/` |
-| AI 聊天工作台 | AI 色彩对话，集成图片校色、取色、转换、对比等工具，会话历史管理 | `/workspace` |
+| AI 聊天工作台 | 与色彩智能体对话、会话历史管理，内置工具坞 | `/workspace` |
 | 登录 / 注册 | 用户认证 | `/login` |
+
+### 工作台工具坞
+
+工具坞里的每一项都对应智能体侧的一个 Tool。**未实现的工具不会注册进智能体**
+（`get_all_tools()` 只返回已实现的），前端同步置灰并打上「开发中」角标 ——
+目的是不让智能体拿到编造的数据、包装成专业结论返回给用户。
+
+| 工具 | 说明 | 状态 |
+|------|------|------|
+| 图片一键校正 | AI 智能白平衡还原真实色彩 | ✅ 已上线 |
+| 智能取色器 | 点击图片获取多格式色值 | ⛔ 未实现 |
+| 色彩空间转换 | HEX / RGB / CMYK / Lab 实时互转 | ⛔ 未实现 |
+| 颜色相似度对比 | ΔE 专业色差量化评分 | ⛔ 未实现 |
+| 手机拍摄校色 | 还原人眼视觉真实颜色 | ⛔ 未实现 |
+
+功能是否可用的**唯一来源**是 `ColorAI/src/constants/workspace.ts` 的 `FEATURES[].available`：
+后端实现并注册一个工具后，把对应项改成 `true`（同时补 `agent.py` 的 `FEATURE_TOOL_MAPPING`）
+即可同时打开常驻工具坞和「全部工具」面板两处入口，不要在组件里另写判断。
 
 ## 技术栈
 
@@ -50,7 +69,7 @@
 ### 环境要求
 
 - Node.js 18+
-- Go 1.21+
+- Go 1.24+（`go.mod` 声明 `go 1.24.0`，低于此版本会直接编译失败）
 - Python 3.10+（用于智能体服务）
 - MySQL 8.0+
 - Redis 6+
@@ -66,7 +85,7 @@ npm install
 cd ../go-backend
 go mod tidy
 
-# Python 智能体（如有需要）
+# Python 智能体（必装：Go 后端启动时会自动拉起它）
 cd agent
 pip install -r requirements.txt
 ```
@@ -121,9 +140,10 @@ cp .env.example .env   # 填入 DEEPSEEK_API_KEY 等
 只需启动 Go 后端，Python Agent 会自动随之启动：
 
 ```bash
-# 终端 1: 启动 Go 后端（自动拉起 Python Agent）
+# 终端 1: 编译并启动 Go 后端（会自动拉起 Python Agent）
 cd go-backend
-go run main.go       # http://localhost:3001
+go build -o colorai-backend.exe .    # 先编译成真二进制
+./colorai-backend.exe                # http://localhost:3001
 ```
 
 ```bash
@@ -133,6 +153,13 @@ npm run dev          # http://localhost:5173
 ```
 
 开发模式下 Vite 会将 `/api` 请求代理到 `http://localhost:3001`。
+
+> **不要用 `go run main.go` 起服务。** `go run` 会另起一个编译后的子进程，
+> kill 掉 `go run` 时那个子进程**不会退出**，3001 端口仍被占用；
+> 下次启动会报 `bind: Only one usage of each socket address` 直接退出，
+> 而你以为服务已经是新的了 —— 很容易误判成「改动没生效」。
+>
+> 另外**必须在 `go-backend/` 目录下启动**：Go 按当前工作目录去找 `agent/`。
 
 ## 项目结构
 
@@ -259,6 +286,8 @@ colorAI/
 
 ## 相关文档
 
-- API 接口文档：[API.md](ColorAI/src/API.md)
-- 产品需求文档：[PRD](go-backend/doc/颜色视觉AI智能体PRD.md)
+- 接口契约 + 消息类型说明：[API.md](ColorAI/src/API.md) —— 前端渲染结果卡片的依据
+- 智能体工具封装设计：[图片校色Tool封装设计.md](go-backend/doc/图片校色Tool封装设计.md) —— 含踩坑记录
+- 智能体服务说明：[agent/README.md](go-backend/agent/README.md) —— 接口、内置工具、如何加工具
 - API 契约文档：[API 契约](go-backend/doc/API契约文档.md)
+- 产品需求文档：[PRD](go-backend/doc/颜色视觉AI智能体PRD.md)
