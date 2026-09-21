@@ -109,6 +109,18 @@ CREATE INDEX idx_kb_chunks_kind ON colorai_kb.kb_chunks(kind);
 CREATE INDEX idx_kb_chunks_src  ON colorai_kb.kb_chunks(source);
 CREATE INDEX idx_kb_chunks_hex  ON colorai_kb.kb_chunks(hex) WHERE hex IS NOT NULL;
 
+COMMENT ON TABLE colorai_kb.kb_chunks IS '知识库文本块：单色块（color）/ 色系块（family）/ 问答块（qa）';
+COMMENT ON COLUMN colorai_kb.kb_chunks.id IS '自增主键，不承载语义（任何逻辑不得依赖具体值）';
+COMMENT ON COLUMN colorai_kb.kb_chunks.source IS '来源文件：寓意宝典 | 问答1000题';
+COMMENT ON COLUMN colorai_kb.kb_chunks.section IS '所属分节：色系规范名（color / family 块）或问答分类原文（qa 块）';
+COMMENT ON COLUMN colorai_kb.kb_chunks.kind IS '块类型：color 单色 | family 色系 | qa 问答';
+COMMENT ON COLUMN colorai_kb.kb_chunks.hex IS '色值，仅 kind=color 块有值';
+COMMENT ON COLUMN colorai_kb.kb_chunks.content IS '块正文，由源文件字段机械拼接、不作改写（拼法见设计文档 §1.3）';
+COMMENT ON COLUMN colorai_kb.kb_chunks.content_hash IS 'content 的 sha256；P0 暂不承担功能（审计 + 后期增量锚点）';
+COMMENT ON COLUMN colorai_kb.kb_chunks.embedding IS 'BGE 向量：bge-base-zh-v1.5，768 维，已归一化';
+COMMENT ON COLUMN colorai_kb.kb_chunks.meta IS '扩展元数据（JSONB），无强制字段';
+COMMENT ON COLUMN colorai_kb.kb_chunks.updated_at IS '行更新时间';
+
 -- 结构化色值（精确查询，不进向量检索）
 CREATE TABLE colorai_kb.kb_colors (
   hex     TEXT PRIMARY KEY,
@@ -120,6 +132,14 @@ CREATE TABLE colorai_kb.kb_colors (
 );
 CREATE INDEX idx_kb_colors_family ON colorai_kb.kb_colors(family);
 
+COMMENT ON TABLE colorai_kb.kb_colors IS '结构化色值：每色一行，供精确查询（不进向量检索）';
+COMMENT ON COLUMN colorai_kb.kb_colors.hex IS '十六进制色值（自然主键，查询大小写不敏感）';
+COMMENT ON COLUMN colorai_kb.kb_colors.name IS '颜色名称';
+COMMENT ON COLUMN colorai_kb.kb_colors.family IS '所属色系规范名（10 个之一，如 红色系）';
+COMMENT ON COLUMN colorai_kb.kb_colors.meaning IS '核心寓意';
+COMMENT ON COLUMN colorai_kb.kb_colors.scenes IS '适用场景';
+COMMENT ON COLUMN colorai_kb.kb_colors.source IS '数据来源';
+
 -- 构建审计（答「当前索引对应哪版源文件」）
 CREATE TABLE colorai_kb.kb_builds (
   id       BIGSERIAL PRIMARY KEY,
@@ -130,6 +150,15 @@ CREATE TABLE colorai_kb.kb_builds (
   n_colors INTEGER NOT NULL,
   sources  JSONB NOT NULL                          -- [{path, sha256, bytes}]
 );
+
+COMMENT ON TABLE colorai_kb.kb_builds IS '构建审计：每次入库成功后追加一条，答「当前索引对应哪版源文件」';
+COMMENT ON COLUMN colorai_kb.kb_builds.id IS '自增主键';
+COMMENT ON COLUMN colorai_kb.kb_builds.built_at IS '构建时间';
+COMMENT ON COLUMN colorai_kb.kb_builds.model IS 'embedding 模型名（换模型必须全量重建）';
+COMMENT ON COLUMN colorai_kb.kb_builds.dim IS '向量维度（与 embedding 列一致）';
+COMMENT ON COLUMN colorai_kb.kb_builds.n_chunks IS '本次构建块数（当前语料 = 1,320，用于完整性核对）';
+COMMENT ON COLUMN colorai_kb.kb_builds.n_colors IS '本次构建色值数（当前语料 = 310）';
+COMMENT ON COLUMN colorai_kb.kb_builds.sources IS '源文件指纹数组：[{path, sha256, bytes}]';
 ```
 
 **为什么 `kb_colors` 必须单独**：BGE 对 `#A52A2A` 这种十六进制串**没有语义**，向量检索在此不可靠，精确色值只能 `WHERE hex = $1`。
