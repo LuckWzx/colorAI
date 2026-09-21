@@ -51,7 +51,7 @@
 
 ### 1.3 三类块的 content 构造与入库约定
 
-`id` 为自增列（BIGSERIAL），**不承载语义**——块类型由 `kind` 区分，重复构建的幂等锚点是 `content_hash`（见 §2 / P0-4），任何逻辑不得依赖具体 id 值。`content` 一律由源文件字段**机械拼接**，不作改写或概括（「文本一致性」断言成立的前提）：
+`id` 为自增列（BIGSERIAL），**不承载语义**——块类型由 `kind` 区分，任何逻辑不得依赖具体 id 值。P0 以**全量重建**保证重复构建结果一致；`content_hash` 列保留但暂不承担功能（审计 + 后期增量锚点，见 §7 / P0-4）。`content` 一律由源文件字段**机械拼接**，不作改写或概括（「文本一致性」断言成立的前提）：
 
 | kind | 数量 | content 模板（`\n` 表示换行） |
 |---|---|---|
@@ -100,7 +100,7 @@ CREATE TABLE colorai_kb.kb_chunks (
   kind         TEXT NOT NULL,                     -- 'qa' | 'color' | 'family'
   hex          TEXT,                              -- 仅 kind='color'
   content      TEXT NOT NULL,
-  content_hash TEXT NOT NULL,                     -- 内容 sha256；幂等的唯一锚点（id 自增不承担）
+  content_hash TEXT NOT NULL,                     -- 内容 sha256；P0 暂不承担功能（审计 + 后期增量锚点）
   embedding    vector(768),
   meta         JSONB NOT NULL DEFAULT '{}'::jsonb,
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -352,7 +352,7 @@ P1 接 BM25 后对比，**无 Recall@5 提升就不上**。
 | 项 | 值 |
 |---|---|
 | 建库（首次） | 模型下载 ~400 MB + 向量化，CPU 约 1–3 min |
-| 建库（增量） | 秒级（靠 `content_hash` 跳过未变块） |
+| 建库（重建） | **P0 全量重建**：事务内清表 + 全量插入（1–3 min，低频；失败回滚、期间旧快照可查）。增量优化列入后期重构 |
 | 检索延迟 | query 向量化 CPU 约 20–80 ms（被 LLM 秒级往返完全淹没） |
 | 存储 | 约 5 MB（文本 ~600 B + 向量 3 KB）× 1320 |
 | 内存 | BGE 约 400 MB（**懒加载**，首次调用时载 + 进程内缓存，避免拖慢 agent 启动与 `/health` 15 s 超时） |
@@ -374,12 +374,13 @@ P1 接 BM25 后对比，**无 Recall@5 提升就不上**。
 | P0-1 | `app/knowledge/ingest.py`：解析 + 切块 | 块数 = 1320；抽查 5 块与原文逐字一致 |
 | P0-2 | `app/knowledge/embedder.py`：BGE 封装 + 前缀 | `embed_query` 加前缀、`embed_documents` 不加 |
 | P0-3 | 建 schema + 建表（§2） + `store.py` | `\d colorai_kb.kb_chunks` 结构正确；count=1320 |
-| P0-4 | `scripts/ingest_knowledge.py` 入库 | **幂等**：连跑两次 → 第二次 embedding 调用 0 次 |
+| P0-4 | `scripts/ingest_knowledge.py` 入库 | 全量重建：连跑两次 → 两次块数/内容一致（允许 embedding 重算） |
 | P0-5 | `tools/knowledge_tools.py` + 注册 | 工具层单测（§6.1），不经 LLM |
 | P0-6 | 改 `core/agent.py` + SYSTEM_PROMPT | **`image_correction` 回归必须照常出卡片**（§4.3） |
 | P0-7 | 全链路脚本（参照 `test_image_correction.py`） | 自由输入问知识 → text + 有出处 |
 | P0-8 | 负向用例（§6.3） | 重点验「取色不得被冒充」 |
 | P1 | BM25 混合检索（RRF） | 与 P0 基线对比 Recall@5；无提升不上 |
+| P2 | 增量重建（`content_hash` 差集 + 向量复用） | 触发条件：语料高频变动；P0 保持全量重建 |
 | P2 | 配色方案卡片 / 查询改写 | 各自独立立项 |
 
 ---
