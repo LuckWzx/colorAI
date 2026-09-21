@@ -1,6 +1,6 @@
 ---
 name: langgraph-tool-wrapping
-description: 在 ColorAI（曲泉AI）项目里把第三方 HTTP 接口封装成 LangGraph tool，并打通「前端 → Go → Agent → tool」全链路的完整流程。当用户要求「把 XX 接口封装成 tool」「实现某个 color_tools 工具」「跑通某条链路」「联调」时使用。
+description: 在 ColorAI（曲泉AI）项目里把第三方 HTTP 接口封装成 LangGraph tool，并打通「前端 → Go → Agent → tool → 落库」全链路。当用户要求「把 XX 接口封装成 tool」「实现某个 color_tools 工具」「跑通/联调某条链路」「给智能体加个能力」时使用。
 agent_created: true
 ---
 
@@ -15,10 +15,13 @@ agent_created: true
 
 1. `go-backend/doc/图片校色Tool封装设计.md` —— **完整设计稿 + 实测记录，最佳模板**
 2. `go-backend/doc/Color_Correction.md` —— 接口原始文档
-3. `go-backend/doc/python工具方协议.md` —— error_code 约定
+3. `go-backend/doc/python工具方协议.md` —— error_code 约定（**只是协议建议稿，不是已实现接口**）
 4. `go-backend/agent/app/tools/color_tools.py` —— 工具实现
 5. `go-backend/agent/app/core/agent.py` —— `TOOL_TYPE_MAPPING` / `FEATURE_TOOL_MAPPING` / `_extract_tool_result`
 6. `go-backend/service/chat_service.go` + `storage.go` —— Go 侧收图换 URL
+
+改前端时加读 `references/browser-verify.md`（agent-browser 验证套路）。
+本机环境坑（git / 路径 / 并行 Edit）见 `~/.workbuddy-ai/MEMORY.md`，**本文不重复**。
 
 ## 七条硬规则（全是踩过的坑）
 
@@ -195,170 +198,40 @@ threading.Thread(target=server.serve_forever, daemon=True).start()
 - [ ] 多轮历史（问「我叫什么名字」能答出前文）
 - [ ] 全链路脚本 5.2
 
+#### ⚠️ 写负向用例时的两个陷阱（都让测试假通过/假失败过）
+
+**正向用例在机制失效时照样通过**，所以防御性逻辑（错误码映射、契约校验、注册表自检）
+必须配负向用例。但负向用例"通过"之前，先确认它**真的走到了**那个分支：
+
+1. **patch 错了命名空间。** `color_tools.py` 是 `from app.config import settings` 这类**按值导入**，
+   所以对**被导入模块**打补丁对**导入方无效** —— 断言照样用旧值跑。
+
+   ```python
+   import app.tools.color_tools as ct      # ✅ patch ct 自己那份引用
+   orig = ct.settings
+   ct.settings = FakeSettings(...)         # 这才生效
+   ```
+
+2. **用错了入参键 → 分支根本没进。** `_normalize_correction_response` 读的是
+   `raw["results"]`（搭档接口的原始字段名），**不是** `raw["candidates"]`。
+   传错键 → 候选列表被解析成 `[]` → **合法**，异常永远不触发，
+   你会以为"校验没生效"。**改测试前先读一遍被测函数的入参键名。**
+
+**通用做法**：负向用例里顺手断言"错误发生在**预期的字段/位置**"，而不只是"抛了个异常"。
+只断言 `raises` 的话，上面两种写错都会因为别的原因抛异常而蒙混过关。
+例如断言错误码**等于** `IMAGE_NOT_FOUND`，并断言错误信息里**出现**那个具体的值。
+
 ### 5.4 浏览器端验证（改前端后必做）
 
 用 `agent-browser`（本机已装，Chromium 在 `~/.agent-browser/browsers`）。
 需要前端 dev server 在 5173 跑着。
 
-**三条坑，不注意会白折腾。注意它们的共同根因是同一个：状态只在「一次 bash 调用」内有效。**
+**完整套路（三条状态坑、登录两种方式、截图/滚动陷阱、断言技巧、A/B 原地注入证明法）
+见 `references/browser-verify.md`** —— 内容较长，改前端时才需要读。
 
-1. **状态不跨 bash 调用保持** —— 上一次 `open` 的页面，下一次调用里 snapshot 会是
-   `(no interactive elements)`、screenshot 是白屏；**单独发一个 `eval`（没有同调用的 `open`）
-   会直接挂住不返回**，表现为 bash 超时 SIGTERM、零输出 —— 别以为是脚本写错了。
-   **必须把「open → 登录 → 操作 → 截图」全写在同一个 bash 调用里。**
-2. **ref（`e3` 这种）不跨调用存活** —— 报 `✗ Unknown ref: e6`。
-   要在同一次调用里先 `snapshot -i > /tmp/s.txt`，再解析 ref：
-
-```bash
-REF=$(grep 'cursor:pointer' /tmp/s.txt | head -1 | sed 's/.*\[ref=\(e[0-9]*\)\].*/\1/')
-agent-browser click "$REF"
-```
-
-3. **不带登录直接 `open /workspace`，页面外壳照常渲染（工具坞都在），但所有 `/api/*`
-   都是 401**，前端只显示一句含糊的「**AI 服务暂时不可用**」—— 很容易误判成后端挂了。
-   **判据：看 Go 日志里是不是 401**（而不是 500/超时）。
-   注意：**在同一次 bash 调用内**，localStorage 是**保留**的（`open login` → `eval` 写入 token
-   → `open workspace` 能正常带鉴权，已实测），所以不用每次调用都重新登录 ——
-   但一旦跨了 bash 调用就全没了。**登录步骤必须和后续操作同一次调用。**
-
-**登录本项目的固定套路**（`testuser` / `13800138000` / `test123`）。
-
-两种方式，**优先用第 2 种**（不用点表单，不受按钮 ref / 自动填充干扰）：
-
-```bash
-# 方式 1：点表单
-agent-browser open http://localhost:5173/login
-agent-browser type "input[type=tel]" "13800138000"
-agent-browser type "input[type=password]" "test123"
-agent-browser click "button[type=submit]"        # 注意不是 e8，ref 会失效
-```
-
-```bash
-# 方式 2：直接打 API 拿 token 再写进 localStorage（推荐）
-agent-browser open http://localhost:5173/login
-cat <<'JS' | agent-browser eval --stdin
-(async () => {
-  const r = await fetch('/api/auth/login', { method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ phone:'13800138000', password:'test123' }) });
-  const d = await r.json();
-  localStorage.setItem('colorai_auth', JSON.stringify({
-    state: { user: d.user, token: d.token, isAuthenticated: true }
-  }));
-  return 'TOKEN_OK';
-})()
-JS
-agent-browser open http://localhost:5173/workspace
-```
-
-⚠️ `colorai_auth` 的持久化格式是 zustand 的 `{state:{...}}`，**不要写 `version` 字段**：
-store 没声明 `version`（即 `undefined`），而 zustand 的判据是
-`typeof v.version === 'number' && v.version !== options.version` —— 写了 `version: 0`
-反而会命中「版本不匹配且无 migrate」的分支，persisted state 被丢弃、表现为登录态读不出来。
-
-**多行 JS 一律走 `--stdin` + heredoc**（`cat <<'JS' | agent-browser eval --stdin`）：
-引号里的 `$`、反引号、换行全靠 shell 转义太容易出错，heredoc 用 `'JS'` 引起来可以原样传入。
-
-**上传图片走快捷工具**（`input[type=file]` 有两个，第一个是主图）：
-
-```bash
-agent-browser upload "input[type=file]" "<绝对路径>/testimage.jpg"
-agent-browser click "textarea" && agent-browser press Enter
-```
-
-**消息列表是内部滚动容器，`screenshot --full` 抓不到下面**，要手动滚：
-
-```bash
-agent-browser eval "const el=[...document.querySelectorAll('*')].find(n=>n.scrollHeight>n.clientHeight+200&&n.clientHeight>200); el.scrollTop=el.scrollHeight; 'ok'"
-```
-
-⚠️ 更常见的翻车点：**目标元素所在的行比视口还高**（比如用户消息 = 320px 高的图 + 文字气泡）。
-此时对**整行** `scrollIntoView({block:'center'})`，文字气泡仍会被挤到折叠线以下，
-截出来的图和「什么都没改」时一模一样。
-**要把目标元素本身滚进视野**：`bubble.scrollIntoView({block:'center'})`。
-判据：`md5sum` 两张对比图 —— 若字节数几乎相同/哈希相同，说明**根本没截到变化区域**，别急着下结论。
-
-**断言用 `eval` 比看截图可靠**（截图只能肉眼看，eval 能直接拿字符串）：
-
-```bash
-agent-browser eval "JSON.stringify({标题:[...document.querySelectorAll('h4')].map(h=>h.textContent), 图:[...document.querySelectorAll('img')].map(i=>i.src).filter(s=>s.includes('corr'))})"
-```
-
-#### 5.4.1 改 CSS / 布局时：用 **A/B 原地注入**证明「是这个改动起的作用」
-
-只量「改完之后对不对」是不够的 —— 数字对也可能是别的原因凑巧。
-**正确的做法是同一个 DOM 节点上量两次**：先量修复后的几何，再把那条 CSS 属性**内联改回旧值**
-（等价于修复前），量第二次，然后恢复。这样得到的 delta 才是这个改动本身的贡献。
-
-以「用户消息气泡没紧靠右」为例（外层 `max-w-[85%]` 的宽度由最宽子元素——图片——决定，
-所以 `inline-block` 气泡贴在容器**左**边缘；修法是套一层 `flex justify-end`）：
-
-```bash
-cat <<'JS' | agent-browser eval --stdin
-(async () => {
-  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-  const items = [...document.querySelectorAll('div.cursor-pointer')]
-    .filter(el => /条消息/.test(el.textContent||''));      // 侧栏会话条目
-  items[0].click();
-  let row = null;
-  for (let t = 0; t < 24; t++) {                            // 等 switchSession 拉完
-    await sleep(300);
-    row = [...document.querySelectorAll('div.flex.justify-end.animate-fade-in-up')]
-      .find(r => r.querySelector('img.object-contain') && r.querySelector('div.inline-block'));
-    if (row) break;
-  }
-  if (!row) return 'NO_ROW';
-
-  const bubble    = row.querySelector('div.inline-block');
-  const container = row.firstElementChild;                  // max-w-[85%] 那层
-  const wrap      = bubble.parentElement;                   // flex justify-end 那层
-  bubble.scrollIntoView({ block:'center' });                // 滚气泡本身，不是 row
-  await sleep(400);
-
-  const cr = container.getBoundingClientRect();
-  const brFixed = bubble.getBoundingClientRect();
-
-  wrap.style.justifyContent = 'flex-start';                 // ← 模拟修复前
-  const brOld = bubble.getBoundingClientRect();
-  wrap.style.justifyContent = '';                           // ← 恢复
-
-  return JSON.stringify({
-    容器宽: +cr.width.toFixed(1), 气泡宽: +brFixed.width.toFixed(1),
-    右边缘差_修复后: +(cr.right - brFixed.right).toFixed(1),
-    右边缘差_修复前: +(cr.right - brOld.right).toFixed(1),
-    气泡内文字对齐: getComputedStyle(bubble).textAlign      // 应为 start
-  });
-})()
-JS
-```
-
-实测输出：容器宽 426.2 / 气泡宽 124（说明容器确实被图片撑宽，**这是 bug 成立的前提**），
-`右边缘差_修复后 = 0`、`右边缘差_修复前 = 302.2` → **302.2px → 0px**，结论无歧义。
-若两者都是 0，说明这条消息的容器宽度就等于气泡宽度（没图 / 图比文字窄），**这次测量无效**，换一条消息。
-
-顺手 `气泡内文字对齐: start` 可以验证你没有偷懒用 `text-right` —— `text-align` 会继承进气泡内部，
-多行文字会被一起右对齐（单行看不出来，多行才露馅）。
-
-**同一手法可以出「修复前/修复后」对比图**（给人看的时候很有说服力）：把 `window.__wrap`
-存到全局，截一张；内联改成旧值，再截一张；最后恢复。
-
-```bash
-agent-browser screenshot "D:/tmp/align-A-fixed.png"
-cat <<'JS' | agent-browser eval --stdin >/dev/null
-(() => { window.__wrap.style.justifyContent = 'flex-start'; return 'patched'; })()
-JS
-agent-browser screenshot "D:/tmp/align-B-old.png"
-cat <<'JS' | agent-browser eval --stdin
-(() => { window.__wrap.style.justifyContent = ''; return 'restored -> ' + getComputedStyle(window.__wrap).justifyContent; })()
-JS
-md5sum /d/tmp/align-A-fixed.png /d/tmp/align-B-old.png   # 必须不同，相同=没截到变化区
-```
-
-`screenshot` 支持 `screenshot [selector] [path]` 显式给路径；路径写 `D:/tmp/...`，
-**别写 `/tmp/...`** —— Git Bash 的 `/tmp` 不是 Windows 的 `C:\tmp`（同 §六 的坑）。
-
-**别忘了查 console**：`agent-browser console`，React 渲染错误会在这里。
-任务结束务必 `agent-browser close`。
+要点速记：状态只在**一次 bash 调用内**有效（`open`→登录→操作→截图必须写在同一次调用里）；
+不带登录访问 `/workspace` 会看到含糊的「AI 服务暂时不可用」，**判据是 Go 日志里的 401**；
+断言优先用 `eval` 而不是看截图；任务结束 `agent-browser close`。
 
 ### 5.5 把硬编码改成配置时：**必须跑一次负向验证**
 
@@ -381,9 +254,19 @@ cd go-backend && AGENT_URL=http://localhost:9999 D:/tmp/colorai-backend.exe
 # 编译检查
 cd go-backend && go build ./... && go vet ./...
 cd go-backend && gofmt -l .          # 删代码块后结构体字面量对齐会变，必须跑
-cd go-backend/agent && .venv/Scripts/python.exe -m py_compile app/tools/color_tools.py app/core/agent.py
+cd go-backend/agent && .venv/Scripts/python.exe -m compileall -q app scripts
 cd ColorAI && npx tsc --noEmit && npm run lint
 ```
+
+**agent 侧用 `compileall -q app scripts`，不要只 `py_compile` 那一两个文件** ——
+`app/` 下还有 `api/` / `models/`，漏编一个文件等于没查。
+
+**删过 / 回滚过 Python 模块后，记得清 `__pycache__`。**
+删掉源文件后，`__pycache__` 里会留下**孤儿 `.pyc`**（如 `graph.cpython-312.pyc`），
+以及源文件被还原但 `.pyc` 还是旧版本编译出来的**陈旧 `.pyc`**。
+孤儿 `.pyc` 不会被 import（Python 要先找到 `.py`），但留着是垃圾；
+陈旧那个万一 mtime 撞上，会读到旧代码的字节码 —— 排查起来极其费解。
+清法：`rm -rf app/*/__pycache__ app/__pycache__` 再 `compileall` 重生成。
 
 ### 起后端：**编译成真二进制再跑**，不要用 `go run .`
 
@@ -411,17 +294,15 @@ cd go-backend && go build -o D:/tmp/colorai-backend.exe . && D:/tmp/colorai-back
 （本机实测：3 个并行 Edit 到 `config.go`，其中 1 个被覆盖掉，工具仍报 success。）
 改同一个文件必须**串行**，改完 Read 复核一遍。
 
-**坑 5：删文件后立刻 `git status`，别信 `git rm` 只动了你给的路径。**
-本机实测：`git rm` 3 个组件文件后，`git status` 里这 3 个是已暂存删除（`D `），
-但同目录下**另外 25 个文件全变成了未暂存删除**（` D`）—— 整个 `src/` 从工作区消失。
-（`git rm` 自己只报告了 3 个文件，根因未确定。）
+> **git 相关的大坑（写操作会超范围删文件、`.git` 丢失与恢复、shim 看不见 `.git`）
+> 见 `~/.workbuddy-ai/MEMORY.md`，本文不重复。**
+> 一句话：**不要在本机用 git 做写操作**；备份用 `cp -r`，恢复用
+> `git init` + `fetch` + `reset --mixed FETCH_HEAD`。
 
-**坑 6：`git restore --worktree` 必须限定路径，永远不要用 `-- .`。**
-`git restore --worktree -- .` 会把**所有未暂存的改动**一起还原 ——
-你本来只想救回「误删的文件」，结果把「还没提交的编辑」也一起销毁了
-（本机实测：救回 25 个文件的同时，把两个 README 的 122 行未提交改动全抹了）。
-正确写法：`git restore --worktree -- ColorAI/src`。
-**推论：想删东西之前，先把已完成的改动 commit 掉** —— 有 commit 兜底，restore 才敢用。
+**坑 5：`.workbuddy-ai/skills/` 是 git 跟踪的，`.workbuddy-ai/memory/` 不是。**
+所以「回滚代码」会顺手把技能库一起还原掉（实测：SKILL.md 从 600+ 行回到 433 行，
+未提交的沉淀全没了）。要保住技能里的内容，**得单独 commit 技能文件**，
+或者把想留的东西写进 `memory/`（那目录在 `.gitignore` 里，不受回滚影响）。
 
 Windows 控制台是 GBK，脚本开头要 `sys.stdout.reconfigure(encoding="utf-8")`，
 否则中文输出报 `UnicodeEncodeError`。含反斜杠路径的 docstring 用 `r"""` 前缀。

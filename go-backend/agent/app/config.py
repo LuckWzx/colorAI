@@ -38,6 +38,16 @@ class Settings(BaseSettings):
     CORRECTION_RETRY: int = 1                 # 校色接口失败重试次数（仅对超时/5xx 重试）
     CORRECTION_DOWNLOAD_TIMEOUT: float = 30.0 # 下载 image_url 的超时
 
+    # 知识库 PostgreSQL（RAG 专用，见 doc/RAG知识库设计.md §3.2 / §10.4）
+    # ⚠️ 这是独立于 Go 数据库的新库，知识库归 agent 私有 —— Go 不应访问它
+    PG_HOST: str = "127.0.0.1"
+    PG_PORT: int = 5432
+    PG_USER: str = "postgres"
+    PG_PASSWORD: str = ""
+    PG_DB: str = ""
+    PG_SCHEMA: str = "colorai_kb"          # ⚠️ 必须独立 schema，不能进 public（共享库）
+    PG_SSLMODE: str = "require"            # 公网连接别用 disable
+
     # 允许的Origins（CORS配置）
     ALLOWED_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3001"]
     
