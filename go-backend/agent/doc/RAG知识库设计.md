@@ -12,7 +12,6 @@
 | embedding 部署 | 进程内加载、纯 CPU | query 向量化 CPU 约 20–80 ms，被 LLM 秒级往返完全淹没；GPU/独立服务增加部署风险，收益不抵 |
 | 向量库 | PG + pgvector（同机库 `docmind`） | pgvector 0.8.1 已装；规模仅 1,320 行，精确顺序扫描亚毫秒级 |
 | HNSW 索引 | **不建** | 1,320 行的近似检索既慢又损召回；负优化。何时建：>10 万行 或 P95 > 100 ms |
-| DeepSeek embedding | 不接 | 官方无该端点（`api-docs.deepseek.com` 端点只有 chat / tool calls / vision / FIM 等） |
 | BM25 / reranker | **不上**（P1） | 先建纯向量基线（30 题金标集），无 Recall@5 提升就不上 |
 | 33 MB 色彩库 | **舍弃** | 36 万条记录只有 96,919 唯一色值，1080 种文本组合被复制成 144k 条，单色最多重复 5,760 次 → 返回 100 条完全相同的结果（详见附录 A） |
 
@@ -50,6 +49,39 @@
 
 **任意块数不符 / 文本不一致 / 向量维度 ≠ 768 → 构建报错退出**（断言要能失败，参见 §6.2）。
 
+### 1.3 三类块的 content 构造与入库约定
+
+`id` 为自增列（BIGSERIAL），**不承载语义**——块类型由 `kind` 区分，重复构建的幂等锚点是 `content_hash`（见 §2 / P0-4），任何逻辑不得依赖具体 id 值。`content` 一律由源文件字段**机械拼接**，不作改写或概括（「文本一致性」断言成立的前提）：
+
+| kind | 数量 | content 模板（`\n` 表示换行） |
+|---|---|---|
+| `color` | 310 | `{色系} · {名称}（{hex}）\n寓意：{核心寓意}\n适用场景：{适用场景}` |
+| `family` | 10 | `{色系} · {副标题}（共 N 种）\n包含颜色：名称1、名称2、…、名称N` |
+| `qa` | 1,000 | `Q: {问题}\nA: {答案}`（逐字复制） |
+
+**示例（三块对照）：**
+
+```
+# kind='color'
+红色系 · 正红（朱红）（#FF0000）
+寓意：热情、勇气、爱情、革命、喜庆（东） / 危险、愤怒（西）
+适用场景：节日、婚庆、强品牌色
+
+# kind='family'
+红色系 · 激情、力量与庆典（共 42 种）
+包含颜色：正红（朱红）、鲜红、大红（宫墙红）、…、近乎黑红   ← 实现时拼接全部 42 个名称，不截断
+
+# kind='qa'
+Q: 什么是加色法？
+A: 加色法是指光线的混合方式——光源叠加越多，颜色越亮，三原色RGB全部叠加为白色。
+```
+
+三个注意点：
+
+- **入库顺序 = 解析顺序**（色系节序 → 颜色行序 → Q 编号）。
+- **family 规范名要剥离 emoji 与序号**：`## 🔴 一、红色系 · …` → 取第一个 `、` 之后 → `红色系`（与 §1.1 的 10 个色系名、`kb_colors.family`、`color_lookup(family=…)` 对齐）。
+- **`section` 列**：color / family 块填色系规范名（如 `红色系`），qa 块填分类原文（如 `一、色彩基础知识`）。`meta` 无强制字段，可放 `{"count": N}` 等，不与 `section` / `hex` 列重复。
+
 ---
 
 ## 2. PostgreSQL Schema
@@ -62,13 +94,13 @@ CREATE SCHEMA IF NOT EXISTS colorai_kb;
 -- 实际代码建议 SQL 全限定名 colorai_kb.<table>，不依赖会话 search_path
 
 CREATE TABLE colorai_kb.kb_chunks (
-  id           TEXT PRIMARY KEY,                  -- 'qa-0421' / 'sym-0137' / 'symfam-09'
+  id           BIGSERIAL PRIMARY KEY,            -- 自增；不承载语义，块类型看 kind
   source       TEXT NOT NULL,                     -- '寓意宝典' | '问答1000题'
   section      TEXT,
   kind         TEXT NOT NULL,                     -- 'qa' | 'color' | 'family'
   hex          TEXT,                              -- 仅 kind='color'
   content      TEXT NOT NULL,
-  content_hash TEXT NOT NULL,                     -- sha256，幂等用
+  content_hash TEXT NOT NULL,                     -- 内容 sha256；幂等的唯一锚点（id 自增不承担）
   embedding    vector(768),
   meta         JSONB NOT NULL DEFAULT '{}'::jsonb,
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -284,7 +316,7 @@ pip install "psycopg[binary]"        # 文本字面量即可，无需额外适�
 
 ### 6.2 构建期断言（**必须能失败**）
 
-块数 ≠ 1,320 / Q 数 ≠ 1000 / 颜色行数 ≠ 310 / 任一块文本与原文不一致 / 向量维度 ≠ `EMBEDDING_DIM` → 报错退出。故意改一行源，确认它**真的会退出**。
+块数 ≠ 1,320 / Q 数 ≠ 1000 / 颜色行数 ≠ 310 / 任一块文本与原文不一致（content 拼法见 §1.3）/ 向量维度 ≠ `EMBEDDING_DIM` → 报错退出。故意改一行源，确认它**真的会退出**。
 
 ### 6.3 端到端 + 负向用例
 
