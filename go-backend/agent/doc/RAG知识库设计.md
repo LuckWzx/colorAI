@@ -225,6 +225,7 @@ LIMIT %s;
 - `<=>` 是**余弦距离**；服务端返回即已归一化（实测 norm ≈ 1.0），`1 - 距离` = 余弦相似度
 - pgvector 文本字面量 `'[0.1,0.2,…]'` 直传即可，**无需额外适配包**
 - 可选过滤：`WHERE kind = ANY(%s)`（按来源）
+- **应用层过滤 `score < RETRIEVAL_MIN_SCORE`**（0.60，§6.4 校准）—— SQL 只管取 top_k，阈值判定在工具层
 
 ---
 
@@ -255,6 +256,35 @@ def color_lookup(
 **必须两个，不可合并**：入参互斥、失败语义不同（「库里没这个色值」 vs 「知识库里没这条知识」）。
 
 **`color_lookup` 不能省**：BGE-M3 对 `#A52A2A` 无语义，必须走 SQL 精确匹配。
+
+**返回结构（✅ 已按此实现，2026-09-22）**：
+
+```jsonc
+// color_knowledge_search
+{
+  "success": true,               // 恒为 true；仅基础设施故障才 false（无 errorCode，空结果是正常业务分支）
+  "query": "什么是莫兰迪色",
+  "results": [                   // 仅保留 score ≥ RETRIEVAL_MIN_SCORE；可为空数组（结果不足 top_k 是正常状态）
+    {"score": 0.64, "kind": "qa|color|family", "section": "一、色彩基础知识",
+     "source": "问答1000题 | 寓意宝典", "content": "Q: …\nA: …"}
+  ],
+  "count": 1
+}
+
+// color_lookup
+{
+  "success": true,
+  "matched": 42,                 // 命中总数（不受截断影响）
+  "results": [                   // 单次返回上限 60 条（防 token 爆炸）
+    {"hex": "#A52A2A", "name": "赤褐", "family": "红色系",
+     "meaning": "…", "scenes": "…", "source": "寓意宝典"}
+  ],
+  "truncated": false,            // true = 命中数超过返回上限
+  "note": "（可选）参数纠正提示，如非法 hex / 未知色系时列出可选值"
+}
+```
+
+**归一化口径（✅ 已实现）**：hex 大小写不敏感、`#` 可省略（内部归一化为 `#RRGGBB`）；`family` 容忍简写（「青色系」→「青色/蓝绿系」，按 `/` 拆别名匹配）；`name` 模糊匹配（LIKE）；多参数同时给出按「与」收窄。
 
 ### 4.2 不进 `FEATURE_TOOL_MAPPING`
 
@@ -309,7 +339,7 @@ RAG 天然产文本，硬造卡片只会把前端拖进来。若将来做「配�
 KNOWLEDGE_ENABLED:    bool  = True
 RETRIEVAL_TOP_K:      int   = 5
 RETRIEVAL_MAX_K:      int   = 10
-RETRIEVAL_MIN_SCORE:  float = 0.30        # 余弦相似度下限，校准后定（§6.4）
+RETRIEVAL_MIN_SCORE:  float = 0.60        # 余弦相似度下限（2026-09-22 实测校准，见 §6.4）
 
 # Embedding（硅基流动 API；✅ 已加入 `app/config.py`）
 EMBEDDING_API_KEY:    str = ""            # 放 agent/.env；勿用 DEEPSEEK_* 承载（2026-09-22 踩过）
@@ -384,7 +414,7 @@ pip install "psycopg[binary]"        # 文本字面量即可，无需额外适�
 - **MRR**：正确块的平均倒数排名
 - **拒答准确率**：语料外问题返回空的比例（目标 100%）
 
-**校准 `RETRIEVAL_MIN_SCORE=0.30`**：高了拒正常问题，低了返噪声。0.30 是起点不是结论。
+**`RETRIEVAL_MIN_SCORE` 已校准为 0.60**（2026-09-22 实测 11 个样本：相关 query top1 = 0.64–0.76，无关 query top1 = 0.46–0.53，取 0.60 分界，两组零重叠）。0.30 是文档初值，实测偏低（无关问题也返 5 条）；金标集建立后用 Recall@5 / 拒答准确率复核。
 
 P1 接 BM25 后对比，**无 Recall@5 提升就不上**。
 
@@ -415,17 +445,23 @@ P1 接 BM25 后对比，**无 Recall@5 提升就不上**。
 | # | 步骤 | 验证 |
 |---|---|---|
 | P0-0 | ✅ `scripts/pg_preflight.py` 探活 + pgvector 核查 | 见附录 B |
-| P0-1 | `app/knowledge/ingest.py`：解析 + 切块 | 块数 = 1320；抽查 5 块与原文逐字一致 |
-| P0-2 | `app/knowledge/embedder.py`：硅基流动 BGE-M3 封装 | 批量调用、index 对齐、维度 1024；**M3 不加任何前缀**（§3.1） |
-| P0-3 | 建 schema + 建表（§2） + `store.py` | `\d colorai_kb.kb_chunks` 结构正确（**embedding = vector(1024)**）；count=1320 |
-| P0-4 | `scripts/ingest_knowledge.py` 入库 | 全量重建：连跑两次 → 两次块数/内容一致（允许 embedding 重算） |
-| P0-5 | `tools/knowledge_tools.py` + 注册 | 工具层单测（§6.1），不经 LLM |
-| P0-6 | 改 `core/agent.py` + SYSTEM_PROMPT | **`image_correction` 回归必须照常出卡片**（§4.3） |
+| P0-1 | ✅ `app/knowledge/ingest.py`：解析 + 切块 | 块数 = 1320；抽查 5 块与原文逐字一致 |
+| P0-2 | ✅ `app/knowledge/embedder.py`：硅基流动 BGE-M3 封装 | 批量调用、index 对齐、维度 1024；**M3 不加任何前缀**（§3.1） |
+| P0-3 | ✅ 建 schema + 建表（§2） + `store.py` | `\d colorai_kb.kb_chunks` 结构正确（**embedding = vector(1024)**）；count=1320 |
+| P0-4 | ✅ `scripts/ingest_knowledge.py` 入库 | 全量重建：连跑两次 → 两次块数/内容一致（允许 embedding 重算） |
+| P0-5 | ✅ `app/tools/color_knowledge_search.py` / `color_lookup.py`（各自独立文件）+ 注册 | 工具层单测（§6.1）**21/21 通过**，不经 LLM |
+| P0-6 | ✅ 改 `core/agent.py` + SYSTEM_PROMPT | **`image_correction` 回归必须照常出卡片**（§4.3）—— 全链路待测 |
 | P0-7 | 全链路脚本（参照 `test_image_correction.py`） | 自由输入问知识 → text + 有出处 |
 | P0-8 | 负向用例（§6.3） | 重点验「取色不得被冒充」 |
 | P1 | BM25 混合检索（RRF） | 与 P0 基线对比 Recall@5；无提升不上 |
 | P2 | 增量重建（`content_hash` 差集 + 向量复用） | 触发条件：语料高频变动；P0 保持全量重建 |
 | P2 | 配色方案卡片 / 查询改写 | 各自独立立项 |
+
+> **2026-09-22 实测（P0-1 ～ P0-4）**：解析 1,320 块（310 color / 10 family / 1,000 qa）+ 色值行 310；向量化 1,320 × 1024 维；全部 content_hash 与解析输出逐一比对一致；检索冒烟「什么是加色法？」top1 = 0.7482 命中；连跑两次块数一致（kb_builds 追加 2 条）。
+>
+> **2026-09-22 实测（P0-5）**：`scripts/test_knowledge_tools.py` 21/21 通过（含 §6.1 全用例、负向用例、ToolNode 序列化）；`RETRIEVAL_MIN_SCORE` 校准为 0.60（11 样本两组零重叠，见 §6.4）；工具经 `get_all_tools()` 注册，**不进** `FEATURE_TOOL_MAPPING`（§4.2）。
+>
+> **2026-09-22 自检（P0-6）**：SYSTEM_PROMPT 已更新（知识能力宣传 + 知识答复规则 + 反编造 + 取色防线，§4.4）；ColorAgent 构造、工具注册（3 个）、`_extract_tool_result` 提取逻辑自检通过。
 
 ---
 

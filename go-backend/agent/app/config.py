@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     CORRECTION_RETRY: int = 1                 # 校色接口失败重试次数（仅对超时/5xx 重试）
     CORRECTION_DOWNLOAD_TIMEOUT: float = 30.0 # 下载 image_url 的超时
 
+    # 知识库 RAG 检索（见 doc/RAG知识库设计.md §4 / §6.4）
+    KNOWLEDGE_ENABLED: bool = True
+    RETRIEVAL_TOP_K: int = 5                  # color_knowledge_search 默认返回条数
+    RETRIEVAL_MAX_K: int = 10                 # top_k 上限，超出截断
+    RETRIEVAL_MIN_SCORE: float = 0.60         # 余弦相似度下限（2026-09-22 实测校准，见 §6.4）
+
     # 知识库 PostgreSQL（RAG 专用，见 doc/RAG知识库设计.md §3.2 / §10.4）
     # ⚠️ 这是独立于 Go 数据库的新库，知识库归 agent 私有 —— Go 不应访问它
     PG_HOST: str = "127.0.0.1"

@@ -1,8 +1,10 @@
 """
-色彩处理工具定义
+色彩处理工具定义（汇总入口 `get_all_tools`）
 
-**只注册已实现的工具**：目前仅 `image_correction`（已对接搭档真实校色接口，
-见 doc/图片校色Tool封装设计.md）。
+**只注册已实现的工具**：
+- `image_correction`：一键校色（见 doc/图片校色Tool封装设计.md）
+- `color_knowledge_search` / `color_lookup`：色彩知识库 RAG（见 doc/RAG知识库设计.md §4，
+  各自独立文件：app/tools/color_knowledge_search.py / color_lookup.py）
 
 其余 4 个能力（取色 / 对比 / 转换 / 手机校色）尚未实现，**故意不注册** ——
 原因与契约见文件末尾的说明块。注册未实现的工具会让 LLM 返回编造的数据。
@@ -14,6 +16,8 @@ from loguru import logger
 from typing import Optional
 
 from app.config import settings
+from app.tools.color_knowledge_search import color_knowledge_search
+from app.tools.color_lookup import color_lookup
 
 
 # ---------------------------------------------------------------------------
@@ -228,5 +232,6 @@ def get_all_tools():
     """获取所有**已实现**的工具
 
     只返回真实可用的工具。未实现的工具绝不能出现在这里：LLM 会调用它并返回编造数据。
+    知识工具不进 FEATURE_TOOL_MAPPING（自由输入场景，由 LLM 语义判断，§4.2）。
     """
-    return [image_correction]
+    return [image_correction, color_knowledge_search, color_lookup]

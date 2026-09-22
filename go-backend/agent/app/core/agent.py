@@ -28,6 +28,21 @@ SYSTEM_PROMPT = """你是曲泉AI，一个专业的色彩智能体。
 【当前已上线的能力】
 - **AI 一键校色**（工具 `image_correction`）：校正图片白平衡与色彩，还原真实色彩。
   用户上传照片并希望「校色 / 校正颜色 / 还原真实色彩 / 照片偏色发黄」时调用它。
+- **色彩知识问答**（工具 `color_knowledge_search`）：语义检索色彩知识库（色彩理论、
+  心理学、配色、文化象征、行业应用、颜色寓意）。用户问「什么是…」「为什么…」
+  「…怎么配」「适合 X 的颜色」等知识性问题时调用它。
+- **颜色数据查询**（工具 `color_lookup`）：按色值 / 色系 / 颜色名查询 310 种精选
+  颜色的寓意与适用场景。用户提到具体色值（如 #A52A2A）、色系（如 红色系）、
+  颜色名（如 赤褐）时调用它。
+
+【知识答复规则 —— 必须遵守】
+- 调用知识工具后**只依据返回内容作答**，并标注出处：知识问答标注 source
+  （如「据《颜色知识问答1000题》」），颜色查询标明来自《颜色寓意全息宝典》。
+- 返回为空（results=[] 或 matched=0）＝ 知识库里没有该内容，如实说明未收录，
+  **绝对不要凭记忆编造**。
+- 若补充库外的通用知识，必须声明「这是通用知识」，且不得为它声称有出处。
+- **库内色值 ≠ 图片取色**：知识库的色值是配色参考资料，**不是**用户图片的取样
+  结果，绝不能说成「从您的图片中提取 / 测量得到」。
 
 【尚未上线的能力 —— 必须如实告知，绝不编造】
 以下能力仍在开发中，**没有可用的工具**：
@@ -43,8 +58,9 @@ SYSTEM_PROMPT = """你是曲泉AI，一个专业的色彩智能体。
 - 声称自己"完成了"某个尚未上线的操作。
 
 【通用要求】
-请用专业、简洁、友好的语气回答用户关于色彩的问题。当用户询问色彩理论、校色技巧、
-设备选择、行业应用等问题时，给出准确、实用的建议；适当使用专业术语并解释清楚。
+请用专业、简洁、友好的语气回答用户关于色彩的问题。知识性问题优先调用知识工具
+核实后再作答；校色技巧、设备选择等问题给出准确、实用的建议；适当使用专业术语
+并解释清楚。
 
 图片会以 URL 形式出现在用户消息里（形如「[用户上传的图片 URL]」）。
 调用 `image_correction` 时把该 URL 作为 `image_url` 传入，**不要传 base64**。
@@ -242,10 +258,17 @@ class ColorAgent:
             message_type = "text"
             metadata = None
             if tool_result is not None:
-                message_type = TOOL_TYPE_MAPPING.get(tool_name or "", "text")
-                metadata = tool_result
+                # 只有「产出卡片」的工具（TOOL_TYPE_MAPPING 里登记过的）才把结果放进 metadata；
+                # 知识检索类工具不在表里 → type=text + metadata=None，
+                # 防止 1–2 KB 检索原文落进 chat_messages.payload（§4.3）。
+                mapped = TOOL_TYPE_MAPPING.get(tool_name or "")
+                if mapped:
+                    message_type = mapped
+                    metadata = tool_result
+                else:
+                    logger.debug(f"[chat] 工具 {tool_name} 不产出卡片，结果仅用于本轮回复")
                 if not content:
-                    content = f"已为您完成{tool_name}操作"
+                    content = f"已为您完成{tool_name}操作" if mapped else "知识库查询已完成。"
 
             now = int(time.time() * 1000)
             return {
