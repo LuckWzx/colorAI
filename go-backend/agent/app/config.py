@@ -27,6 +27,14 @@ class Settings(BaseSettings):
     # 需要回传 reasoning_content（LangChain 不回传会导致 400），故默认关闭。
     DEEPSEEK_THINKING: bool = False
     
+    # 向量化 / Embedding（硅基流动 API，BGE-M3；见 doc/RAG知识库设计.md §5.1）
+    # 独立于对话模型（DEEPSEEK_*）—— 不同平台/模型，绝不复用，避免串线
+    EMBEDDING_API_KEY: str = ""
+    EMBEDDING_API_BASE: str = "https://api.siliconflow.cn/v1"
+    EMBEDDING_MODEL: str = "BAAI/bge-m3"
+    EMBEDDING_DIM: int = 1024
+    EMBEDDING_BATCH_SIZE: int = 32      # 分批调 API 的批大小
+
     # 智能体配置
     AGENT_TEMPERATURE: float = 0.7
     AGENT_MAX_TOKENS: int = 4096

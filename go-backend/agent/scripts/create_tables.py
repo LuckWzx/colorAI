@@ -30,10 +30,10 @@ TABLES = ("kb_chunks", "kb_colors", "kb_builds")
 def build_ddl(schema: str, vec_schema: str) -> list[str]:
     """生成全部 DDL（与 doc/RAG知识库设计.md §2 一致）。
 
-    与文档唯一的差异：vector 类型用全限定名 {vec_schema}.vector(768)，
+    与文档唯一的差异：vector 类型用全限定名 {vec_schema}.vector(1024)，
     避免受连接 search_path 影响而找不到类型。
     """
-    v = f"{vec_schema}.vector(768)"
+    v = f"{vec_schema}.vector(1024)"
     return [
         # --- schema ---
         f"CREATE SCHEMA IF NOT EXISTS {schema}",
@@ -61,7 +61,7 @@ def build_ddl(schema: str, vec_schema: str) -> list[str]:
         f"COMMENT ON COLUMN {schema}.kb_chunks.hex IS '色值，仅 kind=color 块有值'",
         f"COMMENT ON COLUMN {schema}.kb_chunks.content IS '块正文，由源文件字段机械拼接、不作改写（拼法见设计文档 §1.3）'",
         f"COMMENT ON COLUMN {schema}.kb_chunks.content_hash IS 'content 的 sha256；P0 暂不承担功能（审计 + 后期增量锚点）'",
-        f"COMMENT ON COLUMN {schema}.kb_chunks.embedding IS 'BGE 向量：bge-base-zh-v1.5，768 维，已归一化'",
+        f"COMMENT ON COLUMN {schema}.kb_chunks.embedding IS 'BGE-M3 向量：BAAI/bge-m3（硅基流动 API），1024 维，服务端已归一化'",
         f"COMMENT ON COLUMN {schema}.kb_chunks.meta IS '扩展元数据（JSONB），无强制字段'",
         f"COMMENT ON COLUMN {schema}.kb_chunks.updated_at IS '行更新时间'",
         # --- kb_colors ---
@@ -176,6 +176,16 @@ def main() -> int:
                     )
                     n = cur.fetchone()[0]
                     print(f"  [{'OK' if n == expect else '!!'}] {label} {n}/{expect}")
+
+                cur.execute(
+                    "SELECT format_type(atttypid, atttypmod) FROM pg_attribute "
+                    "WHERE attrelid = to_regclass(%s) AND attname = 'embedding' AND NOT attisdropped",
+                    (f"{cfg.PG_SCHEMA}.kb_chunks",),
+                )
+                row = cur.fetchone()
+                emb_type = row[0] if row else "(缺失)"
+                print(f"  [{'OK' if emb_type.endswith('vector(1024)') else '!!'}] "
+                      f"kb_chunks.embedding 类型: {emb_type}")
 
                 cur.execute(
                     "SELECT indexname FROM pg_indexes WHERE schemaname = %s "

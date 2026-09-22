@@ -1,15 +1,14 @@
 # 颜色知识库 RAG 设计
 
-> 数据源 2 文件 → **1,320 文本块** → BGE（`bge-base-zh-v1.5`，768 维，纯 CPU 进程内加载）→ PostgreSQL + pgvector（**独立 schema `colorai_kb`**）。
-
+> 数据源 2 文件 → **1,320 文本块** → BGE-M3（`BAAI/bge-m3`，1024 维，硅基流动 API）→ PostgreSQL + pgvector（**独立 schema `colorai_kb`**）。
 ---
 
 ## 0. 关键决策
 
 | 决策 | 选择 | 理由 |
 |---|---|---|
-| embedding 模型 | `bge-base-zh-v1.5` (768 维) | C-MTEB 检索 69.49，large 70.46（+0.97）但体积 3 倍，small 61.77 偏弱 |
-| embedding 部署 | 进程内加载、纯 CPU | query 向量化 CPU 约 20–80 ms，被 LLM 秒级往返完全淹没；GPU/独立服务增加部署风险，收益不抵 |
+| embedding 模型 | `BAAI/bge-m3`（1024 维，硅基流动 API） | 免查询指令前缀；多语言、8k 长文本；OpenAI 兼容接口直连（实测见 §3.1） |
+| embedding 部署 | 硅基流动云端 API | 免装 torch/模型权重（省 ~2 GB 依赖与 ~400 MB 内存）；批量 40 条实测 0.3–0.5 s |
 | 向量库 | PG + pgvector（同机库 `docmind`） | pgvector 0.8.1 已装；规模仅 1,320 行，精确顺序扫描亚毫秒级 |
 | HNSW 索引 | **不建** | 1,320 行的近似检索既慢又损召回；负优化。何时建：>10 万行 或 P95 > 100 ms |
 | BM25 / reranker | **不上**（P1） | 先建纯向量基线（30 题金标集），无 Recall@5 提升就不上 |
@@ -47,7 +46,7 @@
 - Q：`^\*\*Q(\d+): (.+?)\*\*$`
 - A：紧随的 `^A: (.+)$`
 
-**任意块数不符 / 文本不一致 / 向量维度 ≠ 768 → 构建报错退出**（断言要能失败，参见 §6.2）。
+**任意块数不符 / 文本不一致 / 向量维度 ≠ 1024 → 构建报错退出**（断言要能失败，参见 §6.2）。
 
 ### 1.3 三类块的 content 构造与入库约定
 
@@ -101,7 +100,7 @@ CREATE TABLE colorai_kb.kb_chunks (
   hex          TEXT,                              -- 仅 kind='color'
   content      TEXT NOT NULL,
   content_hash TEXT NOT NULL,                     -- 内容 sha256；P0 暂不承担功能（审计 + 后期增量锚点）
-  embedding    vector(768),
+  embedding    vector(1024),
   meta         JSONB NOT NULL DEFAULT '{}'::jsonb,
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -117,7 +116,7 @@ COMMENT ON COLUMN colorai_kb.kb_chunks.kind IS '块类型：color 单色 | famil
 COMMENT ON COLUMN colorai_kb.kb_chunks.hex IS '色值，仅 kind=color 块有值';
 COMMENT ON COLUMN colorai_kb.kb_chunks.content IS '块正文，由源文件字段机械拼接、不作改写（拼法见设计文档 §1.3）';
 COMMENT ON COLUMN colorai_kb.kb_chunks.content_hash IS 'content 的 sha256；P0 暂不承担功能（审计 + 后期增量锚点）';
-COMMENT ON COLUMN colorai_kb.kb_chunks.embedding IS 'BGE 向量：bge-base-zh-v1.5，768 维，已归一化';
+COMMENT ON COLUMN colorai_kb.kb_chunks.embedding IS 'BGE-M3 向量：BAAI/bge-m3（硅基流动 API），1024 维，服务端已归一化';
 COMMENT ON COLUMN colorai_kb.kb_chunks.meta IS '扩展元数据（JSONB），无强制字段';
 COMMENT ON COLUMN colorai_kb.kb_chunks.updated_at IS '行更新时间';
 
@@ -161,41 +160,56 @@ COMMENT ON COLUMN colorai_kb.kb_builds.n_colors IS '本次构建色值数（当�
 COMMENT ON COLUMN colorai_kb.kb_builds.sources IS '源文件指纹数组：[{path, sha256, bytes}]';
 ```
 
-**为什么 `kb_colors` 必须单独**：BGE 对 `#A52A2A` 这种十六进制串**没有语义**，向量检索在此不可靠，精确色值只能 `WHERE hex = $1`。
+**为什么 `kb_colors` 必须单独**：BGE-M3 对 `#A52A2A` 这种十六进制串**没有语义**，向量检索在此不可靠，精确色值只能 `WHERE hex = $1`。
 
 ---
 
 ## 3. Embedding 与检索
 
-### 3.1 BGE 薄封装（**最容易踩的坑**）
+### 3.1 BGE-M3 薄封装（硅基流动 OpenAI 兼容接口）
 
-`langchain` 的两个 `HuggingFaceEmbeddings` **都没有** `query_instruction` 参数：
-- `langchain_community` 版：已弃用（`@deprecated`），源码里确实没有
-- `langchain_huggingface` 版：现行推荐，但 `model_config = ConfigDict(extra="forbid")` —— 传未知参数**直接抛异常**
+**关键差异：BGE-M3 不加查询指令前缀。** 旧方案的 `bge-base-zh-v1.5` 要求「查询加前缀、文档不加」；M3 免前缀——照抄旧逻辑反而伤召回。
 
-BGE 官方要求：**查询加前缀、文档不加**。顺序反了比不加还差。
+复用项目已有 `openai` SDK（与对话模型同款依赖），不新引包：
 
 ```python
 # app/knowledge/embedder.py
-from langchain_huggingface import HuggingFaceEmbeddings
+from openai import OpenAI
+from app.config import settings
 
-BGE_QUERY_PREFIX = "为这个句子生成表示以用于检索相关文章："
+class BGE3Embedder:
+    """BGE-M3（硅基流动）。文档与查询同一编码方式，均不加前缀。"""
 
-class BGEEmbedder:
-    def __init__(self, model_name: str, device: str = "cpu", cache_dir: str | None = None):
-        self._hf = HuggingFaceEmbeddings(
-            model_name=model_name,
-            cache_folder=cache_dir,
-            model_kwargs={"device": device},
-            encode_kwargs={"normalize_embeddings": True},   # BGE 必须归一化，否则余弦无意义
+    def __init__(self):
+        self._client = OpenAI(
+            base_url=settings.EMBEDDING_API_BASE,       # https://api.siliconflow.cn/v1
+            api_key=settings.EMBEDDING_API_KEY,
+            timeout=30.0,
+            max_retries=2,                              # SDK 自带指数退避
         )
+        self._model = settings.EMBEDDING_MODEL          # BAAI/bge-m3
+        self._batch = settings.EMBEDDING_BATCH_SIZE     # 32
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        return self._hf.embed_documents(texts)              # 不加前缀
+        out: list[list[float]] = []
+        for i in range(0, len(texts), self._batch):
+            resp = self._client.embeddings.create(
+                model=self._model, input=texts[i:i + self._batch]
+            )
+            # 按 index 对齐（实测服务端有序，防御性保留）
+            out.extend(d.embedding for d in sorted(resp.data, key=lambda d: d.index))
+        return out
 
     def embed_query(self, text: str) -> list[float]:
-        return self._hf.embed_documents([BGE_QUERY_PREFIX + text])[0]   # 加前缀
+        return self.embed_documents([text])[0]
 ```
+
+实测结论（2026-09-22，`BAAI/bge-m3` @ 硅基流动）与四个注意点：
+
+- **维度 1024**：与 `EMBEDDING_DIM`、`vector(1024)`、构建期断言（§6.2）一致——旧文档的 768 全部作废。
+- **服务端已归一化**：norm ≈ 1.0，`<=>` 余弦距离直接可用，无需本地再处理。
+- **批量与单条存在 ~1e-3 数值差**：同文本「批量编码 vs 单条编码」maxdiff ≈ 1.2e-3（单条 ↔ 单条则完全一致）。对余弦排序无实质影响；一致性测试用容差比较，勿期待逐位相等。
+- **失败不静默**：API 重试后仍失败 → 构建期直接报错退出，绝不静默丢块。
 
 ### 3.2 检索 SQL
 
@@ -208,7 +222,7 @@ ORDER BY embedding <=> %s::vector
 LIMIT %s;
 ```
 
-- `<=>` 是**余弦距离**；向量已归一化，`1 - 距离` = 余弦相似度
+- `<=>` 是**余弦距离**；服务端返回即已归一化（实测 norm ≈ 1.0），`1 - 距离` = 余弦相似度
 - pgvector 文本字面量 `'[0.1,0.2,…]'` 直传即可，**无需额外适配包**
 - 可选过滤：`WHERE kind = ANY(%s)`（按来源）
 
@@ -240,7 +254,7 @@ def color_lookup(
 
 **必须两个，不可合并**：入参互斥、失败语义不同（「库里没这个色值」 vs 「知识库里没这条知识」）。
 
-**`color_lookup` 不能省**：BGE 对 `#A52A2A` 无语义，必须走 SQL 精确匹配。
+**`color_lookup` 不能省**：BGE-M3 对 `#A52A2A` 无语义，必须走 SQL 精确匹配。
 
 ### 4.2 不进 `FEATURE_TOOL_MAPPING`
 
@@ -297,11 +311,12 @@ RETRIEVAL_TOP_K:      int   = 5
 RETRIEVAL_MAX_K:      int   = 10
 RETRIEVAL_MIN_SCORE:  float = 0.30        # 余弦相似度下限，校准后定（§6.4）
 
-# Embedding
-EMBEDDING_MODEL:      str = "BAAI/bge-base-zh-v1.5"
-EMBEDDING_DEVICE:     str = "cpu"
-EMBEDDING_CACHE_DIR:  str = "models"     # 容器里 ./models:/app/models 挂卷
-EMBEDDING_DIM:        int = 768
+# Embedding（硅基流动 API；✅ 已加入 `app/config.py`）
+EMBEDDING_API_KEY:    str = ""            # 放 agent/.env；勿用 DEEPSEEK_* 承载（2026-09-22 踩过）
+EMBEDDING_API_BASE:   str = "https://api.siliconflow.cn/v1"
+EMBEDDING_MODEL:      str = "BAAI/bge-m3"
+EMBEDDING_DIM:        int = 1024
+EMBEDDING_BATCH_SIZE: int = 32            # 分批调 API 的批大小
 
 # PostgreSQL（独立于 Go 的 MySQL，PG 连接信息放 agent/.env，不放 Go）
 PG_HOST/PORT/USER/PASSWORD/DB/SCHEMA/SSLMODE: ...
@@ -310,13 +325,12 @@ PG_HOST/PORT/USER/PASSWORD/DB/SCHEMA/SSLMODE: ...
 ### 5.2 依赖（写进 `requirements.txt`）
 
 ```bash
-pip install sentence-transformers    # 带 torch ~2 GB（CPU 轮子）
-pip install langchain-huggingface
 pip install "psycopg[binary]"        # 文本字面量即可，无需额外适配包
+# Embedding：复用已有 openai SDK 调硅基流动 —— 不装 sentence-transformers / torch / langchain-huggingface
 # 可选（P1，BM25 混合）：pip install jieba rank_bm25
 ```
 
-国内网络：`HF_ENDPOINT=https://hf-mirror.com`。权重到 `EMBEDDING_CACHE_DIR`，建议 gitignore + 挂卷（不烘进镜像）。
+无本地模型权重需下载（云端 API），`HF_ENDPOINT` 镜像与 `models/` 挂卷需求随之消失。
 
 ### 5.3 `.env` 格式（最容易再次踩）
 
@@ -324,7 +338,7 @@ pip install "psycopg[binary]"        # 文本字面量即可，无需额外适�
 
 ### 5.4 `go-backend/agent/.gitignore`（当前没有）
 
-新建：`models/` `.env` `logs/` `__pycache__/` `*.py[cod]`。`models/` 不入库的理由：~400 MB 且已挂卷，本机/容器共用，换机器重新下。
+新建：`.env` `logs/` `__pycache__/` `*.py[cod]`。（切硅基流动 API 后不再有本地模型权重，无需 `models/`。）
 
 ---
 
@@ -380,18 +394,19 @@ P1 接 BM25 后对比，**无 Recall@5 提升就不上**。
 
 | 项 | 值 |
 |---|---|
-| 建库（首次） | 模型下载 ~400 MB + 向量化，CPU 约 1–3 min |
-| 建库（重建） | **P0 全量重建**：事务内清表 + 全量插入（1–3 min，低频；失败回滚、期间旧快照可查）。增量优化列入后期重构 |
-| 检索延迟 | query 向量化 CPU 约 20–80 ms（被 LLM 秒级往返完全淹没） |
-| 存储 | 约 5 MB（文本 ~600 B + 向量 3 KB）× 1320 |
-| 内存 | BGE 约 400 MB（**懒加载**，首次调用时载 + 进程内缓存，避免拖慢 agent 启动与 `/health` 15 s 超时） |
+| 建库（首次） | 无模型下载；1,320 块分批调 API（实测 40 条 0.3–0.5 s → 预计 ≤ 1 min，取决于网络/限流） |
+| 建库（重建） | **P0 全量重建**：事务内清表 + 全量插入（低频；失败回滚、期间旧快照可查）。增量优化列入后期重构 |
+| 检索延迟 | query 向量化 = 1 次 API 往返（实测 ~0.3–0.6 s），被 LLM 秒级往返淹没 |
+| 存储 | 约 6 MB（文本 ~600 B + 向量 4 KB）× 1320 |
+| 内存 | 无本地模型占用（较原方案省 ~400 MB；懒加载与 `/health` 超时问题一并消失） |
 | 每次问答额外开销 | +1 轮 LLM 往返 + ~1000–1500 输入 token |
+| 运行期外部依赖 | 检索链路依赖 `api.siliconflow.cn` 可达；失败时重试（SDK `max_retries`），仍失败则如实报错 |
 
-**为何纯 CPU 够用**：embedding 延迟被 LLM 往返完全淹没，不是 key path。省下 CUDA 依赖换部署可移植性。
+**为何用平台 API**：省去本地部署成本（torch ~2 GB、模型 ~400 MB、加载预热）；embedding 延迟被 LLM 往返淹没，不是 key path。
 
-**何时该上 GPU / 独立 embedding 服务**：高频全量重建（语料每天翻倍级）、上 reranker（cross-encoder 量级不同）、Go 侧也做语义搜索。届时切方案 B（TEI / Infinity），`BGEEmbedder` 换成 HTTP 客户端即可，上层调用点一行不用改。
+**何时该自托管（TEI 等）**：要求私有化/离线部署、高频全量重建（语料每天翻倍级）或上 reranker。届时 `BGE3Embedder` 换成指向自托管服务的 HTTP 客户端即可（接口形状不变），上层调用点一行不用改。
 
-**TEI 备查**（独立 embedding 服务化方案）：BGE 可用、CPU 镜像 `ghcr.io/huggingface/text-embeddings-inference:cpu-1.9`。⚠️ TEI 是否自动处理查询前缀未验证，调用侧必须自己加。⚠️ 镜像体积官方无文档，选型前 `docker pull` 看一眼。
+**TEI 备查**（自托管备选）：CPU 镜像 `ghcr.io/huggingface/text-embeddings-inference:cpu-1.9`。⚠️ 选型前确认镜像支持的目标模型与体积（官方无文档，`docker pull` 看一眼）。
 
 ---
 
@@ -401,8 +416,8 @@ P1 接 BM25 后对比，**无 Recall@5 提升就不上**。
 |---|---|---|
 | P0-0 | ✅ `scripts/pg_preflight.py` 探活 + pgvector 核查 | 见附录 B |
 | P0-1 | `app/knowledge/ingest.py`：解析 + 切块 | 块数 = 1320；抽查 5 块与原文逐字一致 |
-| P0-2 | `app/knowledge/embedder.py`：BGE 封装 + 前缀 | `embed_query` 加前缀、`embed_documents` 不加 |
-| P0-3 | 建 schema + 建表（§2） + `store.py` | `\d colorai_kb.kb_chunks` 结构正确；count=1320 |
+| P0-2 | `app/knowledge/embedder.py`：硅基流动 BGE-M3 封装 | 批量调用、index 对齐、维度 1024；**M3 不加任何前缀**（§3.1） |
+| P0-3 | 建 schema + 建表（§2） + `store.py` | `\d colorai_kb.kb_chunks` 结构正确（**embedding = vector(1024)**）；count=1320 |
 | P0-4 | `scripts/ingest_knowledge.py` 入库 | 全量重建：连跑两次 → 两次块数/内容一致（允许 embedding 重算） |
 | P0-5 | `tools/knowledge_tools.py` + 注册 | 工具层单测（§6.1），不经 LLM |
 | P0-6 | 改 `core/agent.py` + SYSTEM_PROMPT | **`image_correction` 回归必须照常出卡片**（§4.3） |
@@ -464,11 +479,12 @@ PGHOST=... PGUSER=... PGPASSWORD=... PGDATABASE=docmind \
 - `PG_USER=postgres` 是超级用户 → 建议另建最小权限账号，只授 `colorai_kb` schema
 - 跟 `docmind` 维护方确认建 schema 是否需要打招呼
 - `agent/.env` 的 PG 配置历史上被写成 YAML 已修复（2026-09-21）：必须 `KEY=VALUE`，混入 YAML 块会静默失败
+- embedding 必须用独立 `EMBEDDING_*` 三键（2026-09-22 修复：曾用 `DEEPSEEK_API_BASE`/`DEEPSEEK_MODEL` 重复定义承载 BGE-M3，会把对话模型一并覆盖成 bge-m3）
+- 运行期新增外部依赖 `api.siliconflow.cn`（检索链路）；离线/私有化部署需切自托管方案（§7）
 
 ### B.3 本机环境
 
 - **只有独立版 `docker-compose` v5.5.1，没有 `docker compose` 子命令**（`docker: unknown command: docker compose`）。文档统一用 `docker-compose`。daemon 经常没起 → build/run/pull 验不了，但 `docker-compose config` 可离线校验。
-- BGE 模型首次加载要几百 MB + 数秒，**首次 `/health` 探活超 15 s 会判失败** —— 故必须懒加载（首次调用时再载）。
 
 ---
 
