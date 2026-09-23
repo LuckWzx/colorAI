@@ -170,8 +170,11 @@ agent/
 │   │   └── agent.py    # LangGraph智能体
 │   ├── tools/          # 工具定义
 │   │   └── color_tools.py
-│   ├── models/         # 数据模型
-│   │   └── schemas.py
+│   ├── models/         # 数据模型（按类别拆分：枚举/请求/响应/健康）
+│   │   ├── enums.py
+│   │   ├── chat_request.py
+│   │   ├── chat_response.py
+│   │   └── health.py
 │   ├── utils/          # 工具函数
 │   ├── config.py       # 配置管理
 │   └── main.py         # 主应用

@@ -5,7 +5,8 @@
 from fastapi import APIRouter, HTTPException
 from loguru import logger
 
-from app.models.schemas import ChatRequest, ChatResponse
+from app.models.chat_request import ChatRequest
+from app.models.chat_response import ChatResponse
 from app.core.agent import get_agent
 
 

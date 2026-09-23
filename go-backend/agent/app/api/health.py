@@ -4,7 +4,7 @@
 
 from fastapi import APIRouter
 
-from app.models.schemas import HealthResponse
+from app.models.health import HealthResponse
 from app.config import settings
 
 

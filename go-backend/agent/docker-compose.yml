@@ -24,8 +24,6 @@ services:
       - DEBUG=${DEBUG:-false}
     volumes:
       - ./logs:/app/logs
-      # RAG 用 BGE 模型缓存（见 doc/RAG知识库设计.md §4.6.3）
-      - ./models:/app/models
     restart: unless-stopped
     healthcheck:
       # 用 python 而不是 curl：基础镜像 python:3.11-slim 是否自带 curl 未经验证，

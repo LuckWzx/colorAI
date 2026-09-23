@@ -2,8 +2,18 @@
 应用配置模块
 """
 
+from pathlib import Path
+
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
-from typing import Optional
+
+
+# .env 里不只有本模块的配置：LangSmith 的 tracer 只读 os.environ，而 pydantic-settings
+# 的 env_file 只填充 Settings 对象、**不写 os.environ** → 必须显式 load_dotenv，
+# 否则 .env 里的 LANGSMITH_* 形同虚设（不报错，只是永远不上报）。
+# 用绝对路径，不依赖启动时的 cwd；override=False → 容器注入的环境变量优先。
+_ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(_ENV_FILE)
 
 
 class Settings(BaseSettings):
@@ -64,9 +74,21 @@ class Settings(BaseSettings):
 
     # 允许的Origins（CORS配置）
     ALLOWED_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3001"]
-    
+
+    # LangSmith 链路追踪（可选，不配则不上报）
+    #
+    # 这三个值真正的消费者是 langsmith SDK —— 它直接读 os.environ（靠上面的
+    # load_dotenv 注入）。在这里声明**不是为了自己用**，而是因为 pydantic-settings
+    # 默认 extra="forbid"：.env 里只要出现模型未声明的键，Settings() 就会抛
+    # extra_forbidden，**整个服务起不来**（已实测复现）。
+    # → 以后往 .env 加新键，必须同步在这里加字段，否则服务会在下次重启时崩掉。
+    LANGSMITH_TRACING: bool = False
+    LANGSMITH_PROJECT: str = ""
+    LANGSMITH_API_KEY: str = ""
+
     class Config:
-        env_file = ".env"
+        # 绝对路径：与上面的 load_dotenv 指向同一个文件，不随 cwd 漂移
+        env_file = str(_ENV_FILE)
         env_file_encoding = "utf-8"
 
 

@@ -24,9 +24,6 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
-# 模型缓存（用 compose 的 ./models 卷挂载，不要打进镜像）
-models/
-
 # 版本控制与 IDE
 .git/
 .gitignore
