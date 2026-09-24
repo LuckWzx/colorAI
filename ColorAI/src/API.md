@@ -721,4 +721,16 @@ GET /api/health
 3. **请求携带**：前端有两条请求通道，均自动注入 `Authorization: Bearer <token>`
    - **认证接口**（`/api/auth/*`）：Axios 实例 `services/api.ts`，请求拦截器从 `localStorage` 读取 token
    - **业务接口**（`/api/chat`、`/api/sessions/*`）：`authFetch`（`lib/authFetch.ts`），直接从 Zustand store 读取 token
-4. **401 处理**：**当前仅 Axios 通道有 401 拦截**（`services/api.ts`）——捕获 401 后清除登录态并跳转登录页。`authFetch` 通道（聊天、会话）**尚未实现 401 自动登出**，token 过期时前端仅提示错误。后端返回 401 时应保持语义一致（`{ success: false, error: "Unauthorized" }`），前端后续会补齐统一处理。
+4. **401 处理**：两条通道行为不同，别混淆。
+   - **Axios 通道**（`services/api.ts`，认证接口）：捕获 401 后清除 `localStorage` 登录态并跳转登录页。
+   - **`authFetch` 通道**（`lib/authFetch.ts`，聊天 / 会话）：捕获 401 后调用 `clearAuth()` 清除本地登录态，
+     并抛出 `AuthRequiredError`；业务层（`Workspace.tsx`）据此弹出**登录引导弹窗**（不跳转），
+     同时回滚那条发不出去的用户消息，避免界面留下一条永远等不到回复的消息。
+
+   注意：`authFetch` **只用于需要登录的接口**（登录 / 注册走 `apiClient`），
+   因此 401 一定是「未登录 / token 失效」，可以安全地统一处理。
+   后端返回 401 时应保持语义一致（`{ success: false, error: "Unauthorized" }`）。
+
+5. **未登录时的交互**：`/workspace` **故意不设路由守卫** —— 允许未登录浏览界面，
+   只在真的要发请求时（点发送 / 点工具坞）才弹登录引导，比一进页面就跳登录页体验好。
+   拦截点统一放在 `Workspace.addUserMessageAndRun`（所有发送路径的唯一汇聚点）。
