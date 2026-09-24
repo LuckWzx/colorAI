@@ -29,6 +29,7 @@ import type { DockItem } from '@/constants/workspace';
 import { fileToDataUrl, welcomeMsg, buildResultFields } from '@/utils/workspace';
 import { useSession } from '@/hooks/useSession';
 import SmartImage from '@/components/SmartImage';
+import ImageLightbox from '@/components/ImageLightbox';
 import type {
   FeatureKey,
   UserMessage,
@@ -67,6 +68,8 @@ export default function Workspace() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [moreToolsOpen, setMoreToolsOpen] = useState(false);
+  /** 图片灯箱：点图片放大，再点一下回到聊天窗（必须挂顶层，见 ImageLightbox 注释） */
+  const [lightbox, setLightbox] = useState<{ src: string; label?: string } | null>(null);
 
   // —— Refs ——
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -169,6 +172,11 @@ export default function Workspace() {
     },
     [navigate, selectedFeature]
   );
+
+  // —— 图片放大：所有图片共用一个灯箱，避免多个实例各自 fixed 导致层级打架 ——
+  const openLightbox = useCallback((src: string, label?: string) => {
+    setLightbox({ src, label });
+  }, []);
 
   // —— 取色入口：把校色结果图交给后端智能体处理 ——
   const goToPick = (imageUrl?: string) => {
@@ -514,6 +522,7 @@ export default function Workspace() {
                 onGoPick={goToPick}
                 onAutoCompare={triggerAutoCompare}
                 onGoShops={goToShops}
+                onZoomImage={openLightbox}
               />
             ))}
           </div>
@@ -779,6 +788,15 @@ export default function Workspace() {
         </div>
       )}
 
+      {/* —— 图片灯箱：点图片放大，再点一下（或 Esc）回到聊天窗 —— */}
+      {lightbox && (
+        <ImageLightbox
+          src={lightbox.src}
+          label={lightbox.label}
+          onClose={() => setLightbox(null)}
+        />
+      )}
+
       {/* Toast */}
       {toast && (
         <div className="fixed top-20 right-4 z-50 animate-fade-in-up">
@@ -824,7 +842,15 @@ function InfoChip({ label, value }: { label: string; value: string }) {
  * 单独抽成组件（而不是内联在 MessageBubble 的分支里）是因为要用 useState 记住
  * 「当前选中第几个候选」—— 在条件分支里调 hook 会违反 Hooks 规则。
  */
-function CorrectCard({ res, footer }: { res: CorrectionResult; footer?: ReactNode }) {
+function CorrectCard({
+  res,
+  footer,
+  onZoomImage,
+}: {
+  res: CorrectionResult;
+  footer?: ReactNode;
+  onZoomImage?: (src: string, label?: string) => void;
+}) {
   const candidates = res.candidates ?? [];
   const [selected, setSelected] = useState(0);
   const active = candidates[selected] ?? candidates[0];
@@ -902,6 +928,7 @@ function CorrectCard({ res, footer }: { res: CorrectionResult; footer?: ReactNod
               alt="原图"
               className="max-w-full max-h-[420px] object-contain w-full h-auto rounded-xl"
               wrapperClassName="border-brand-line bg-brand-paper/60"
+              onZoom={onZoomImage}
             />
           </div>
           <div>
@@ -913,6 +940,15 @@ function CorrectCard({ res, footer }: { res: CorrectionResult; footer?: ReactNod
               alt="校正后"
               className="max-w-full max-h-[420px] object-contain w-full h-auto rounded-xl"
               wrapperClassName="border-brand-teal/40 bg-brand-teal/5"
+              onZoom={
+                onZoomImage
+                  ? (src) =>
+                      onZoomImage(
+                        src,
+                        candidates.length > 1 ? `校正后 · 方案 ${selected + 1}` : '校正后',
+                      )
+                  : undefined
+              }
             />
           </div>
         </div>
@@ -965,12 +1001,15 @@ function MessageBubble({
   onGoPick,
   onAutoCompare,
   onGoShops,
+  onZoomImage,
 }: {
   msg: Message;
   onCopy: (t: string, l?: string) => void;
   onGoPick?: (imageUrl?: string) => void;
   onAutoCompare?: () => void;
   onGoShops?: (hex?: string) => void;
+  /** 点图片放大（灯箱由 Workspace 顶层统一渲染） */
+  onZoomImage?: (src: string, label?: string) => void;
 }) {
   const ResultActions = () => {
     if (msg.role !== 'assistant') return null;
@@ -1027,7 +1066,11 @@ function MessageBubble({
                   key={i}
                   src={src}
                   alt=""
-                  className="max-w-full max-h-[320px] w-auto h-auto object-contain rounded-2xl border border-brand-line shadow-card"
+                  onClick={onZoomImage ? () => onZoomImage(src, '你上传的图片') : undefined}
+                  className={cn(
+                    'max-w-full max-h-[320px] w-auto h-auto object-contain rounded-2xl border border-brand-line shadow-card',
+                    onZoomImage && 'cursor-zoom-in',
+                  )}
                 />
               ))}
             </div>
@@ -1109,7 +1152,13 @@ function MessageBubble({
 
   // —— 图片校色 ——
   if (msg.type === 'correct' && msg.correctResult) {
-    return <CorrectCard res={msg.correctResult} footer={<ResultActions />} />;
+    return (
+      <CorrectCard
+        res={msg.correctResult}
+        footer={<ResultActions />}
+        onZoomImage={onZoomImage}
+      />
+    );
   }
 
   // —— 取色结果（含校色图） ——
@@ -1128,6 +1177,7 @@ function MessageBubble({
             alt="校色图"
             className="w-full max-h-64 object-contain rounded-xl"
             wrapperClassName="border-brand-line mb-4"
+            onZoom={onZoomImage}
           />
           <div className="flex flex-col sm:flex-row gap-4 items-start">
             <div

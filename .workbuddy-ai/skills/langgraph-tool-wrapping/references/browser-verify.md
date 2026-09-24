@@ -170,3 +170,48 @@ cat <<'JS' | agent-browser eval --stdin
 JS
 md5sum /d/tmp/align-A-fixed.png /d/tmp/align-B-old.png   # 必须不同，相同=没截到变化区
 ```
+
+## 做全屏浮层（弹窗 / 灯箱 / 抽屉）时：先查祖先有没有 transform
+
+**症状**：`fixed inset-0` 的浮层不铺满视口 —— 被限制在某个卡片 / 消息行内部，或整体偏移。
+
+**根因**：`position: fixed` 的包含块是**视口**；但只要**任一祖先**带
+`transform` / `filter` / `backdrop-filter` / `will-change` / `contain: paint|layout`，
+包含块就变成**那个祖先**。
+
+本项目最容易踩的是 **`animate-fade-in-up`**（消息卡片根节点几乎都带）：
+
+```js
+// tailwind.config.js
+"fade-in-up": "fadeInUp 0.45s ease-out both"        // ← both = animation-fill-mode: both
+fadeInUp: { "0%": {transform:"translateY(12px)"}, "100%": {transform:"translateY(0)"} }
+```
+
+`both` 让元素在动画结束后**保留** 100% 帧的 `transform: translateY(0)`，
+而 **`translateY(0)` 不等于 `none`** —— 照样创建包含块。
+
+→ 所以浮层**必须**把状态提到页面顶层（`Workspace` 根部）渲染，
+不能塞进消息卡片。同目录的摄像头弹窗 / 登录引导弹窗就是这么做的。
+
+⚠️ 别误判成 `.glass-card`：它是干净的（`bg-brand-surface border shadow-card`，
+**无** `backdrop-filter`）。真正的原因是上面那个动画。
+
+**怎么证**（比肉眼看截图可靠）：
+
+```js
+const dlg = document.querySelector('[role=dialog][aria-modal=true]');
+const r = dlg.getBoundingClientRect();
+({ 铺满视口: Math.abs(r.width-innerWidth) < 2 && Math.abs(r.height-innerHeight) < 2,
+   rect: {w:+r.width.toFixed(1), h:+r.height.toFixed(1), top:+r.top.toFixed(1)},
+   视口: {w:innerWidth, h:innerHeight} })
+```
+
+实测（2026-09-24 图片灯箱）：`rect 1258×566` vs `视口 1258×566` → 铺满。
+若被祖先劫持，会看到 `top/left` 非 0，或尺寸明显小于视口。
+
+**顺带两条**：
+
+- 浮层要锁 body 滚动：`document.body.style.overflow='hidden'`，cleanup 里**还原成原值**
+  （先存 `prev`，别无条件清空）—— 否则会踩掉别的浮层留下的锁。
+- 「点图片本身 = 关闭」这种交互（对齐微信相册）**不要**给 `<img>` 加 `stopPropagation`，
+  让它冒泡到遮罩的 onClick 即可；`cursor: zoom-out` 是给用户的暗示。

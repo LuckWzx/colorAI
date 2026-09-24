@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ImageOff, Loader2 } from 'lucide-react';
+import { ImageOff, Loader2, Maximize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /**
@@ -28,6 +28,12 @@ export interface SmartImageProps {
   wrapperClassName?: string;
   /** 过期占位文案 */
   expiredText?: string;
+  /**
+   * 点击图片时回调（把 src 与 alt 交给父级）。
+   * **本组件不自己渲染灯箱** —— 灯箱必须挂在页面顶层，原因见 `ImageLightbox.tsx` 的注释。
+   * 不传则图片不可点击。
+   */
+  onZoom?: (src: string, label?: string) => void;
 }
 
 export default function SmartImage({
@@ -36,6 +42,7 @@ export default function SmartImage({
   className = '',
   wrapperClassName = '',
   expiredText = '图片已过期',
+  onZoom,
 }: SmartImageProps) {
   const [attempt, setAttempt] = useState(0);
   const [status, setStatus] = useState<Status>('loading');
@@ -64,9 +71,15 @@ export default function SmartImage({
     }
   };
 
+  // 可放大 = 有图 + 没过期 + 父级愿意接管灯箱
+  const zoomSrc = onZoom && src && status !== 'expired' ? src : null;
+  const handleZoom = zoomSrc && onZoom ? () => onZoom(zoomSrc, alt) : undefined;
+
   const shell = cn(
     'relative w-full rounded-xl border flex items-center justify-center overflow-hidden',
     'min-h-[160px]',
+    handleZoom &&
+      'group cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40',
     wrapperClassName,
   );
 
@@ -82,7 +95,23 @@ export default function SmartImage({
   }
 
   return (
-    <div className={shell}>
+    <div
+      className={shell}
+      onClick={handleZoom}
+      onKeyDown={
+        handleZoom
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleZoom();
+              }
+            }
+          : undefined
+      }
+      role={handleZoom ? 'button' : undefined}
+      tabIndex={handleZoom ? 0 : undefined}
+      aria-label={handleZoom ? (alt ? `${alt}，点击放大` : '点击放大') : undefined}
+    >
       <img
         // 换 key 强制 <img> 重新挂载，否则同一个 src 浏览器不会重新请求
         key={attempt}
@@ -95,6 +124,15 @@ export default function SmartImage({
         <div className="absolute flex items-center gap-1.5 text-xs text-brand-muted">
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
           重新加载中
+        </div>
+      )}
+      {/* 放大提示：pointer-events-none 保证不挡住外层点击 */}
+      {handleZoom && (
+        <div className="absolute inset-0 flex items-end justify-end p-2 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity pointer-events-none">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-ink/70 text-white text-[11px] backdrop-blur-sm">
+            <Maximize2 className="w-3 h-3" />
+            点击放大
+          </span>
         </div>
       )}
     </div>
