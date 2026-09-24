@@ -51,7 +51,7 @@ class Settings(BaseSettings):
 
     # 图片校色服务（搭档提供的接口，见 doc/Color_Correction.md）
     # 接口本身较慢（示例 elapsed_time ≈ 9.86s），超时要留足余量。
-    CORRECTION_API_URL: str = "https://api3.ququan.net/quality/api/quality_check"
+    CORRECTION_API_URL: str = "https://api.ququan.net/quality/api/quality_check"
     CORRECTION_TIMEOUT: float = 60.0          # 调用校色接口的超时
     CORRECTION_RETRY: int = 1                 # 校色接口失败重试次数（仅对超时/5xx 重试）
     CORRECTION_DOWNLOAD_TIMEOUT: float = 30.0 # 下载 image_url 的超时

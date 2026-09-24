@@ -41,6 +41,10 @@ export default defineConfig({
     }),
   ],
   server: {
+    // 默认只监听 localhost（实际绑到 IPv6 ::1），手机/局域网访问不到 —— 实测
+    // curl http://<局域网IP>:5173 返回 000，而 localhost:5173 正常 200。
+    // 0.0.0.0 = 监听所有网卡；本机仍可用 localhost:5173，不影响原有开发。
+    host: '0.0.0.0',
     proxy: {
       '/api': {
         target: 'http://localhost:3001',
