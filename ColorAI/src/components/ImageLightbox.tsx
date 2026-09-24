@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { X } from 'lucide-react';
+import { useImageZoomStore } from '@/store/imageZoomStore';
 
 /**
  * 全屏图片灯箱（点击图片放大预览）。
@@ -73,4 +74,18 @@ export default function ImageLightbox({ src, label, onClose }: ImageLightboxProp
       )}
     </div>
   );
+}
+
+/**
+ * 全局灯箱宿主 —— 挂在 `App` 根部**只渲染一次**，自动响应 `useImageZoom()`。
+ *
+ * 业务组件**不需要**手动渲染灯箱，只要调 `useImageZoom()`（或直接用 `SmartImage`）。
+ * 新功能（图片对比、取色…）接入时零改动即可获得放大能力。
+ */
+export function ImageLightboxHost() {
+  const target = useImageZoomStore((s) => s.target);
+  const close = useImageZoomStore((s) => s.close);
+
+  if (!target) return null;
+  return <ImageLightbox src={target.src} label={target.label} onClose={close} />;
 }

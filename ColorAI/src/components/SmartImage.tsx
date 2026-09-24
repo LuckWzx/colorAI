@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ImageOff, Loader2, Maximize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useImageZoom } from '@/store/imageZoomStore';
 
 /**
  * 带「过期兜底」的图片组件。
@@ -29,9 +30,14 @@ export interface SmartImageProps {
   /** 过期占位文案 */
   expiredText?: string;
   /**
-   * 点击图片时回调（把 src 与 alt 交给父级）。
-   * **本组件不自己渲染灯箱** —— 灯箱必须挂在页面顶层，原因见 `ImageLightbox.tsx` 的注释。
-   * 不传则图片不可点击。
+   * 是否可点击放大。**默认开启** —— 全站图片统一具备放大能力，
+   * 新功能（图片对比、取色…）只要用 `SmartImage` 就自动获得，无需任何额外接线。
+   * 纯装饰性缩略图可以传 `false` 关掉。
+   */
+  zoomable?: boolean;
+  /**
+   * 自定义放大行为，**覆盖**默认的全局灯箱（一般不用传）。
+   * 传了就完全走这个回调，不再写全局 store。
    */
   onZoom?: (src: string, label?: string) => void;
 }
@@ -42,6 +48,7 @@ export default function SmartImage({
   className = '',
   wrapperClassName = '',
   expiredText = '图片已过期',
+  zoomable = true,
   onZoom,
 }: SmartImageProps) {
   const [attempt, setAttempt] = useState(0);
@@ -71,9 +78,11 @@ export default function SmartImage({
     }
   };
 
-  // 可放大 = 有图 + 没过期 + 父级愿意接管灯箱
-  const zoomSrc = onZoom && src && status !== 'expired' ? src : null;
-  const handleZoom = zoomSrc && onZoom ? () => onZoom(zoomSrc, alt) : undefined;
+  // 可放大 = 有图 + 没过期 + 没被关掉。默认走全局灯箱，`onZoom` 可覆盖。
+  const zoomGlobal = useImageZoom();
+  const zoomSrc = src && status !== 'expired' ? src : null;
+  const handleZoom =
+    zoomable && zoomSrc ? () => (onZoom ?? zoomGlobal)(zoomSrc, alt) : undefined;
 
   const shell = cn(
     'relative w-full rounded-xl border flex items-center justify-center overflow-hidden',

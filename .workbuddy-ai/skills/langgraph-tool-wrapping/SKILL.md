@@ -151,6 +151,14 @@ content = content + "\n\n[用户上传的图片 URL]\n" + "\n".join(f"- {u}" for
 URL 会过期，它统一做「onError → 重试一次 → 仍失败显示已过期占位」，
 并用 `min-h` 预留布局防止消息列表跳动。
 
+**它默认就支持点击放大**（2026-09-24 起）—— 灯箱是全局单例，宿主挂在 `App` 根部，
+所以**新卡片只要用 `SmartImage` 就自动获得放大能力，零接线**：
+`<SmartImage src={url} alt="对比图 A" />` 就够了（`alt` 会同时作为灯箱底部标签）。
+不想让某张图可点就传 `zoomable={false}`。
+非 `SmartImage` 的裸 `<img>` 想接入，用 `const zoom = useImageZoom()`（`store/imageZoomStore.ts`）——
+**不要再往卡片里传 `onZoom` 回调**，那会退化成逐层 prop drilling。
+浮层宿主的定位约束见 `references/browser-verify.md`「做全屏浮层时先查祖先有没有 transform」。
+
 **顺手加的兜底**：`MessageBubble` 最后不要 `return null`，改成「有文案就退化成文本气泡」。
 否则 metadata 结构对不上的历史消息会渲染成完全空白，很难排查。
 
