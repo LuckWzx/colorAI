@@ -57,6 +57,7 @@
 | 数据库 | MySQL 8.0（GORM） |
 | 缓存 | Redis 6+（go-redis v9） |
 | 认证 | Redis Token 存储 |
+| 对象存储 | 阿里云 OSS（可选，替代本地磁盘） |
 | **AI 智能体** | |
 | 框架 | LangGraph + FastAPI |
 | LLM | DeepSeek API（`deepseek-flash`） |
@@ -91,6 +92,11 @@
 - PostgreSQL 且已安装 **pgvector** 扩展（本项目实测于 PostgreSQL 17.9 + pgvector 0.8.1）
   —— **仅知识库问答需要**。不配也能正常启动，只是两个知识工具会返回「知识库功能未启用」，
   其余功能（对话、校色）不受影响。
+- （可选）阿里云 OSS bucket —— **仅当 `STORAGE_DRIVER=oss` 时需要**，且 bucket 必须
+  **允许匿名 `GetObject`**（public-read ACL 或 bucket policy 都行；后者更细粒度 ——
+  只开 GetObject、不开 ListObjects，别人无法枚举文件列表）。
+  原因：Python 侧的校色工具要 `httpx.get(image_url)` 下载图片，私有 bucket 会 403。
+  默认 `local` 驱动写本地磁盘，不需要任何云服务。
 
 ### 安装依赖
 
@@ -136,12 +142,21 @@ DB_AUTO_MIGRATE=true
 REDIS_ADDR=127.0.0.1:6379
 REDIS_PASS=your_redis_password
 
-# 图片存储（本地磁盘驱动）
+# 图片存储：local（本地磁盘，默认）| oss（阿里云 OSS，bucket 公共读）
 STORAGE_DRIVER=local
 UPLOADS_DIR=uploads
-# 图片对外访问 URL 前缀。切阿里云 OSS 时只改这一个值
+# 图片对外访问 URL 前缀。**两种驱动语义不同，切驱动必须同步改**：
+#   local → 站点基地址，实际 URL = 它 + /uploads/ + key
+#   oss   → bucket 公网域名，实际 URL = 它 + / + key
 PUBLIC_BASE_URL=http://localhost:3001
 MAX_UPLOAD_BYTES=10485760
+
+# 切 OSS 时填这四项（STORAGE_DRIVER=oss 时必填）
+# OSS_ENDPOINT 在「ECS 与 bucket 同 region」时用内网域名，免公网流量费；本地开发用公网域名
+# OSS_BUCKET=your-bucket
+# OSS_ENDPOINT=oss-cn-hangzhou-internal.aliyuncs.com
+# OSS_ACCESS_KEY_ID=your_access_key_id
+# OSS_ACCESS_KEY_SECRET=your_access_key_secret
 
 # 允许的前端来源（逗号分隔，可选）。不设时默认 localhost:5173 / localhost:3001；
 # 一旦设置就会覆盖默认值，所以要连同默认两项一起写。
@@ -152,6 +167,9 @@ MAX_UPLOAD_BYTES=10485760
 > **LLM / 校色 / 知识库的密钥都不在 Go 侧。** Go 只做代理转发，实际调用方是 Python 智能体，
 > 因此 DeepSeek Key 配在 `go-backend/agent/.env` 的 `DEEPSEEK_API_KEY`，校色服务地址配在
 > `CORRECTION_API_URL`；知识库还需要 `EMBEDDING_API_KEY`（硅基流动）与 `PG_*` 连接信息。
+>
+> 例外：**图片存储的凭据在 Go 侧**（`OSS_ACCESS_KEY_ID` / `OSS_ACCESS_KEY_SECRET`）——
+> 因为解码落盘/上传是 Go 干的，Python 只拿到一个现成的图片 URL。
 
 ```bash
 cd go-backend/agent
@@ -251,10 +269,11 @@ colorAI/
     │   ├── chat_controller.go      # AI 对话代理
     │   ├── session_controller.go   # 会话管理
     │   └── user_controller.go      # 用户信息
+    ├── pkg/                 # 与业务无关的公共组件（刻意不依赖本项目其他包）
+    │   └── storage/                # 文件存储抽象：local / oss 双驱动
     ├── service/             # 业务逻辑层
     │   ├── auth_service.go         # 认证逻辑
-    │   ├── chat_service.go         # AI 对话代理
-    │   ├── storage.go              # 图片存储抽象（local / 预留 OSS）
+    │   ├── chat_service.go         # AI 对话代理（图片经 pkg/storage 落存储）
     │   └── session_service.go      # 会话管理
     ├── repository/          # 数据访问层
     │   ├── user_repo.go            # 用户数据

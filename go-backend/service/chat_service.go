@@ -5,6 +5,7 @@ import (
 	"colorai-backend/model/entity"
 	"colorai-backend/model/request"
 	"colorai-backend/model/response"
+	"colorai-backend/pkg/storage"
 	"colorai-backend/repository"
 	"crypto/rand"
 	"encoding/json"
@@ -20,23 +21,28 @@ type ChatService interface {
 	Chat(userID, sessionID, messageID string, messages []request.ChatMessage, model string) (*response.ChatResponse, error)
 }
 
+// chatImagePrefix 聊天图片在存储中的目录前缀。
+// 前缀由调用方给 —— pkg/storage 刻意不知道业务目录结构。
+const chatImagePrefix = "chat"
+
 type chatService struct {
 	sessionRepo repository.SessionRepository
-	storage     Storage
+	// 字段名用 store 而非 storage，避免遮蔽 storage 包名
+	store storage.Storage
 	// agentURL Python 智能体基地址，来自 config.AgentURL（勿硬编码，见 MEMORY 里的部署地雷）
 	agentURL string
 }
 
 // NewChatService 创建 ChatService 实例
-func NewChatService(sessionRepo repository.SessionRepository, storage Storage, agentURL string) ChatService {
-	return &chatService{sessionRepo: sessionRepo, storage: storage, agentURL: agentURL}
+func NewChatService(sessionRepo repository.SessionRepository, store storage.Storage, agentURL string) ChatService {
+	return &chatService{sessionRepo: sessionRepo, store: store, agentURL: agentURL}
 }
 
-// resolveImages 把 messages 里的图片 dataURL 落盘并换成完整 URL。
+// resolveImages 把 messages 里的图片 dataURL 存进存储并换成完整 URL。
 //
 // 这是「图片永不进入 Agent / tool / LLM」这条约定的落地点：
 // 前端传的是 base64 dataURL，在转发给 Agent 之前统一换成 URL。
-// 已经是 URL 的原样保留（幂等），落盘失败直接返回错误而不是静默降级 ——
+// 已经是 URL 的原样保留（幂等），存储失败直接返回错误而不是静默降级 ——
 // 否则 tool 拿不到图片，用户会看到一个莫名其妙的校色失败。
 func (s *chatService) resolveImages(messages []request.ChatMessage) ([]request.ChatMessage, error) {
 	resolved := make([]request.ChatMessage, len(messages))
@@ -48,7 +54,7 @@ func (s *chatService) resolveImages(messages []request.ChatMessage) ([]request.C
 		}
 		urls := make([]string, len(resolved[i].Images))
 		for j, raw := range resolved[i].Images {
-			url, err := s.storage.SaveDataURL(raw)
+			url, err := s.store.PutDataURL(chatImagePrefix, raw)
 			if err != nil {
 				return nil, fmt.Errorf("第 %d 条消息的第 %d 张图片保存失败: %w", i+1, j+1, err)
 			}

@@ -8,6 +8,7 @@ import (
 	"colorai-backend/controller"
 	"colorai-backend/database"
 	"colorai-backend/model/entity"
+	"colorai-backend/pkg/storage"
 	"colorai-backend/repository"
 	"colorai-backend/service"
 
@@ -63,9 +64,26 @@ func NewApp(cfg *config.Config) *App {
 	sessionRepo := repository.NewSessionRepository(db)
 
 	// Services
-	storage := service.NewStorage(cfg.Storage)
+	// 组装层负责把 config.StorageConfig 适配成 pkg/storage 自己的 Config ——
+	// 这样 pkg/storage 不必 import colorai-backend/config，才能独立复用。
+	store, err := storage.New(storage.Config{
+		Driver:             storage.Driver(cfg.Storage.Driver),
+		LocalDir:           cfg.Storage.LocalDir,
+		PublicBaseURL:      cfg.Storage.PublicBaseURL,
+		MaxUploadBytes:     cfg.Storage.MaxUploadBytes,
+		OSSBucket:          cfg.Storage.OSSBucket,
+		OSSEndpoint:        cfg.Storage.OSSEndpoint,
+		OSSAccessKeyID:     cfg.Storage.OSSAccessKeyID,
+		OSSAccessKeySecret: cfg.Storage.OSSAccessKeySecret,
+	})
+	if err != nil {
+		// 配置缺失 / 驱动名非法就启动失败 —— 避免「服务起来了但每个文件都存不进去」
+		// 这种报错点散落在 chat 链路里的状态。注意 bucket 名、AK 权限不在此列，
+		// 那类错误要等首次上传才暴露。
+		log.Fatalf("初始化文件存储失败: %v", err)
+	}
 	authSvc := service.NewAuthService(userRepo, rdb)
-	chatSvc := service.NewChatService(sessionRepo, storage, cfg.AgentURL)
+	chatSvc := service.NewChatService(sessionRepo, store, cfg.AgentURL)
 	sessionSvc := service.NewSessionService(sessionRepo)
 
 	// Controllers
@@ -74,8 +92,12 @@ func NewApp(cfg *config.Config) *App {
 	sessionCtrl := controller.NewSessionController(sessionSvc)
 	userCtrl := controller.NewUserController()
 
-	if err := os.MkdirAll(cfg.Storage.LocalDir, 0755); err != nil {
-		log.Printf("警告: 创建图片存储目录 %s 失败: %v", cfg.Storage.LocalDir, err)
+	// 只有 local 驱动需要落盘目录。oss 驱动不写本地盘，但 router.go 的 /uploads
+	// 静态路由仍然保留 —— 用于兼容「切到 OSS 之前」已落库的历史图片 URL。
+	if storage.Driver(cfg.Storage.Driver) != storage.DriverOSS {
+		if err := os.MkdirAll(cfg.Storage.LocalDir, 0755); err != nil {
+			log.Printf("警告: 创建图片存储目录 %s 失败: %v", cfg.Storage.LocalDir, err)
+		}
 	}
 
 	log.Println("所有组件初始化完成")

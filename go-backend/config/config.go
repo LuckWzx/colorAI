@@ -20,22 +20,36 @@ type Config struct {
 
 // StorageConfig 文件存储配置
 //
-// 目前只有 local 驱动（存本地磁盘）。后期接入阿里云 OSS 时：
-//  1. 在 service 包新增一个 Storage 实现
-//  2. 这里加 OSS 相关字段（Bucket / Endpoint / AccessKey…）
-//  3. PUBLIC_BASE_URL 改成 bucket 域名
-//
-// 调用方（chat_service）不需要任何改动。
+// 两个驱动：local（本地磁盘 + Gin 静态路由）与 oss（阿里云 OSS，bucket 公共读）。
+// 调用方（chat_service.resolveImages）只依赖 Storage 接口，切换驱动不改调用方。
 type StorageConfig struct {
-	// Driver 存储驱动：local（默认）
+	// Driver 存储驱动：local（默认）| oss
 	Driver string
-	// LocalDir 本地存储根目录，同时也是静态路由 /uploads 的映射目录
+	// LocalDir 本地存储根目录，同时也是静态路由 /uploads 的映射目录。
+	// Driver=oss 时不再写入，但路由仍保留以兼容切换前的历史图片 URL。
 	LocalDir string
-	// PublicBaseURL 访问 URL 的前缀。**切 OSS 时只改这一个值**
+	// PublicBaseURL 图片对外访问的 URL 前缀。**两种驱动语义不同，切驱动必须同步改**：
+	//   local → 站点基地址，最终 URL = PublicBaseURL + "/uploads/" + key
+	//   oss   → bucket 的公网域名，最终 URL = PublicBaseURL + "/" + key
+	// 典型值：http://localhost:3001（local）
+	//         https://your-bucket.oss-cn-hangzhou.aliyuncs.com（oss）
 	PublicBaseURL string
 	// MaxUploadBytes 单张图片大小上限（字节）。base64 会膨胀约 1/3，
 	// 请求体是 JSON，不设上限容易被一张巨图打爆内存。
 	MaxUploadBytes int64
+
+	// —— 以下四项仅在 Driver=oss 时生效 ——
+
+	// OSSBucket bucket 名称
+	OSSBucket string
+	// OSSEndpoint 上传用的 endpoint。与对外访问域名是两回事：
+	// ECS 与 bucket 同 region 时填**内网**域名（oss-cn-xxx-internal.aliyuncs.com），
+	// 免公网流量费且延迟更低；本地开发必须填公网域名，否则连不通。
+	OSSEndpoint string
+	// OSSAccessKeyID / OSSAccessKeySecret 建议用 RAM 子账号，只授予该 bucket 的写权限，
+	// 不要用主账号 AK（主账号 AK 一旦泄露等于整个账号失守）。
+	OSSAccessKeyID     string
+	OSSAccessKeySecret string
 }
 
 // DatabaseConfig 数据库配置
@@ -88,6 +102,11 @@ func Load() *Config {
 			LocalDir:       getEnv("UPLOADS_DIR", "uploads"),
 			PublicBaseURL:  strings.TrimRight(getEnv("PUBLIC_BASE_URL", "http://localhost:3001"), "/"),
 			MaxUploadBytes: getEnvInt64("MAX_UPLOAD_BYTES", 10*1024*1024), // 10MB
+
+			OSSBucket:          getEnv("OSS_BUCKET", ""),
+			OSSEndpoint:        getEnv("OSS_ENDPOINT", ""),
+			OSSAccessKeyID:     getEnv("OSS_ACCESS_KEY_ID", ""),
+			OSSAccessKeySecret: getEnv("OSS_ACCESS_KEY_SECRET", ""),
 		},
 	}
 
