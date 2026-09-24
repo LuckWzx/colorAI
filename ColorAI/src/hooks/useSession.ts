@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { sessionService } from '@/services/sessionService';
+import { useAuthStore } from '@/store/authStore';
 import type { ChatSessionDTO } from '@/services/sessionService';
 import type { ChatMessage } from '@/services/chatService';
 import type { AssistantMessage, Message } from '@/types';
@@ -23,12 +24,16 @@ export function useSession({ startNew = false }: UseSessionOptions = {}) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>(() => [welcomeMsg()]);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   /** 并发切换序号：只采纳最后一次加载结果 */
   const openSeq = useRef(0);
 
   // ——— 初始化：拉取列表，默认显示新会话欢迎页 ———
+  // 未登录不发请求：该接口需要鉴权，发了只会拿到 401（虽被静默吞掉，但没必要）。
+  // 登录后 isAuthenticated 变化会自动重跑，把历史会话拉回来。
   useEffect(() => {
+    if (!isAuthenticated) return;
     let alive = true;
     void (async () => {
       try {
@@ -45,7 +50,7 @@ export function useSession({ startNew = false }: UseSessionOptions = {}) {
       }
     })();
     return () => { alive = false; };
-  }, [startNew]);
+  }, [startNew, isAuthenticated]);
 
   // ——— 操作方法 ———
 

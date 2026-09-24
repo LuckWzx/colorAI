@@ -17,6 +17,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { AuthRequiredError } from '@/lib/authFetch';
 import { cn } from '@/lib/utils';
 import { chatService } from '@/services/chatService';
 import { useAppStore } from '@/store/appStore';
@@ -61,6 +62,8 @@ export default function Workspace() {
   const [pendingImages, setPendingImages] = useState<File[]>([]);
   const [pendingPreview, setPendingPreview] = useState<string[]>([]);
   const [toast, setToast] = useState<string | null>(null);
+  /** 未登录时点发送 → 弹登录引导（而不是等后端 401 再报「服务不可用」） */
+  const [loginPromptOpen, setLoginPromptOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [moreToolsOpen, setMoreToolsOpen] = useState(false);
@@ -202,6 +205,13 @@ export default function Workspace() {
     msg: Omit<UserMessage, 'id' | 'createdAt' | 'role'>,
     imageDataUrls?: string[]
   ) => {
+    // 未登录直接拦在入口：不发请求，也不产生「看着发出去了、其实没保存」的脏消息。
+    // 这里是所有发送路径（输入框、工具坞、取色入口）的唯一汇聚点。
+    if (!isAuthenticated) {
+      setLoginPromptOpen(true);
+      return;
+    }
+
     const userMsg: UserMessage = {
       id: uid(), role: 'user', createdAt: Date.now(), ...msg,
     };
@@ -269,7 +279,15 @@ export default function Workspace() {
             : m
         )
       );
-    } catch {
+    } catch (err) {
+      // token 中途失效（Redis 里 7 天过期 / 被踢下线）：authFetch 已清掉本地登录态。
+      // 这条消息发不出去，必须撤掉 —— 否则界面会留下一条永远等不到回复的用户消息。
+      if (err instanceof AuthRequiredError) {
+        setMessages((prev) => prev.filter((m) => m.id !== userMsg.id && m.id !== loadingId));
+        setChatHistory((prev) => (prev.length ? prev.slice(0, -1) : prev));
+        setLoginPromptOpen(true);
+        return;
+      }
       setMessages((prev) =>
         prev.map((m) =>
           m.id === loadingId
@@ -342,6 +360,11 @@ export default function Workspace() {
 
   // —— 发送消息 ——
   const handleSend = () => {
+    // 未登录优先提示：否则用户会先填完色值、传完图片，才在最后一步被告知要登录
+    if (!isAuthenticated) {
+      setLoginPromptOpen(true);
+      return;
+    }
     if (selectedFeature === 'convert') {
       const text = input.trim();
       if (!text) {
@@ -709,6 +732,47 @@ export default function Workspace() {
               <button onClick={takePhoto} className="btn-primary !px-10">
                 <Camera className="w-5 h-5" />
                 拍照
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* —— 未登录引导：点发送时直接弹，而不是等后端 401 再报「服务不可用」 —— */}
+      {loginPromptOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in-up"
+          onClick={() => setLoginPromptOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-brand-surface border border-brand-line rounded-2xl shadow-lift p-6 text-center"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="login-prompt-title"
+          >
+            <div className="mx-auto w-11 h-11 rounded-2xl bg-brand-primary/10 border border-brand-primary/25 flex items-center justify-center">
+              <User className="w-5 h-5 text-brand-primary" />
+            </div>
+            <h2 id="login-prompt-title" className="mt-3 text-base font-semibold text-brand-ink">
+              登录后才能对话
+            </h2>
+            <p className="mt-1.5 text-sm text-brand-muted leading-relaxed">
+              曲泉AI 的对话和图片处理需要账号来保存会话记录，用手机号注册只要几秒钟。
+            </p>
+
+            <div className="mt-5 flex items-center gap-2">
+              <button
+                onClick={() => { setLoginPromptOpen(false); navigate('/login'); }}
+                className="flex-1 h-10 rounded-xl bg-brand-primary text-white text-sm font-medium hover:opacity-90 transition-opacity"
+              >
+                去登录
+              </button>
+              <button
+                onClick={() => setLoginPromptOpen(false)}
+                className="flex-1 h-10 rounded-xl text-sm text-brand-muted border border-brand-line hover:text-brand-ink hover:bg-brand-paper transition-colors"
+              >
+                稍后再说
               </button>
             </div>
           </div>

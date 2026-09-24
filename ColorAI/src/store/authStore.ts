@@ -28,6 +28,8 @@ interface AuthState {
     password: string
   ) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
+  /** 仅清空本地登录态，不发后端请求（token 已失效时用） */
+  clearAuth: () => void;
   updateProfile: (patch: Partial<Pick<User, 'username' | 'avatar'>>) => void;
 }
 
@@ -121,6 +123,10 @@ export const useAuthStore = create<AuthState>()(
         } catch { /* ignore */ }
         set({ user: null, token: null, isAuthenticated: false });
       },
+
+      /** 清空本地登录态，不发后端请求。
+       *  用于 authFetch 收到 401 时兜底 —— token 已经失效，再调 logout 也只会再失败一次。 */
+      clearAuth: () => set({ user: null, token: null, isAuthenticated: false }),
 
       updateProfile: (patch) => {
         set((state) => {
