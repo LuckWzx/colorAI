@@ -47,6 +47,9 @@ logs/
 # === 工具测试产物 ===
 go-backend/tool-test-output/
 
+# === 部署脚本的 SSH 密码（绝不能进版本库）===
+.sshpass
+
 # === Qoder ===
 .qoder/
 
