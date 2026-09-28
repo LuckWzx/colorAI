@@ -26,7 +26,7 @@
    - 默认使用Mock实现，便于开发和测试
 
 3. **API对接**：
-   - 接口地址：`https://api3.ququan.net/quality/api/quality_check`
+   - 接口地址：`https://api.ququan.net/quality/api/quality_check`
    - 请求方式：POST（multipart/form-data）
    - 支持成功和失败响应处理
 
@@ -38,7 +38,7 @@
 **配置说明**：
 ```bash
 # .env 文件中添加
-COLOR_CORRECTION_API_URL=https://api3.ququan.net/quality/api/quality_check
+COLOR_CORRECTION_API_URL=https://api.ququan.net/quality/api/quality_check
 ```
 
 **技术细节**：
@@ -1144,7 +1144,7 @@ def color_calibration(image_path: str) -> dict:
         dict: 校正结果，包含原图URL、校正图URL、距离值等
     """
     # 调用校色API
-    api_url = "https://api3.ququan.net/quality/api/quality_check"
+    api_url = "https://api.ququan.net/quality/api/quality_check"
     
     # 准备文件上传
     with open(image_path, "rb") as f:

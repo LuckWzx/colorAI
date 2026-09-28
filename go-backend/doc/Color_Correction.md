@@ -4,7 +4,7 @@
 
 | 项目 | 说明 |
 |------|------|
-| 路径 | `https://api3.ququan.net/quality/api/quality_check` |
+| 路径 | `https://api.ququan.net/quality/api/quality_check` |
 | 方法 | `POST` |
 | Content-Type | `multipart/form-data` |
 

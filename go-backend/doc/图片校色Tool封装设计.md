@@ -11,7 +11,7 @@
 
 | 项目 | 值 |
 |------|-----|
-| 路径 | `POST https://api3.ququan.net/quality/api/quality_check` |
+| 路径 | `POST https://api.ququan.net/quality/api/quality_check` |
 | Content-Type | `multipart/form-data` |
 | 请求参数 | `image`：file（待校正图片） |
 
@@ -206,7 +206,7 @@ tool 内部直接 `httpx.get(image_url)` 拿到字节，再 multipart 转发给�
 
 ```python
 # 图片校色服务（搭档提供的接口，见 doc/Color_Correction.md）
-CORRECTION_API_URL: str = "https://api3.ququan.net/quality/api/quality_check"
+CORRECTION_API_URL: str = "https://api.ququan.net/quality/api/quality_check"
 CORRECTION_TIMEOUT: float = 60.0          # 调用校色接口的超时
 CORRECTION_RETRY: int = 1                 # 失败重试次数（仅对超时/5xx 重试）
 CORRECTION_DOWNLOAD_TIMEOUT: float = 30.0 # 下载 image_url 的超时
@@ -350,7 +350,7 @@ def image_correction(image_url: str) -> dict:
 
 ```bash
 cd go-backend/agent
-.venv/Scripts/python.exe scripts/test_image_correction.py            # 默认用 ColorAI/public/uploads/testimage.jpg
+.venv/Scripts/python.exe scripts/test_image_correction.py            # 默认用 go-backend/testdata/testimage.jpg
 .venv/Scripts/python.exe scripts/test_image_correction.py <图片路径>
 ```
 
@@ -450,7 +450,7 @@ Python Agent
  ▼
 image_correction
  │  ⑤ httpx.get(image_url) → 拿到图片字节
- │  ⑥ multipart 上传到 api3.ququan.net
+ │  ⑥ multipart 上传到 api.ququan.net
  │  ⑦ 归一化响应 → dict
  ▼
 Agent
@@ -665,7 +665,7 @@ curl -X POST http://localhost:8000/api/chat -H 'Content-Type: application/json' 
 6. **图片限制**：支持格式（JPEG/PNG/WebP？）、最大体积、最大分辨率。
 7. **`elapsed_time` 单位确认**是秒（9.86 看着像秒）。
 8. **是否有并发 / QPS 限制？** 影响是否需要加限流。
-9. **网络可达性**：`api3.ququan.net` 是否需要内网 / VPN 才能访问？本地 demo 能不能直连？
+9. **网络可达性**：`api.ququan.net` 是否需要内网 / VPN 才能访问？本地 demo 能不能直连？
 
 ---
 
