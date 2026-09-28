@@ -24,7 +24,7 @@ sys.path.insert(0, str(AGENT_ROOT))
 
 from app.tools.color_tools import image_correction  # noqa: E402
 
-DEFAULT_IMAGE = AGENT_ROOT.parent.parent / "ColorAI" / "public" / "uploads" / "testimage.jpg"
+DEFAULT_IMAGE = AGENT_ROOT.parent / "testdata" / "testimage.jpg"
 OUTPUT_DIR = AGENT_ROOT.parent / "tool-test-output"  # go-backend/tool-test-output（已在 .gitignore）
 
 

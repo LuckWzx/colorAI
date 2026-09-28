@@ -24,7 +24,7 @@ from urllib.request import Request, urlopen
 
 BACKEND = "http://localhost:3001"
 ROOT = Path(__file__).resolve().parent.parent          # go-backend/
-IMAGE = ROOT.parent / "ColorAI" / "public" / "uploads" / "testimage.jpg"
+IMAGE = ROOT / "testdata" / "testimage.jpg"
 UPLOADS_DIR = ROOT / "uploads"
 
 PHONE = "13800138000"
