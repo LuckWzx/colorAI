@@ -224,11 +224,296 @@ cd go-backend/agent
 为什么不建 HNSW 索引、为什么色值查询不走向量）见
 [RAG知识库设计.md](go-backend/agent/doc/RAG知识库设计.md)。
 
+## 部署
+
+> 📋 **照着做用 [`deploy/部署清单.md`](deploy/部署清单.md)** —— 10 步操作单，每步带「预期输出」与
+> 「不对时查什么」，末尾附排障速查表。**本章讲为什么这么设计**，不重复操作步骤。
+
+**后端两层用 Docker 编排，前端不打包成镜像** —— 静态产物由**一个独立的 Nginx 容器**托管。
+
+> 为什么前端不打包成镜像：前端产物就是一堆静态文件，没有构建期逻辑，
+> 打镜像只是多一层要维护的东西。
+>
+> 为什么**另起一个 nginx 容器**而不是塞进已有的那个：用户只有一个域名
+> `wzx.glaty.cn`，已被 blog 占用 80，而 **blog 前端也调 `/api`** → 共用 80 必然抢
+> `location /api/`。给 colorAI 单开 **8080**（换 `listen` 端口 = 换 server 块 = `/api`
+> 天然隔离，**前端代码零改动**）。加端口必须重建容器，于是：
+>
+> - ❌ 重建 blog 的容器 → blog 断 2~3 秒，且以后每次改 colorAI 的 nginx 都要再冒一次风险
+> - ✅ **新建独立 `colorai-nginx`** → blog **零停机**，conf 与内容目录全独立、
+>   内容**只读**挂载，以后改 colorAI 的 nginx 完全不影响 blog，回滚一行命令
+> - 代价：多一个 nginx 进程（实测 ~6MB）
+
+```
+浏览器 → colorai-nginx(:8080) ─┬→ /       → /root/nginx/blog/colorai  (dist，只读挂载)
+   (独立容器，不碰 blog)         └→ /api/   → go-backend:3001    (走 colorai-net，按服务名直连)
+                                                    ↓ colorai-net
+                                              agent 容器(:8000，不对外暴露)
+                                                    ↓
+                          PostgreSQL+pgvector / DeepSeek / 硅基流动 / 校色接口
+                             ↑ host.docker.internal（见下）
+
+              Go 容器 ──直传──→ 阿里云 OSS ──图片 URL──→ agent 容器下载
+              Go 容器 ──→ MySQL（在另一台机器） / Redis（本机容器）
+
+   同时并存：blog 自己的 nginx-container(:80) → /root/nginx/blog/{front,admin}   ← 完全没动过
+```
+
+> ⚠️ **Redis 与 PostgreSQL 跑在同一台服务器的 Docker 容器里**（`WeKnora-redis` /
+> `WeKnora-postgres`），只把端口发布到宿主机。**容器里不能用公网 IP 连它们** ——
+> 2026-09-24 实测 `118.31.10.161:5432` 从容器内是 FAIL（宿主机不给自己做 hairpin NAT），
+> 而 `host.docker.internal:5432` 是 OK。所以 `docker-compose.yml` 里给两个服务都加了
+> `extra_hosts: ["host.docker.internal:host-gateway"]`，并用 `environment:` 覆盖
+> `REDIS_ADDR` / `PG_HOST`。**MySQL 在 39.106.186.3，是另一台机器，公网可达，不用改。**
+
+> **Nginx 与后端容器共用 `colorai-net` 网络，按服务名直连** —— 3001 端口不需要对外暴露，
+> 也不走宿主机端口转发（容器里的 `127.0.0.1` 指的是容器自己，写它是连不上的）。
+
+### 部署文件
+
+| 文件 | 作用 |
+|------|------|
+| **`deploy/部署清单.md`** | **照着做的操作单**：10 步 + 排障速查表 + 设计决策速查 |
+| **`deploy/upload_backend.py`** | **一键上传后端**：打包 → 连服务器 → 上传 → 解包 → 核对（约 647KB） |
+| **`deploy/upload_dist.py`** | **一键上传前端 dist**：带路径硬校验，防 `--delete` 误删 blog 目录 |
+| **`deploy/nginx_up.py`** | **colorAI 独立 nginx 容器的生命周期**：`--apply` / `--down` / `--reload` / `--verify` / `--blog-rebuild` |
+| **`deploy/pack_offline.py`** | **本地打包 → 服务器离线构建**：交叉编译 Go + 预下 linux wheel → 上传（详见下） |
+| **`deploy/backend_up.py`** | **在服务器上构建 + 启动后端**（走「后台执行 + 轮询」，规避 `docker build` 卡死） |
+| `deploy/ssh_util.py` | 公共 SSH 基建（`run_detached` 等），给上面几个脚本共用 |
+| `deploy/ssh_run.py` | **临时在服务器跑一段 shell** 的通用工具（`--file` 传脚本，避开引号地狱） |
+| `docker-compose.yml` | 只编排 `go-backend` + `agent`，并创建网络 `colorai-net` |
+| `docker-compose.offline.yml` | **离线构建覆盖层**，只覆盖两个服务的 `build`（必须与上面叠加使用） |
+| `go-backend/Dockerfile` + `.dockerignore` | Go 多阶段构建：静态链接，运行阶段只有 alpine + 单个二进制 |
+| `go-backend/Dockerfile.offline` | **无构建阶段**，直接 `COPY` 本机交叉编译好的静态二进制 |
+| `go-backend/agent/Dockerfile` | 已有，本次只改了启动命令 |
+| `go-backend/agent/Dockerfile.offline` | **不装 gcc、不连 PyPI**，从 `wheels/` 离线安装 |
+| `deploy/nginx/colorai.conf` | **colorai-nginx 容器**的站点配置（挂到它的 `/etc/nginx/conf.d/`） |
+
+> ⚠️ `go-backend/agent/docker-compose.yml` 是 agent **单独调试**用的，与顶层编排
+> `container_name` 同名，**不要同时启动**。
+
+### 部署步骤
+
+**1) 上传后端**
+
+```bash
+cd /d/GoLang/colorAI
+# 先 dry-run 看要传什么（不连服务器）
+"C:/Users/魏正想/.workbuddy-ai/binaries/python/envs/default/Scripts/python.exe" deploy/upload_backend.py --dry-run
+# 真上传（实测 92 个文件 / 647KB，压缩后 262KB）
+"C:/Users/魏正想/.workbuddy-ai/binaries/python/envs/default/Scripts/python.exe" deploy/upload_backend.py
+```
+
+> 排除的重目录：`agent/.venv`(218MB)、`uploads`(7.1MB)、`tool-test-output`(1.4MB)、
+> `testdata`(444KB)、`__pycache__`、`logs`、`*.exe`（本机那个 `go-backend.exe` 有 **18MB**，
+> 是「上传量 19MB」这个错误印象的来源）。
+> 密码从 `deploy/.sshpass` 读（已 gitignore），**推荐改用 `--key` 走密钥认证**。
+> 加 `--backup` 会在远端目录非空时先整目录备份。
+
+**2) 准备密钥文件**
+
+```bash
+cd /home/www/project/colorAI
+ls -l go-backend/.env go-backend/agent/.env     # 上传时已带上，确认存在即可
+# 若需重建：cp go-backend/.env.example go-backend/.env 等，再填真实值
+```
+
+**3) 起后端**
+
+```bash
+# 首次部署：目标 MySQL 若还没有业务表，先把 go-backend/.env 的
+# DB_AUTO_MIGRATE 临时改成 true（建表后改回 false）
+docker-compose up -d --build
+docker-compose logs -f
+```
+
+这一步会创建网络 **`colorai-net`**。先起后端再配 nginx —— nginx 要接的就是这个网络。
+
+> ### 🚀 推荐：本地打包 → 服务器离线构建
+>
+> 服务器内存小（1.6GB、无 swap），而**编译 Go 和 `pip install` 都完全可以在本机做掉**：
+> `CGO_ENABLED=0` 的 Go 产物是**静态二进制**，与构建机无关；Python 依赖也全有
+> manylinux 预编译 wheel，不需要编译。于是服务器侧只剩 `COPY`。
+>
+> ```bash
+> cd /d/GoLang/colorAI
+> PY="C:/Users/魏正想/.workbuddy-ai/binaries/python/envs/default/Scripts/python.exe"
+> "$PY" deploy/pack_offline.py --dry-run          # 看清单（不编译、不联网）
+> "$PY" deploy/pack_offline.py --download-wheels  # 下 wheel + 交叉编译 + 上传 + 远端校验
+> "$PY" deploy/backend_up.py                      # 在服务器上构建 + 启动（含健康检查）
+>
+> # 等价于在服务器上手动执行：
+> # docker-compose -f docker-compose.yml -f docker-compose.offline.yml up -d --build
+> ```
+>
+> `backend_up.py` 支持 `--online`（改回在线构建）/ `--no-build` / `--ps` / `--logs` / `--down`。
+> 它走「后台执行 + 轮询输出文件」，因为这台机器上 `docker build` **会间歇性卡死** ——
+> 直接读 SSH stdout 会一直阻塞到超时。
+>
+> ⚠️ **必须叠加两个 `-f`** —— `offline.yml` 只覆盖 `build` 一节，
+> 单独用会丢掉 `env_file` / `networks` / `healthcheck` / `extra_hosts`。
+>
+> 实测产物：Go 静态二进制 **12.5MB** + **69 个** wheel / **50.5MB**，上传包 **54.3MB**。
+> 两个坑写在 `deploy/pack_offline.py` 文件头：**①`pip download` 在 Windows 上按 Windows
+> 环境标记求值，会静默漏掉 `uvloop` 这类 Linux 专属依赖；②tar 上传把权限归一成 0644，
+> 所以 `Dockerfile.offline` 里那行 `chmod +x` 删不得。**
+
+> 🔴 **服务器内存要够（走在线构建时）。** 实测 `118.31.10.161` 只有 1.6GB 内存、**无 swap**。
+> （2026-09-24 傍晚实测可用 **845MB** —— 因为 `WeKnora-neo4j` 和 `mysql8.0` 已被停掉；
+> 早前只有 210MB。）agent 容器（langchain 全家桶）常驻 300~600MB、**构建期 `pip install`
+> 峰值可能 0.5~1GB**，所以仍然要小心：**OOM killer 不保证只杀新容器**。
+> 建议先加 2GB swap（磁盘有 8.8G 空闲），详见 `deploy/部署清单.md` 文首。
+> 构建时另开一个终端 `watch -n2 free -m` 盯着。
+> **上面那条离线路径基本绕开了这个问题**（峰值内存低一个数量级）。
+
+> **首次构建会比较慢，但慢的不是 Go，是 agent。** Go 侧已配 `GOPROXY=goproxy.cn`，
+> 十几秒就能编完；agent 侧要 `pip install` 装 `langchain` + `langgraph` 全家桶，
+> 已配清华源（`agent/Dockerfile` 的 `PIP_INDEX`）。
+>
+> 如果连基础镜像都拉得慢，在服务器上配 Docker 镜像加速器（`/etc/docker/daemon.json`）：
+>
+> ```json
+> { "registry-mirrors": ["https://<你的ID>.mirror.aliyuncs.com"] }
+> ```
+>
+> 改完 `systemctl restart docker`。**第二次构建会复用层缓存，快很多**。
+
+**4) 构建前端并上传**
+
+> dist 落在 `/root/nginx/blog/colorai/`，由**独立的 `colorai-nginx` 容器**只读挂载（见第 5 步）。
+
+```bash
+cd /d/GoLang/colorAI/ColorAI && npm run build
+
+cd /d/GoLang/colorAI
+PY="C:/Users/魏正想/.workbuddy-ai/binaries/python/envs/default/Scripts/python.exe"
+"$PY" deploy/upload_dist.py --dry-run    # 先看清单
+"$PY" deploy/upload_dist.py              # 增量覆盖；--clean 等价 rsync --delete
+```
+
+> 🔴 **不要手敲 `rsync --delete`**：① 本机根本没有 `rsync`（实测缺失）；
+> ② 目标写错一级就是灾难 —— `rsync -av --delete dist/ host:/root/nginx/blog/`
+> （**漏了 `/colorai`**）会把 blog 自己的 `front/` 和 `admin/` **全删掉**。
+> `upload_dist.py` 把「目标必须正好是 `/root/nginx/blog/<站点名>`」写成硬校验，
+> 让那个错误不可能发生。
+>
+> ⚠️ 别手动传 `--remote-dir` —— Git Bash 会把以 `/` 开头的参数改写成
+> `C:/Users/.../PortableGit/...`。默认值就是对的，**省略该参数**即可。
+>
+> `ColorAI/public/uploads/` 里曾放着 5 张开发期测试图 —— `vite build` 会把 `public/` 原样复制进
+> `dist/`，跟着上传就变成 `https://你的域名/uploads/xxx.jpg` 公开可访问。**已清理**：
+> 4 个死文件删除，`testimage.jpg`（测试脚本的默认夹具）移到 `go-backend/testdata/`。
+> 现在 `public/` 只剩 favicon 与 PWA 图标，上传不需要任何排除规则。
+>
+> 改域名**不需要**重新构建 —— 前端浏览器侧用相对 `/api`（`src/services/api.ts`）。
+> 但 `vite.config.ts` 没设 `base`，产物是 `/assets/...` 绝对路径 → **必须部署在域名根目录**。
+
+**5) 起 colorAI 自己的 Nginx 容器**
+
+> 为什么不是塞进 blog 那个容器、为什么换 8080：见本章开头「部署」的说明。
+> 一句话 —— **blog 前端也调 `/api`**，共用 80 必然抢 `location /api/`；
+> 换端口 = 换 server 块 = 天然隔离，而且 blog 零停机。
+>
+> blog 的 `nginx-container`（`docker run` 起的，镜像 `nginx:1.27-alpine`，
+> 只接 `blog-net`，只有 80，挂载 `/root/nginx/conf.d` 与 `/root/nginx/blog`）
+> **从头到尾不会被我们碰**。
+
+```bash
+# 本机执行。脚本会：建 conf 目录 → 传 conf → 校验 → 起容器 → 自动验收
+cd /d/GoLang/colorAI
+PY="C:/Users/魏正想/.workbuddy-ai/binaries/python/envs/default/Scripts/python.exe"
+"$PY" deploy/nginx_up.py            # 先只读探测，看计划命令
+"$PY" deploy/nginx_up.py --apply    # 真正创建
+```
+
+等价于：
+
+```bash
+docker run -d --name colorai-nginx \
+  --restart unless-stopped \
+  -p 8080:80 \
+  -v /root/nginx/conf.d-colorai:/etc/nginx/conf.d:ro \
+  -v /root/nginx/blog/colorai:/usr/share/nginx/html/colorai:ro \
+  --network colorai-net \
+  nginx:1.27-alpine
+```
+
+> ⚠️ 要求 `colorai-net` 已存在 → 必须先完成上面第 3 步的 `docker-compose up -d --build`。
+
+**常用命令**：`--verify` 验收 / `--reload` 改完 conf 热加载 / `--down` 删掉（blog 不受影响）。
+
+**6) 放行 8080 端口**
+
+去云控制台安全组加一条入方向规则：**8080/tcp**。
+服务器本机 `curl 127.0.0.1:8080` 通 **不等于**外网通 —— 不放行的话外面会超时。
+
+然后访问 **`http://wzx.glaty.cn:8080/`**（**注意还没有 HTTPS** —— 实测 443 无监听、无 certbot，
+而 **Service Worker 只在 HTTPS 下注册**，PWA 离线缓存会静默失效）。
+要上 HTTPS 只需给 **`colorai-nginx`** 加 `-p 8443:443` —— 重建它**不影响 blog**，
+顺手把 `colorai.conf` 的 443 server 块补上（`client_max_body_size` 等
+**不会**从 80 那块继承）。见 `deploy/部署清单.md` §8。
+
+### 几个必须知道的点
+
+1. **`AGENT_URL` / `REDIS_ADDR` / `PG_HOST` 由编排注入，刻意不写进 `.env`。** 容器里
+   `localhost` 指的是容器自己，必须用服务名 `http://agent:8000`；而 Redis / PG 跑在
+   **同一台宿主机的容器里**，容器内**连公网 IP 会失败**（实测，无 hairpin NAT）→
+   必须用 `host.docker.internal`。但 `go-backend/.env` 本地开发也在用，写死这些值会让
+   本地连不上 —— 所以它们放在 `docker-compose.yml` 的 `environment:` 里（优先级高于 `env_file`）。
+2. **Go 发布的 `127.0.0.1:3001` 只用于在服务器上排障**（`curl 127.0.0.1:3001/api/health`）。
+   Nginx 容器**不走这里** —— 它通过 `colorai-net` 按服务名直连 `go-backend:3001`。
+   写成 `3001:3001` 会监听 `0.0.0.0`，任何人都能绕过 Nginx 直打后端。
+3. **`client_max_body_size 20m` 在 `deploy/nginx/colorai.conf` 里。** 图片走 base64 dataURL，
+   `MAX_UPLOAD_BYTES=10MB` 是**解码后**的字节数，base64 膨胀 4/3 → 请求体约 13.7MB。
+   Nginx 默认 1m，不放开必然 413。
+   ⚠️ 用 certbot 补上 HTTPS 后，**443 那个 server 块要再写一遍这条** —— certbot 只复制
+   `server_name` 和 `root`，不继承其他指令。否则会出现「http 能传图、https 传图 413」，
+   而且很难查。
+4. **agent 容器不对宿主机暴露端口**，只有 `go-backend` 通过 compose 内网访问它。
+5. **Go 不会在容器里拉起 Agent，这是预期行为。** `manager.go` 会检查 `./agent` 目录、
+   `.venv`、`.env`，容器里三者都不存在 → 只打一行「跳过启动」日志。Agent 由编排独立提供。
+6. **`colorai-nginx` 必须接入 `colorai-net`**，否则解析不到 `go-backend` 这个服务名
+   （日志里是 `no resolver defined` 或 `host not found in upstream`）。
+   另外 `colorai.conf` 里刻意用了 `resolver 127.0.0.11` + 变量而不是直接写死服务名 ——
+   **nginx 默认只在启动时解析一次上游**，`go-backend` 每次重建都会换 IP，
+   不重解析就会表现为「后端明明起着，却一直 502」。
+7. **OSS endpoint 按服务器地域选。** bucket 在 `cn-beijing`：服务器同地域用
+   `oss-cn-beijing-internal.aliyuncs.com`（免公网流量费、延迟低），其他地域只能用公网域名。
+   而 `PUBLIC_BASE_URL` **始终填 bucket 公网域名**（浏览器要能直接加载图片）。
+8. **OSS 的 AK/SK 建议换成 RAM 子账号**，只授予该 bucket 的 `PutObject` / `GetObject`。
+   主账号 AK 一旦泄露等于整个账号失守。
+9. 🔴 **服务器内存要够。** 实测 `118.31.10.161` 只有 1.6GB 内存、**无 swap**。
+   2026-09-24 傍晚实测可用 **845MB**（`WeKnora-neo4j` / `mysql8.0` 已停掉；早前只有 210MB）。
+   agent 容器常驻 300~600MB、构建期 `pip install` 峰值 0.5~1GB
+   → **OOM killer 不保证只杀新容器**。构建前先按 `deploy/部署清单.md` 文首处理（建议加 2GB swap）。
+10. ⚠️ **别随手跑完整的 `docker-compose config` 并复制输出** —— 实测它会把 `env_file` 里的
+   **所有密钥展开成明文打印**（DeepSeek / 硅基流动 / LangSmith / PG 密码全在内）。
+   排语法只用 `config --services`。
+11. **两套 compose 二进制都能用**：实测服务器上 `docker-compose`(1.29.2) 与
+   `docker compose`(5.0.0) 都能解析本项目文件，且都保住了
+   `depends_on: condition: service_healthy`。
+12. ✅ **`host.docker.internal` 在用户自定义网桥上也实测可用**（2026-09-24 在 `colorai-net`
+   上验证，解析成 `172.17.0.1`）—— 之前只在默认网桥测过。PG 5432 / Redis 6379
+   从 `colorai-net` 容器里两个地址都通；公网 IP `118.31.10.161:5432` 仍不通（无 hairpin NAT）。
+
 ## 项目结构
 
 ```
 colorAI/
-├── ColorAI/                 # React 前端
+├── docker-compose.yml       # 生产编排：go-backend + agent（前端不容器化）
+├── docker-compose.offline.yml # 离线构建覆盖层（只覆盖 build，须与上面叠加用）
+├── deploy/
+│   ├── 部署清单.md           # 部署操作单（10 步 + 排障速查表）
+│   ├── upload_backend.py     # 一键上传后端（paramiko，约 647KB）
+│   ├── pack_offline.py       # 本地打包→服务器离线构建（交叉编译 + 预下 wheel）
+│   ├── backend_up.py         # 在服务器上构建 + 启动后端（后台执行 + 轮询）
+│   ├── upload_dist.py        # 一键上传前端 dist（带路径硬校验）
+│   ├── nginx_up.py           # colorAI 独立 nginx 容器的生命周期
+│   ├── ssh_util.py           # 公共 SSH 基建（run_detached 等）
+│   ├── ssh_run.py            # 临时在服务器跑 shell 的通用工具
+│   └── nginx/
+│       └── colorai.conf     # colorai-nginx 的站点配置（静态产物 + /api 反代）
+├── ColorAI/                 # React 前端（dist/ 由 colorai-nginx 容器只读挂载）
 │   └── src/
 │       ├── components/      # 共享组件
 │       │   ├── SmartImage.tsx  # 图片渲染（含过期占位图）
@@ -286,7 +571,10 @@ colorAI/
     ├── middleware/          # 中间件（鉴权、CORS）
     ├── doc/                 # 设计与契约文档
     ├── scripts/             # 联调脚本
-    ├── uploads/             # 用户上传图片
+    ├── testdata/            # 测试夹具（testimage.jpg —— 两个测试脚本的默认输入图）
+    ├── uploads/             # 用户上传图片（仅 STORAGE_DRIVER=local 时写入）
+    ├── Dockerfile           # 多阶段构建：Go 构建 → alpine + 单个静态二进制
+    ├── .dockerignore        # 注意：不能整体排除 agent/（manager.go 就在里面）
     ├── app.go               # 应用初始化
     ├── router.go            # 路由注册
     └── main.go              # 服务入口
