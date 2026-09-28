@@ -1,0 +1,113 @@
+# 曲泉AI 后端编排：go-backend → agent
+#
+# ⚠️ 前端**不在**这里。前端是静态产物，由**独立运行的 Nginx 容器**托管
+#    （站点配置见 deploy/nginx/colorai.conf，网络接入方式见 README「部署」）。
+#
+# 网络：本编排创建一个固定名字的网络 `colorai-net`，Nginx 容器以 external 方式接进来，
+#       直接用服务名 `go-backend:3001` 访问 —— **不需要**把 3001 暴露到宿主机。
+#
+# 外部依赖（不在此编排内，需事先就绪）：
+#   MySQL               —— go-backend/.env 的 DB_*
+#   Redis               —— go-backend/.env 的 REDIS_*
+#   PostgreSQL+pgvector —— go-backend/agent/.env 的 PG_*（RAG 知识库）
+#   阿里云 OSS          —— go-backend/.env 的 OSS_*（图片存储）
+#   DeepSeek / 硅基流动  —— go-backend/agent/.env 的 DEEPSEEK_* / EMBEDDING_*
+#
+# 用法：
+#   1) 准备好 go-backend/.env 与 go-backend/agent/.env（两份都不进镜像）
+#   2) docker-compose up -d --build      # 新版 CLI 也支持 docker compose up -d --build
+#   3) docker-compose logs -f
+
+services:
+  # ---------------- Go 后端 ----------------
+  go-backend:
+    build:
+      context: ./go-backend
+      dockerfile: Dockerfile
+    container_name: colorai-go
+    env_file:
+      - ./go-backend/.env
+    environment:
+      # ⚠️ 容器里 localhost 指的是容器自己，必须用 compose 的服务名。
+      #    刻意**不写进** go-backend/.env —— 那份文件本地开发也在用，
+      #    写死服务名会让本地连不上 127.0.0.1:8000。
+      AGENT_URL: http://agent:8000
+
+      # ⚠️⚠️ Redis 与 PostgreSQL 都跑在**这台宿主机自己的 Docker 容器里**
+      #    （WeKnora-redis / WeKnora-postgres），只把端口发布到宿主机。
+      #    容器里**不能**用公网 IP `118.31.10.161` —— 2026-09-24 在服务器上实测：
+      #       118.31.10.161:5432  → FAIL   （宿主机不给自己做 hairpin NAT）
+      #       172.17.0.1:5432     → OK     （docker0 网关）
+      #       host.docker.internal:5432 → OK（默认网桥实测）
+      #    所以这里用 host.docker.internal 覆盖 .env 里的公网 IP。
+      #    （MySQL 在 39.106.186.3，是**另一台机器**，公网可达 → 不动。）
+      #
+      #    同理不写进 .env：本地开发时 host.docker.internal 在原生进程里解析不了。
+      REDIS_ADDR: host.docker.internal:6379
+    # host-gateway 由 docker daemon 解析（需 Engine ≥ 20.10），指向**本容器所在网络的网关**。
+    # 若哪天 host.docker.internal 失效，退路是把上面两处换成 172.17.0.1（已实测 OK）。
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      # 只绑宿主机回环，**仅供在服务器上 curl 排障**（curl 127.0.0.1:3001/api/health）。
+      # Nginx 容器不走这里 —— 它通过 colorai-net 按服务名直连。
+      # 写成 "3001:3001" 会监听 0.0.0.0，任何人都能绕过 Nginx 直打后端。
+      - "127.0.0.1:3001:3001"
+    networks:
+      - colorai-net
+    depends_on:
+      agent:
+        # 等 agent 的 healthcheck 通过再启动，避免 Go 刚起来就转发失败
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------------- Python Agent ----------------
+  agent:
+    build:
+      context: ./go-backend/agent
+      dockerfile: Dockerfile
+    container_name: colorai-agent
+    # 刻意不映射端口：只有 go-backend 需要访问它，走 colorai-net 内网即可。
+    # 暴露出去既没用又扩大了攻击面。
+    env_file:
+      - ./go-backend/agent/.env
+    environment:
+      # environment 优先级高于 env_file，这里只放需要「按环境覆盖」的项。
+      #
+      # ⚠️ 不要写 DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}：
+      #    宿主 shell 未设置该变量时 Compose 会传入空字符串，
+      #    反而盖掉 env_file 里的真 key。
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-flash}
+      DEBUG: ${DEBUG:-false}
+
+      # ⚠️ PostgreSQL 跑在**宿主机自己的容器**里（WeKnora-postgres），
+      #    容器里用公网 IP `118.31.10.161` 连不上（实测 FAIL，无 hairpin NAT）→
+      #    覆盖成 host.docker.internal。详见 go-backend 服务里的长注释。
+      #    因为变成同机通信，PG_SSLMODE=disable 反而是对的，不必改 require。
+      PG_HOST: host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - colorai-net
+    volumes:
+      - ./go-backend/agent/logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      # 用 python 而不是 curl：基础镜像 python:3.11-slim 是否自带 curl 未经验证，
+      # 不依赖外部命令可以消除这个不确定性。
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health', timeout=5).status == 200 else 1)"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # agent 要连 PG 建连接池、加载工具，给足冷启动时间
+      start_period: 40s
+
+networks:
+  # 固定网络名（而不是默认的 <项目名>_default）：Nginx 容器要以 external 方式
+  # 引用它，名字必须稳定、可预测。
+  colorai-net:
+    name: colorai-net

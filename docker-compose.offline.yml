@@ -1,0 +1,41 @@
+# 曲泉AI —— 离线构建覆盖层
+#
+# ⚠️ **必须与主 compose 叠加使用，不要单独用**（它只有 build 一节，
+#    单独用会丢掉 env_file / networks / healthcheck 等全部运行时配置）：
+#
+#     docker-compose -f docker-compose.yml -f docker-compose.offline.yml build
+#     docker-compose -f docker-compose.yml -f docker-compose.offline.yml up -d
+#
+# 为什么需要它：
+#   生产服务器 1.6GB 内存、**无 swap**。在主 compose 下构建时，Go 侧要在服务器上
+#   拉 golang 镜像 + go mod download + 编译；agent 侧要联网 pip install langchain 全家桶
+#   （峰值 0.5~1GB）—— 有 OOM 风险，而且 OOM killer 不保证只杀新容器。
+#
+#   这个覆盖层把两个服务换成「离线 Dockerfile」，构建阶段只做 COPY：
+#     * Go    → 用本机交叉编译好的 linux 静态二进制
+#     * agent → 用本机预下载好的 linux wheel 离线安装
+#
+# 前提：产物已生成并上传（一条命令搞定）
+#
+#     python deploy/pack_offline.py
+#
+#   它会生成并上传：
+#     go-backend/colorai-backend-linux    ← 本机交叉编译的 linux/amd64 静态二进制
+#     go-backend/agent/wheels/            ← 本机预下载的 linux wheel 全集
+#     go-backend/Dockerfile.offline
+#     go-backend/agent/Dockerfile.offline
+#     docker-compose.offline.yml
+#
+# 刻意**只覆盖 build**，其余（env_file / environment / extra_hosts / networks /
+# depends_on / healthcheck / restart / ports）全部沿用主文件 —— 不复制一份，避免两边漂移。
+
+services:
+  go-backend:
+    build:
+      context: ./go-backend
+      dockerfile: Dockerfile.offline
+
+  agent:
+    build:
+      context: ./go-backend/agent
+      dockerfile: Dockerfile.offline

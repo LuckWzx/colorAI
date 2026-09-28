@@ -1,0 +1,71 @@
+# 曲泉AI Python Agent 镜像 —— **离线构建版**（依赖用本地预下载的 wheel 装）
+#
+# 与 `Dockerfile` 的区别：
+#   1) **不装 gcc** —— 本项目的依赖全部有 manylinux 预编译 wheel，服务器上不需要编译
+#   2) **不连 PyPI** —— 从构建上下文里的 `wheels/` 目录离线安装
+#
+# 为什么要这样（2026-09-28）：
+#   生产服务器 1.6GB 内存、**无 swap**。原 `Dockerfile` 的 `pip install` 要联网拉
+#   langchain + langgraph 全家桶，峰值内存 0.5~1GB —— 有被 OOM killer 干掉的风险，
+#   而且 **OOM killer 不保证只杀新容器**（可能误杀同机的 minio / PG）。
+#   离线装 wheel 不需要编译、不需要网络，峰值低一个数量级。
+#
+# 附带好处：`pip install` 这一层只依赖 `wheels/` 与 `requirements.txt`，
+#   **改 `app/` 下的代码不会让它失效** → 后续迭代只重建最后一层，几秒钟就完事。
+#
+# wheel 从哪来：**不要手敲 pip download**，用仓库里的打包脚本（它会自动补漏包）：
+#     <py> deploy/pack_offline.py --download-wheels
+#   <py> = C:/Users/魏正想/.workbuddy-ai/binaries/python/envs/default/Scripts/python.exe
+#
+#   ⚠️ 如果非要手敲，这两条必须都做到，否则会**静默漏包**：
+#     1) **必须用默认 PyPI 源** —— 实测清华源在 `pip download` 下会报
+#        `Could not find a version that satisfies the requirement ... (from versions: none)`。
+#     2) **必须带 Linux 平台参数**，因为 `pip download` 在 Windows 上按 **Windows 环境标记**
+#        求值依赖 → `sys_platform != "win32"` 的 Linux 专属依赖被静默跳过。
+#        实测漏掉的是 `uvloop`（`uvicorn[standard]` 的 extra），直到服务器上
+#        `pip install --no-index` 才炸：
+#     pip download -r requirements.txt -d wheels --index-url https://pypi.org/simple \
+#         --platform manylinux_2_28_x86_64 --platform manylinux_2_17_x86_64 \
+#         --platform manylinux2014_x86_64 --platform manylinux1_x86_64 \
+#         --python-version 3.11 --only-binary=:all:
+#
+# 用哪个：`docker-compose.offline.yml` 会把本文件指定为构建用的 Dockerfile。
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# ---- 1) 先把依赖装掉（这一层只依赖 wheels/ 与 requirements.txt，能被缓存）----
+COPY wheels/ /wheels/
+COPY requirements.txt .
+
+# --no-index：**完全不访问 PyPI**。装不上就报错，不会偷偷联网兜底 —— 这是我们想要的确定性。
+# --find-links：从本地目录找 wheel。
+# 不用 --no-deps：requirements.txt 只列了直接依赖，必须让 pip 解析传递依赖
+#   （wheel 都是预编译的，解析+安装的峰值内存远低于编译）。
+RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.txt \
+    && rm -rf /wheels
+
+# ---- 2) 再放应用代码 ----
+#
+# ⚠️ 这里**刻意不用 `COPY . .`**。
+#    上下文里有 `wheels/`（实测 69 个 / 50.5MB），`COPY . .` 会把它再拷进镜像 ——
+#    上一行的 `rm -rf /wheels` 拦不住：COPY 是**新的一层**，删的是新层里的副本，
+#    旧层里那份数据照样留在镜像里。
+#    → 改成显式列出需要的目录。**以后新增顶层目录，记得往这里加一行。**
+COPY app/ ./app/
+COPY doc/ ./doc/
+COPY scripts/ ./scripts/
+
+# 日志目录（运行时由 compose 的 ./logs 卷挂载覆盖）
+RUN mkdir -p logs
+
+EXPOSE 8000
+
+# 启动命令
+#
+# 刻意不用 `uvicorn app.main:app --port 8000`：端口硬编码在 Dockerfile 里，
+# 而 app/main.py 的 __main__ 分支读的是 settings.AGENT_PORT —— 两处一旦不一致，
+# 容器仍监听 8000，而 Go 侧 AGENT_URL 指向别处，排查成本很高。
+# 走 __main__ 分支让配置说话（AGENT_PORT 默认就是 8000）。
+CMD ["python", "-m", "app.main"]

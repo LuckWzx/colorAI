@@ -1,0 +1,70 @@
+# 构建上下文排除项
+#
+# ⚠️ 这里刻意**没有**整体排除 agent/ ——
+#    main.go 里 import 的 "colorai-backend/agent" 就是 agent/manager.go（Go 包），
+#    它和 Python 项目共用「agent」这个目录名。整体排除会直接编译失败。
+#    只能按子路径排除 Python 那一部分。
+
+# ---- 密钥 ----
+# 必须在运行时用 compose 的 env_file 注入。烘进镜像会被永久留在层里，
+# docker history / docker save 都能翻出来。
+.env
+.env.*
+!.env.example
+
+# ---- Go 构建产物 ----
+*.exe
+*.exe~
+*.test
+*.out
+colorai-backend
+
+# ---- 本地存储目录 ----
+# 开发期落到本地的图片，没必要进镜像（生产用 oss 驱动）
+uploads/
+
+# ---- 工具测试产物 ----
+tool-test-output/
+
+# ---- 测试夹具 ----
+# 只有 Python 测试脚本（agent/scripts/、scripts/）会读它，Go 构建不需要。
+# 留着只会白白增加构建上下文与镜像体积。
+testdata/
+
+# ---- Python Agent 部分（Go 构建完全不需要）----
+# .venv 有上万个文件，是拖慢构建上下文的大头
+agent/.venv/
+agent/.env
+agent/logs/
+agent/app/
+agent/scripts/
+agent/doc/
+agent/requirements.txt
+agent/Dockerfile
+agent/Dockerfile.offline
+agent/docker-compose.yml
+agent/.dockerignore
+agent/.idea/
+
+# ⚠️ 离线构建的 wheel 目录（实测 69 个 / 50.5MB）。
+#    Go 构建**一点都用不到**它，但 agent 的离线构建需要 ——
+#    agent 的构建上下文是 ./go-backend/agent，走 agent/.dockerignore，
+#    那个文件**不能**排除 wheels/（排了离线安装就没 wheel 可装了）。
+#    这里排掉只是为了避免它被塞进 **Go** 的构建上下文。
+agent/wheels/
+
+# ---- 离线构建产物 ----
+# 只在 Dockerfile.offline 里用；在线构建（Dockerfile）用不到。
+# ⚠️ 但**不能**排除 colorai-backend-linux —— 那正是 Dockerfile.offline 要 COPY 的东西。
+#    （上面那条 `colorai-backend` 是精确匹配，不会连带命中它。）
+colorai-offline.tar.gz
+
+# ---- Python 缓存 ----
+**/__pycache__/
+**/*.py[cod]
+
+# ---- 版本控制与 IDE ----
+.git/
+.gitignore
+.idea/
+.vscode/
