@@ -45,6 +45,9 @@ logs/
 **/uploads/*
 !**/uploads/.gitkeep
 
+# === 数据库备份（含用户敏感数据，勿入库）===
+go-backend/data/
+
 # === 工具测试产物 ===
 go-backend/tool-test-output/
 
