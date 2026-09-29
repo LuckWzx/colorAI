@@ -26,6 +26,9 @@ agent_created: true
 PY="C:/Users/魏正想/.workbuddy-ai/binaries/python/envs/default/Scripts/python.exe"
 ```
 
+> ⚠️ **Windows 上是 `Scripts/python.exe`，不是 `bin/python`**；且**基础运行时没有 paramiko** ——
+> 用 `versions/3.13.12/python.exe` 跑 `ssh_run.py` 会报 `ModuleNotFoundError: No module named 'paramiko'`。
+> 别顺手用 `python` 简写，一律用上面这个绝对路径（2026-09-28 实测踩到）。
 > ⚠️ 装 paramiko 时 **`pip` 走清华源会报 `from versions: none`** —— 用默认源才成功。
 > 密码里有 `?` 之类的字符，**不要走 shell**（`?` 是 glob）—— paramiko 天然绕开这个问题。
 
