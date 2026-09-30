@@ -431,7 +431,7 @@ export default function Workspace() {
         {/* 顶栏 */}
         <header className="relative z-20 shrink-0 flex items-center justify-between px-4 lg:px-8 h-14 sm:h-16 border-b border-brand-line bg-white/85 backdrop-blur-xl">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-cmyk-strip shadow-card" />
+            <img src="/icons/logo.jpg" alt="" className="w-9 h-9 rounded-xl object-cover shadow-card" />
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-serif font-bold text-base sm:text-lg spectrum-text">曲泉AI</span>
@@ -801,7 +801,7 @@ export default function Workspace() {
 
 /** 助手头像。提到模块作用域，方便被下面的独立卡片组件复用 */
 function Avatar() {
-  return <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-cmyk-strip shadow-card mr-3" />;
+  return <img src="/icons/logo.jpg" alt="" className="flex-shrink-0 w-9 h-9 rounded-xl object-cover shadow-card mr-3" />;
 }
 
 /** 数值格式化：接口可能不返回某些字段，兜底显示 — */
@@ -1066,12 +1066,11 @@ function MessageBubble({
     return (
       <div className="flex justify-center py-3 sm:py-6 animate-fade-in-up">
         <div className="text-center max-w-lg">
-          <div className="relative mx-auto w-14 h-14 sm:w-20 sm:h-20 mb-3 sm:mb-5 rounded-2xl sm:rounded-3xl overflow-hidden shadow-card ring-1 ring-brand-line grid grid-cols-2">
-            <span className="bg-[#009EE0]" />
-            <span className="bg-[#E4007E]" />
-            <span className="bg-[#FFD200]" />
-            <span className="bg-[#1F1F1F]" />
-          </div>
+          <img
+            src="/icons/logo.jpg"
+            alt=""
+            className="block mx-auto w-14 h-14 sm:w-20 sm:h-20 mb-3 sm:mb-5 rounded-2xl sm:rounded-3xl object-cover shadow-card ring-1 ring-brand-line"
+          />
           <h1 className="font-serif text-2xl sm:text-4xl font-bold mb-2 sm:mb-3 spectrum-text">你好，我是曲泉AI</h1>
           <p className="text-brand-muted text-sm sm:text-base leading-relaxed mb-2 sm:mb-4 px-2 sm:px-0">
             你的专属色彩智能体 👋

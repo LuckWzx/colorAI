@@ -5,6 +5,7 @@
  */
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import axios from 'axios';
 import apiClient from '@/services/api';
 import { sanitizeText, isValidPhone, maskPhone } from '@/lib/security';
 
@@ -40,6 +41,19 @@ interface AuthAPIResponse {
   error?: string;
 }
 
+/** 从接口错误中提取可展示的提示：
+ *  优先取后端响应体的 error 字段，避免把 "Request failed with status code 409"
+ *  这类 axios 原始消息直接抛给用户（如注册时手机号已存在）。 */
+function extractApiError(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data as Partial<AuthAPIResponse> | string | undefined;
+    if (data && typeof data === 'object' && data.error) return data.error;
+    if (err.code === 'ECONNABORTED') return '请求超时，请稍后重试';
+    return '网络错误，请稍后重试';
+  }
+  return err instanceof Error ? err.message : '网络错误，请稍后重试';
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -69,9 +83,7 @@ export const useAuthStore = create<AuthState>()(
           }
           return { success: true };
         } catch (err: unknown) {
-          const msg =
-            err instanceof Error ? err.message : '网络错误，请稍后重试';
-          return { success: false, message: msg };
+          return { success: false, message: extractApiError(err) };
         }
       },
 
@@ -102,9 +114,7 @@ export const useAuthStore = create<AuthState>()(
           }
           return { success: true };
         } catch (err: unknown) {
-          const msg =
-            err instanceof Error ? err.message : '网络错误，请稍后重试';
-          return { success: false, message: msg };
+          return { success: false, message: extractApiError(err) };
         }
       },
 

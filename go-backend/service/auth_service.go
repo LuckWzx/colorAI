@@ -4,6 +4,7 @@ import (
 	"colorai-backend/model/entity"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"colorai-backend/repository"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
@@ -63,6 +65,13 @@ func (s *authService) Register(username, phone, password string) (*entity.User, 
 	}
 
 	if err := s.userRepo.Create(user); err != nil {
+		// 竞态兜底：ExistsByPhone 检查与 Create 之间存在窗口期（如快速双击重复提交、
+		// 网络重试），手机号唯一索引冲突（MySQL Error 1062）统一按"已注册"返回，
+		// 避免在并发场景下误报 500
+		var mysqlErr *mysql.MySQLError
+		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
+			return nil, "", &ServiceError{StatusCode: 409, Message: "该手机号已注册"}
+		}
 		return nil, "", fmt.Errorf("注册失败: %w", err)
 	}
 

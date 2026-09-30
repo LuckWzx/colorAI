@@ -46,7 +46,7 @@ export default function ChatSidebar({
       <div className={cn('shrink-0', compact ? 'px-2.5 pt-2.5 pb-1.5' : 'px-4 pt-5 pb-3')}>
         {!compact && (
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-cmyk-strip shadow-card" />
+            <img src="/icons/logo.jpg" alt="" className="w-9 h-9 rounded-xl object-cover shadow-card" />
             <div>
               <p className="font-serif font-bold text-brand-ink leading-none">曲泉AI</p>
               <p className="text-[10px] text-brand-muted mt-1">会话历史</p>

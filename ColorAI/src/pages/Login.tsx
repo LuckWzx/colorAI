@@ -22,21 +22,17 @@ import { cn } from '@/lib/utils';
 
 type Tab = 'login' | 'register';
 
-/** 2×2 CMYK 四色块（品牌标识） */
-function CmykMark({ className }: { className?: string }) {
+/** 品牌 Logo（logo.jpg） */
+function BrandLogo({ className }: { className?: string }) {
   return (
-    <span
-      aria-hidden="true"
+    <img
+      src="/icons/logo.jpg"
+      alt=""
       className={cn(
-        'grid grid-cols-2 overflow-hidden rounded-xl ring-1 ring-brand-line/70 shadow-card',
+        'object-cover rounded-xl ring-1 ring-brand-line/70 shadow-card',
         className
       )}
-    >
-      <span className="bg-[#009EE0]" />
-      <span className="bg-[#E4007E]" />
-      <span className="bg-[#FFD200]" />
-      <span className="bg-[#1F1F1F]" />
-    </span>
+    />
   );
 }
 
@@ -117,7 +113,7 @@ export default function Login() {
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center gap-3 mb-3">
-              <CmykMark className="w-12 h-12" />
+              <BrandLogo className="w-12 h-12" />
               <span className="font-serif text-3xl font-bold tracking-wide text-brand-ink">
                 曲泉AI
               </span>
