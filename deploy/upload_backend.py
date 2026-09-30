@@ -65,6 +65,9 @@ EXCLUDES = [
     "go-backend/uploads",
     "go-backend/tool-test-output",
     "go-backend/testdata",
+    # —— 数据库备份（15MB+，含库数据）——
+    # 部署完全用不到：只会白传 15MB、并把数据副本留到远端目录。
+    "go-backend/data",
     "go-backend/agent/logs",
     "logs",
     "go-backend/agent/.idea",

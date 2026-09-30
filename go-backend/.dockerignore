@@ -31,6 +31,11 @@ tool-test-output/
 # 留着只会白白增加构建上下文与镜像体积。
 testdata/
 
+# ---- 数据库备份产物 ----
+# go-backend/data/ 下的 SQL 备份（15MB+，含库数据）——构建完全不需要，
+# 且 COPY . . 会把它们带进构建阶段层，数据副本会留在 docker 构建缓存里。
+data/
+
 # ---- Python Agent 部分（Go 构建完全不需要）----
 # .venv 有上万个文件，是拖慢构建上下文的大头
 agent/.venv/
