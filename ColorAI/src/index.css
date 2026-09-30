@@ -112,6 +112,69 @@
            uppercase tracking-[0.24em] text-brand-muted;
   }
 
+  /* —— 智能体 Markdown 消息（react-markdown 输出，纸感浅色体系）—— */
+  .markdown-msg > * + * {
+    @apply mt-3; /* 块级元素统一间距 */
+  }
+
+  .markdown-msg > h1,
+  .markdown-msg > h2,
+  .markdown-msg > h3,
+  .markdown-msg > h4 {
+    @apply mt-4 font-semibold leading-snug text-brand-ink; /* 小标题与上文拉开距离 */
+  }
+
+  .markdown-msg h1 { @apply text-lg; }
+  .markdown-msg h2 { @apply text-base; }
+  .markdown-msg h3 { @apply text-[15px]; }
+  .markdown-msg h4 { @apply text-sm; }
+
+  .markdown-msg p { @apply leading-relaxed; }
+  .markdown-msg strong { @apply font-semibold text-brand-ink; }
+
+  .markdown-msg ul { @apply list-disc pl-5 space-y-1 marker:text-brand-primary/60; }
+  .markdown-msg ol { @apply list-decimal pl-5 space-y-1 marker:text-brand-primary/60; }
+  .markdown-msg li > ul,
+  .markdown-msg li > ol { @apply mt-1; }
+  .markdown-msg li p + p { @apply mt-1.5; }
+
+  /* GFM 任务列表：有复选框的条目去掉项目符号 */
+  .markdown-msg li:has(> input[type='checkbox']) { @apply list-none; }
+  .markdown-msg input[type='checkbox'] { @apply mr-1.5 accent-brand-primary; }
+
+  /* 行内代码：纸面小标签；代码块：墨青深底 */
+  .markdown-msg code {
+    @apply font-mono text-[0.85em] px-1.5 py-0.5 rounded-md
+           bg-brand-paper text-brand-primary border border-brand-line/70;
+  }
+
+  .markdown-msg pre {
+    @apply rounded-xl bg-brand-ink p-3.5 overflow-x-auto text-[12.5px] leading-relaxed text-white/95;
+  }
+
+  .markdown-msg pre code {
+    @apply border-0 bg-transparent p-0 text-inherit;
+  }
+
+  /* GFM 表格（外层滚动容器由组件注入） */
+  .markdown-msg table { @apply w-full text-xs border-collapse; }
+  .markdown-msg th {
+    @apply border border-brand-line bg-brand-paper px-2.5 py-1.5 font-semibold text-left whitespace-nowrap;
+  }
+  .markdown-msg td { @apply border border-brand-line px-2.5 py-1.5; }
+
+  .markdown-msg a {
+    @apply font-medium text-brand-primary underline underline-offset-2
+           decoration-brand-primary/40 hover:decoration-brand-primary;
+  }
+
+  .markdown-msg blockquote {
+    @apply border-l-[3px] border-brand-primary/30 pl-3 text-brand-muted;
+  }
+
+  .markdown-msg hr { @apply border-brand-line; }
+  .markdown-msg img { @apply max-w-full rounded-xl border border-brand-line; }
+
   /* —— 坐标纸底纹（极淡网格，用于局部装饰） —— */
   .graph-grid {
     background-image:

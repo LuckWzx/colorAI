@@ -29,6 +29,7 @@ import type { DockItem } from '@/constants/workspace';
 import { fileToDataUrl, welcomeMsg, buildResultFields } from '@/utils/workspace';
 import { useSession } from '@/hooks/useSession';
 import SmartImage from '@/components/SmartImage';
+import MarkdownMessage from '@/components/MarkdownMessage';
 import { useImageZoom } from '@/store/imageZoomStore';
 import type {
   FeatureKey,
@@ -1100,13 +1101,13 @@ function MessageBubble({
     );
   }
 
-  // —— 纯文本回复 ——
+  // —— 纯文本回复（Markdown 渲染） ——
   if (msg.type === 'text') {
     return (
       <div className="flex items-start animate-fade-in-up">
         <Avatar />
         <div className="glass-card px-5 py-4 rounded-2xl rounded-tl-md max-w-[85%] text-sm text-brand-text leading-relaxed">
-          {msg.text}
+          {msg.text && <MarkdownMessage text={msg.text} />}
         </div>
       </div>
     );
@@ -1341,7 +1342,7 @@ function MessageBubble({
       <div className="flex items-start animate-fade-in-up">
         <Avatar />
         <div className="glass-card px-5 py-4 rounded-2xl rounded-tl-md max-w-[85%] text-sm text-brand-text leading-relaxed">
-          {msg.text}
+          <MarkdownMessage text={msg.text} />
         </div>
       </div>
     );
