@@ -72,6 +72,19 @@ class Settings(BaseSettings):
     PG_SCHEMA: str = "colorai_kb"          # ⚠️ 必须独立 schema，不能进 public（共享库）
     PG_SSLMODE: str = "require"            # 公网连接别用 disable
 
+    # 联网搜索（博查 Web Search API，2026-10-08 接入）
+    # httpx 直连、零新依赖；与两个知识工具同为「纯文本形态、不产出卡片」。
+    # ⚠️ 博查是预付费模式：HTTP 403「not enough money or package quota」= 额度不足，
+    #    去 open.bochaai.com 充值（约 ¥0.036/次）。
+    WEB_SEARCH_ENABLED: bool = True
+    SEARCH_API_KEY: str = ""
+    SEARCH_API_URL: str = "https://api.bochaai.com/v1/web-search"
+    SEARCH_COUNT: int = 5                  # 每次返回条数
+    SEARCH_MAX_COUNT: int = 10             # 条数上限（截断防 LLM 乱传）
+    SEARCH_TIMEOUT: float = 15.0           # 单次调用超时（秒）
+    SEARCH_SNIPPET_MAX: int = 500          # 单条摘要截断字符数（防 token 爆炸）
+    SEARCH_RETRY: int = 1                  # 仅对超时/5xx 重试（按次计费，别多花冤枉钱）
+
     # 允许的Origins（CORS配置）
     ALLOWED_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3001"]
 

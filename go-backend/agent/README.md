@@ -8,19 +8,22 @@
 - **图片一键校色**：对接搭档提供的校色接口，校正白平衡与偏色
 - **色彩知识问答**：RAG 语义检索（色彩理论 / 心理学 / 配色 / 文化象征 / 行业应用 / 颜色寓意）
 - **颜色数据查询**：按色值 / 色系 / 颜色名精确查询 310 种精选颜色
+- **联网搜索**：时效性 / 库外问题检索互联网公开信息（博查 Web Search API）
 - **统一接口**：与 Go 后端接口格式兼容
 - **可扩展**：新增工具只需三步（见「开发说明」）
 
 ## 内置工具
 
 **只注册已实现的工具。** `get_all_tools()`（`app/tools/color_tools.py`）返回的就是下表全部内容，
-`SYSTEM_PROMPT` 也只宣传这里列出的能力。
+系统提示词（`app/core/prompts.py`）也只宣传这里列出的能力 —— 两者一致性由
+`scripts/test_system_prompt.py` 自动护栏。
 
 | 工具名称 | 功能说明 | 数据来源 | 状态 |
 |----------|----------|----------|------|
 | `image_correction` | 图片一键校色（对接搭档校色接口） | 外部校色 API | ✅ 已实现 |
 | `color_knowledge_search` | 色彩知识语义检索（理论 / 心理学 / 配色 / 文化象征 / 行业应用 / 颜色寓意） | `kb_chunks`（1,320 块向量） | ✅ 已实现 |
 | `color_lookup` | 按色值 / 色系 / 颜色名查询 310 种精选颜色 | `kb_colors`（精确 SQL 查询） | ✅ 已实现 |
+| `web_search` | 联网搜索互联网公开信息（时效性 / 知识库未收录内容） | 博查 Web Search API | ✅ 已实现 |
 
 以下 4 个能力**尚未实现，故意不注册**：`color_extraction`（智能取色）、
 `color_comparison`（颜色对比）、`color_conversion`（颜色格式转换）、
@@ -31,12 +34,12 @@
 > **用户无法分辨真假**。这是本项目踩过的最严重的一类坑，详见
 > `go-backend/doc/图片校色Tool封装设计.md` §8.2。
 
-**两个知识工具与校色工具形态不同**，接入时必须区分：
+**三个「非卡片」工具（两个知识工具 + 联网搜索）与校色工具形态不同**，接入时必须区分：
 
 - **不产出卡片**：不在 `TOOL_TYPE_MAPPING` 里 → 返回 `type=text` + `metadata=null`
-  （防止 1–2 KB 检索原文落库，见 `agent.py` §4.3）
+  （防止检索原文落库，见 `agent.py` §4.3）
 - **不进 `FEATURE_TOOL_MAPPING`**：属自由输入场景，由 LLM 语义判断，没有对应的快捷按钮
-- **`results=[]` / `matched=0` 是正常业务分支**（库里没有 → 如实说明未收录），
+- **`results=[]` / `matched=0` 是正常业务分支**（没有 → 如实说明未收录），
   与校色工具的 `passed=false` 同理：**绝不 raise**，`success` 恒为 `True`
 
 ## RAG 知识库
@@ -105,6 +108,8 @@ PGHOST=... PGPORT=5432 PGUSER=... PGPASSWORD=... PGDATABASE=... \
 | `create_tables.py` | 建 `colorai_kb` schema 与三张表（DDL 与设计文档 §2 一致，全 COMMENT） |
 | `ingest_knowledge.py` | 入库编排；块数 / 文本一致性 / 向量维度任一不符即**报错退出** |
 | `test_knowledge_tools.py` | 单跑两个知识工具（真实调用 embedding + PG，不经 LLM / Agent / Go） |
+| `test_web_search.py` | 单跑 `web_search`（真实调用博查 API，不经 LLM / Agent / Go） |
+| `test_system_prompt.py` | 系统提示词一致性护栏（工具清单 / 关键规则 / 长度，离线零成本） |
 | `test_image_correction.py` | 单跑 `image_correction`（起临时静态服务把本地图变成 URL，走生产同一条代码路径） |
 | `check_tracing.py` | LangSmith 自检（默认离线零成本，加 `--live` 才真发一次调用） |
 
@@ -139,6 +144,9 @@ cp .env.example .env
 | `CORRECTION_API_URL` | 校色服务地址，`.env.example` 已预填，一般不用改 |
 | `PG_SCHEMA` | 默认 `colorai_kb`，**不要改成 `public`** |
 | `KNOWLEDGE_ENABLED` | 知识库总开关，默认 `true` |
+| `SEARCH_API_KEY` | **联网搜索必填**，博查 Web Search API（https://open.bochaai.com，预付费需充值） |
+| `WEB_SEARCH_ENABLED` | 联网搜索总开关，默认 `true` |
+| `SEARCH_COUNT` / `SEARCH_MAX_COUNT` / `SEARCH_TIMEOUT` / `SEARCH_SNIPPET_MAX` / `SEARCH_RETRY` | 联网搜索参数（默认 5 条 / 上限 10 / 超时 15s / 摘要截断 500 / 重试 1） |
 | `RETRIEVAL_TOP_K` / `RETRIEVAL_MAX_K` / `RETRIEVAL_MIN_SCORE` | 检索条数与相似度下限（默认 5 / 10 / 0.60） |
 | `LANGSMITH_TRACING` / `LANGSMITH_PROJECT` / `LANGSMITH_API_KEY` | 可选链路追踪，见下文 |
 
@@ -295,11 +303,13 @@ agent/
 │   │   ├── chat.py             # 聊天接口
 │   │   └── health.py           # 健康检查
 │   ├── core/
-│   │   └── agent.py            # LangGraph 智能体（SYSTEM_PROMPT / 两张映射表）
+│   │   ├── agent.py            # LangGraph 智能体（双路径工具选择 / 两张映射表）
+│   │   └── prompts.py          # 系统提示词（独立模块 + 运行时日期注入）
 │   ├── tools/                  # 工具定义（一个工具一个文件）
 │   │   ├── color_tools.py      # image_correction + get_all_tools()
 │   │   ├── color_knowledge_search.py  # 知识库语义检索
-│   │   └── color_lookup.py     # 310 色精确查询
+│   │   ├── color_lookup.py     # 310 色精确查询
+│   │   └── web_search.py       # 联网搜索（博查 Web Search API）
 │   ├── knowledge/              # RAG 知识库
 │   │   ├── embedder.py         # BGE-M3 薄封装（硅基流动 API）
 │   │   ├── ingest.py           # 语料解析 + 切块
@@ -352,17 +362,18 @@ Go 后端启动时会**自动拉起**本服务（`agent/manager.go`），所以�
 
 1. 在 `app/tools/` 下新建文件（或写入 `color_tools.py`），用 `@tool` 装饰器定义工具
 2. 在 `get_all_tools()` 中注册
-3. 更新 `app/core/agent.py` 的 `SYSTEM_PROMPT`，把该能力从「未上线」挪到「已上线」
+3. 更新 `app/core/prompts.py` 的系统提示词，把该能力从「未上线」挪到「已上线」
+   （改完跑 `scripts/test_system_prompt.py`，漏改工具清单会直接被拦下）
 4. **按工具形态补映射**（这一步最容易漏）：
    - **产出卡片的工具**（如 `image_correction`）→ 在 `TOOL_TYPE_MAPPING` 登记 `工具名 → type`，
      结果进 `metadata`；若是快捷工具，还要在 `FEATURE_TOOL_MAPPING` 登记
      `feature → (工具名, 图片参数名)`，前端快捷按钮才能走确定性短路
-   - **纯文本工具**（如两个知识工具）→ **两张表都不进**，产出 `type=text` + `metadata=null`
+   - **纯文本工具**（如两个知识工具与 `web_search`）→ **两张表都不进**，产出 `type=text` + `metadata=null`
 5. 前端把 `ColorAI/src/constants/workspace.ts` 里对应项的 `available` 改成 `true`
 
 **三条硬规则：**
 
-- **未实现的工具绝不能注册**，也不要写进 `SYSTEM_PROMPT`。注册了 LLM 就会调用它，
+- **未实现的工具绝不能注册**，也不要写进系统提示词。注册了 LLM 就会调用它，
   然后拿假数据编出专业结论 —— 用户分辨不出来。
 - **两条路径都要通才算接入**：`feature` 非空时走短路（用不带 tools 的 `self.llm` 生成总结，
   避免重复调用），为空时走 LLM 语义分析。
@@ -386,7 +397,10 @@ Go 后端启动时会**自动拉起**本服务（`agent/manager.go`），所以�
 
 ### 修改智能体逻辑
 
-编辑 `app/core/agent.py` 中的 `ColorAgent` 类。
+编辑 `app/core/agent.py` 中的 `ColorAgent` 类；**系统提示词在 `app/core/prompts.py`**
+（`build_system_prompt()` 在运行时把「今天」注入提示词末尾 —— 时效性判断依赖它）。
+改动提示词后必须跑 `scripts/test_system_prompt.py`：它会拦截「prompt 与工具注册表脱节」
+与「关键规则被误删」两类问题。
 
 > 注：`app/config.py` 里有一处 `load_dotenv()`（绝对路径），看起来像多余 ——
 > 它**必须存在**：LangSmith 的 tracer 只读 `os.environ`，而 pydantic-settings 的 `env_file`
