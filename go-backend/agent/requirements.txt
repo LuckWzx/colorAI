@@ -25,6 +25,9 @@ Pillow==10.1.0
 # HTTP Client
 httpx==0.25.2
 
+# Aliyun OSS(抠图结果转存,与 go-backend 共享同一套配置)
+oss2==2.19.1
+
 # PostgreSQL (RAG Knowledge Base)
 psycopg[binary]==3.3.6
 

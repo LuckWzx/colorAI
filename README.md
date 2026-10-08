@@ -13,8 +13,8 @@
 | AI 聊天工作台 | 与色彩智能体对话、会话历史管理，内置工具坞 | `/workspace` |
 | 登录 / 注册 | 用户认证 | `/login` |
 
-智能体侧当前注册了 **4 个工具**：图片一键校色、色彩知识问答（RAG 检索）、颜色数据查询、联网搜索。
-后三个是自由输入工具，**没有工具坞入口** —— 直接在输入框提问即可（如「什么是莫兰迪色」「#A52A2A 适合什么场景」「2026 潘通年度色」）。
+智能体侧当前注册了 **5 个工具**：图片一键校色、色彩知识问答（RAG 检索）、颜色数据查询、联网搜索、图片抠图。
+后四个是自由输入工具，**没有工具坞入口** —— 直接在输入框提问即可（如「什么是莫兰迪色」「#A52A2A 适合什么场景」「2026 潘通年度色」「帮我把这张图抠图」）。
 
 ### 工作台工具坞
 
@@ -31,8 +31,9 @@
 | 手机拍摄校色 | 还原人眼视觉真实颜色 | ⛔ 未实现 |
 
 > ⚠️ **工具坞是「已上线工具」的子集，不是全部。** `get_all_tools()` 另外还返回
-> `color_knowledge_search`（色彩知识问答）、`color_lookup`（颜色数据查询）与
-> `web_search`（联网搜索）——这三个走自由输入、由 LLM 按语义选择，没有对应的快捷按钮。
+> `color_knowledge_search`（色彩知识问答）、`color_lookup`（颜色数据查询）、
+> `web_search`（联网搜索）与 `image_matting`（图片抠图）——这四个走自由输入、
+> 由 LLM 按语义选择，没有对应的快捷按钮。
 > 完整清单与各工具的数据来源见 [agent/README.md](go-backend/agent/README.md)。
 
 功能是否可用的**唯一来源**是 `ColorAI/src/constants/workspace.ts` 的 `FEATURES[].available`：
@@ -57,11 +58,12 @@
 | 数据库 | MySQL 8.0（GORM） |
 | 缓存 | Redis 6+（go-redis v9） |
 | 认证 | Redis Token 存储 |
-| 对象存储 | 阿里云 OSS（可选，替代本地磁盘） |
+| 对象存储 | 阿里云 OSS（可选：图片存储 + agent 抠图结果转存共用） |
 | **AI 智能体** | |
 | 框架 | LangGraph + FastAPI |
 | LLM | DeepSeek API（`deepseek-flash`） |
 | 联网搜索 | 博查 Web Search API（预付费，按次计费） |
+| 图片抠图 | 搭档 MCP 风格服务（局域网，仅内网可达） |
 | **知识库（RAG）** | |
 | 嵌入模型 | BGE-M3（`BAAI/bge-m3`，1024 维，硅基流动 API） |
 | 向量库 | PostgreSQL + pgvector（独立 schema `colorai_kb`） |
@@ -93,11 +95,12 @@
 - PostgreSQL 且已安装 **pgvector** 扩展（本项目实测于 PostgreSQL 17.9 + pgvector 0.8.1）
   —— **仅知识库问答需要**。不配也能正常启动，只是两个知识工具会返回「知识库功能未启用」，
   其余功能（对话、校色）不受影响。
-- （可选）阿里云 OSS bucket —— **仅当 `STORAGE_DRIVER=oss` 时需要**，且 bucket 必须
-  **允许匿名 `GetObject`**（public-read ACL 或 bucket policy 都行；后者更细粒度 ——
+- （可选）阿里云 OSS bucket —— **两类用途共用同一个 bucket / 同一套配置**：
+  ① Go 侧图片存储（`STORAGE_DRIVER=oss`）；② agent 侧抠图结果转存（`OSS_ENABLED=true`）。
+  bucket 必须 **允许匿名 `GetObject`**（public-read ACL 或 bucket policy 都行；后者更细粒度 ——
   只开 GetObject、不开 ListObjects，别人无法枚举文件列表）。
   原因：Python 侧的校色工具要 `httpx.get(image_url)` 下载图片，私有 bucket 会 403。
-  默认 `local` 驱动写本地磁盘，不需要任何云服务。
+  不配也能用：图片退回本地磁盘；抠图仍可用，但结果 URL 是临时内网地址（会过期、外网不可达）。
 
 ### 安装依赖
 
@@ -158,6 +161,7 @@ MAX_UPLOAD_BYTES=10485760
 # OSS_ENDPOINT=oss-cn-hangzhou-internal.aliyuncs.com
 # OSS_ACCESS_KEY_ID=your_access_key_id
 # OSS_ACCESS_KEY_SECRET=your_access_key_secret
+# agent 侧抠图结果转存也要配同一套 OSS（见 go-backend/agent/.env.example 的 OSS 区块），值保持一致
 
 # 允许的前端来源（逗号分隔，可选）。不设时默认 localhost:5173 / localhost:3001；
 # 一旦设置就会覆盖默认值，所以要连同默认两项一起写。
@@ -168,10 +172,11 @@ MAX_UPLOAD_BYTES=10485760
 > **LLM / 校色 / 知识库 / 联网搜索的密钥都不在 Go 侧。** Go 只做代理转发，实际调用方是 Python 智能体，
 > 因此 DeepSeek Key 配在 `go-backend/agent/.env` 的 `DEEPSEEK_API_KEY`，校色服务地址配在
 > `CORRECTION_API_URL`；知识库还需要 `EMBEDDING_API_KEY`（硅基流动）与 `PG_*` 连接信息；
-> 联网搜索需要 `SEARCH_API_KEY`（博查，预付费需先充值）。
+> 联网搜索需要 `SEARCH_API_KEY`（博查，预付费需先充值）；图片抠图配置 `MATTING_MCP_URL`
+> （搭档的局域网服务，**仅内网可达**，生产部署时不可用）。
 >
-> 例外：**图片存储的凭据在 Go 侧**（`OSS_ACCESS_KEY_ID` / `OSS_ACCESS_KEY_SECRET`）——
-> 因为解码落盘/上传是 Go 干的，Python 只拿到一个现成的图片 URL。
+> OSS 凭据**两侧都要配、值必须一致**：Go 侧（`go-backend/.env`）用于图片上传；
+> agent 侧（`go-backend/agent/.env` 的 OSS 区块）用于抠图结果转存（2026-10-08 起，防临时 URL 过期）。
 
 ```bash
 cd go-backend/agent

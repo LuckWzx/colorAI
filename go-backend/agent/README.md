@@ -9,6 +9,7 @@
 - **色彩知识问答**：RAG 语义检索（色彩理论 / 心理学 / 配色 / 文化象征 / 行业应用 / 颜色寓意）
 - **颜色数据查询**：按色值 / 色系 / 颜色名精确查询 310 种精选颜色
 - **联网搜索**：时效性 / 库外问题检索互联网公开信息（博查 Web Search API）
+- **图片抠图**：移除背景输出透明底 PNG（搭档 MCP 风格服务，⚠️ 仅内网可达）
 - **统一接口**：与 Go 后端接口格式兼容
 - **可扩展**：新增工具只需三步（见「开发说明」）
 
@@ -24,6 +25,7 @@
 | `color_knowledge_search` | 色彩知识语义检索（理论 / 心理学 / 配色 / 文化象征 / 行业应用 / 颜色寓意） | `kb_chunks`（1,320 块向量） | ✅ 已实现 |
 | `color_lookup` | 按色值 / 色系 / 颜色名查询 310 种精选颜色 | `kb_colors`（精确 SQL 查询） | ✅ 已实现 |
 | `web_search` | 联网搜索互联网公开信息（时效性 / 知识库未收录内容） | 博查 Web Search API | ✅ 已实现 |
+| `image_matting` | 图片抠图（移除背景，透明底 PNG；结果自动转存自有 OSS） | 搭档 MCP 风格接口（局域网） | ✅ 已实现 |
 
 以下 4 个能力**尚未实现，故意不注册**：`color_extraction`（智能取色）、
 `color_comparison`（颜色对比）、`color_conversion`（颜色格式转换）、
@@ -34,13 +36,16 @@
 > **用户无法分辨真假**。这是本项目踩过的最严重的一类坑，详见
 > `go-backend/doc/图片校色Tool封装设计.md` §8.2。
 
-**三个「非卡片」工具（两个知识工具 + 联网搜索）与校色工具形态不同**，接入时必须区分：
+**四个「非卡片」工具（两个知识工具 + 联网搜索 + 抠图）与校色工具形态不同**，接入时必须区分：
 
 - **不产出卡片**：不在 `TOOL_TYPE_MAPPING` 里 → 返回 `type=text` + `metadata=null`
-  （防止检索原文落库，见 `agent.py` §4.3）
+  （防止检索原文落库，见 `agent.py` §4.3；抠图结果由 LLM 以 Markdown 图片语法展示）
 - **不进 `FEATURE_TOOL_MAPPING`**：属自由输入场景，由 LLM 语义判断，没有对应的快捷按钮
-- **`results=[]` / `matched=0` 是正常业务分支**（没有 → 如实说明未收录），
-  与校色工具的 `passed=false` 同理：**绝不 raise**，`success` 恒为 `True`
+- **绝不 raise**：知识 / 搜索的「没找到」是正常业务分支（`success` 恒 `True`）；
+  抠图失败（服务不可达 / 超时 / 加工失败）→ `success=false` + `errorCode`
+- **抠图结果转存 OSS**（2026-10-08）：抠图服务返回的是临时内网 URL（会过期、外网不可达），
+  工具内立即转存到自有 OSS（`app/utils/oss_store.py`，与 go-backend 同一套配置、同一 key 规则）；
+  转存失败降级保留临时 URL（error 日志），不拖垮对话
 
 ## RAG 知识库
 
@@ -109,6 +114,8 @@ PGHOST=... PGPORT=5432 PGUSER=... PGPASSWORD=... PGDATABASE=... \
 | `ingest_knowledge.py` | 入库编排；块数 / 文本一致性 / 向量维度任一不符即**报错退出** |
 | `test_knowledge_tools.py` | 单跑两个知识工具（真实调用 embedding + PG，不经 LLM / Agent / Go） |
 | `test_web_search.py` | 单跑 `web_search`（真实调用博查 API，不经 LLM / Agent / Go） |
+| `test_image_matting.py` | 单跑 `image_matting`（绑 0.0.0.0 临时图床 + 局域网 IP，真实调用抠图服务） |
+| `test_oss_store.py` | 单跑 OSS 转存（离线 key 规则 + 在线往返 + 链路探针：OSS 图 → 抠图 → 回 OSS） |
 | `test_system_prompt.py` | 系统提示词一致性护栏（工具清单 / 关键规则 / 长度，离线零成本） |
 | `test_image_correction.py` | 单跑 `image_correction`（起临时静态服务把本地图变成 URL，走生产同一条代码路径） |
 | `check_tracing.py` | LangSmith 自检（默认离线零成本，加 `--live` 才真发一次调用） |
@@ -147,6 +154,12 @@ cp .env.example .env
 | `SEARCH_API_KEY` | **联网搜索必填**，博查 Web Search API（https://open.bochaai.com，预付费需充值） |
 | `WEB_SEARCH_ENABLED` | 联网搜索总开关，默认 `true` |
 | `SEARCH_COUNT` / `SEARCH_MAX_COUNT` / `SEARCH_TIMEOUT` / `SEARCH_SNIPPET_MAX` / `SEARCH_RETRY` | 联网搜索参数（默认 5 条 / 上限 10 / 超时 15s / 摘要截断 500 / 重试 1） |
+| `MATTING_MCP_URL` | 抠图 MCP 服务地址（默认局域网 `10.10.30.190:8082`，**仅内网可达**） |
+| `MATTING_ENABLED` | 抠图总开关，默认 `true` |
+| `MATTING_TIMEOUT` / `MATTING_POLL_INTERVAL` / `MATTING_POLL_TIMEOUT` / `MATTING_RETRY` | 抠图参数（单次超时 15s / 轮询间隔 2s / 轮询上限 45s / 提交重试 1） |
+| `OSS_ENABLED` | 抠图结果转存总开关，默认 `true`（缺配置时转存降级、对话不受影响） |
+| `OSS_BUCKET` / `OSS_ENDPOINT` / `OSS_ACCESS_KEY_ID` / `OSS_ACCESS_KEY_SECRET` / `OSS_PUBLIC_BASE_URL` | **与 `go-backend/.env` 同一套 OSS 配置**（同 bucket、同 key 规则，值必须一致） |
+| `OSS_MAX_BYTES` / `OSS_TIMEOUT` | 转存参数（单文件上限 10MB / 下载+上传超时 30s） |
 | `RETRIEVAL_TOP_K` / `RETRIEVAL_MAX_K` / `RETRIEVAL_MIN_SCORE` | 检索条数与相似度下限（默认 5 / 10 / 0.60） |
 | `LANGSMITH_TRACING` / `LANGSMITH_PROJECT` / `LANGSMITH_API_KEY` | 可选链路追踪，见下文 |
 
@@ -309,7 +322,8 @@ agent/
 │   │   ├── color_tools.py      # image_correction + get_all_tools()
 │   │   ├── color_knowledge_search.py  # 知识库语义检索
 │   │   ├── color_lookup.py     # 310 色精确查询
-│   │   └── web_search.py       # 联网搜索（博查 Web Search API）
+│   │   ├── web_search.py       # 联网搜索（博查 Web Search API）
+│   │   └── image_matting.py    # 图片抠图（搭档 MCP 风格接口，仅内网）
 │   ├── knowledge/              # RAG 知识库
 │   │   ├── embedder.py         # BGE-M3 薄封装（硅基流动 API）
 │   │   ├── ingest.py           # 语料解析 + 切块
@@ -319,7 +333,8 @@ agent/
 │   │   ├── chat_request.py
 │   │   ├── chat_response.py
 │   │   └── health.py
-│   ├── utils/                  # 预留（当前为空）
+│   ├── utils/
+│   │   └── oss_store.py        # OSS 转存（抠图结果持久化，key 规则与 Go 对齐）
 │   ├── config.py               # 配置管理（含 load_dotenv，见下）
 │   └── main.py                 # 主应用
 ├── doc/

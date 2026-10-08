@@ -3,6 +3,7 @@
 
 **只注册已实现的工具**：
 - `image_correction`：一键校色（见 doc/图片校色Tool封装设计.md）
+- `image_matting`：图片抠图（搭档的 MCP 风格接口，独立文件：app/tools/image_matting.py）
 - `color_knowledge_search` / `color_lookup`：色彩知识库 RAG（见 doc/RAG知识库设计.md §4，
   各自独立文件：app/tools/color_knowledge_search.py / color_lookup.py）
 - `web_search`：联网搜索（博查 Web Search API，独立文件：app/tools/web_search.py）
@@ -19,6 +20,7 @@ from typing import Optional
 from app.config import settings
 from app.tools.color_knowledge_search import color_knowledge_search
 from app.tools.color_lookup import color_lookup
+from app.tools.image_matting import image_matting
 from app.tools.web_search import web_search
 
 
@@ -234,6 +236,6 @@ def get_all_tools():
     """获取所有**已实现**的工具
 
     只返回真实可用的工具。未实现的工具绝不能出现在这里：LLM 会调用它并返回编造数据。
-    知识工具与联网搜索不进 FEATURE_TOOL_MAPPING（自由输入场景，由 LLM 语义判断，§4.2）。
+    知识工具、联网搜索与抠图不进 FEATURE_TOOL_MAPPING（自由输入场景，由 LLM 语义判断，§4.2）。
     """
-    return [image_correction, color_knowledge_search, color_lookup, web_search]
+    return [image_correction, image_matting, color_knowledge_search, color_lookup, web_search]

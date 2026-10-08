@@ -85,6 +85,33 @@ class Settings(BaseSettings):
     SEARCH_SNIPPET_MAX: int = 500          # 单条摘要截断字符数（防 token 爆炸）
     SEARCH_RETRY: int = 1                  # 仅对超时/5xx 重试（按次计费，别多花冤枉钱）
 
+    # 图片抠图（搭档提供的 MCP 风格 HTTP 接口，2026-10-08 接入）
+    # ⚠️ 服务在局域网 10.10.30.190:8082 —— 仅内网可达，生产（阿里云）用不了；
+    #    结果图 URL 同样是内网地址，公网浏览器看不到。
+    # 异步任务制：matting 提交 → get_task_status 轮询，工具内部完成轮询
+    # （实测样本约 6 秒出结果），见 app/tools/image_matting.py。
+    MATTING_ENABLED: bool = True
+    MATTING_MCP_URL: str = "http://10.10.30.190:8082/mcp"
+    MATTING_TIMEOUT: float = 15.0          # 单次 HTTP 请求超时（秒）
+    MATTING_POLL_INTERVAL: float = 2.0     # 任务轮询间隔（秒）
+    MATTING_POLL_TIMEOUT: float = 45.0     # 轮询总上限（必须留足 Go 侧 60s 超时的余量）
+    MATTING_RETRY: int = 1                 # 仅提交阶段对网络错误重试（重试安全：最多多一个冗余任务）
+
+    # OSS 转存（抠图结果持久化，2026-10-08 接入）
+    # ⚠️ 与 go-backend/.env 是**同一套 OSS 配置**（同 bucket、同 key 规则，
+    #    见 app/utils/oss_store.py）：改任意一侧的值都要同步另一侧，
+    #    否则转存产物与 Go 上传图会散到两个 bucket/域名下。
+    # 动机：抠图服务的结果 URL 是临时内网地址（会过期且外网不可达），
+    #    工具内立刻转存到自有 OSS，让 LLM 写在回复里、Go 落库的 URL 永久有效。
+    OSS_ENABLED: bool = True
+    OSS_BUCKET: str = ""
+    OSS_ENDPOINT: str = ""                 # 上传 endpoint（本地开发用公网域名；ECS 同 region 可换内网域名省流量费）
+    OSS_ACCESS_KEY_ID: str = ""
+    OSS_ACCESS_KEY_SECRET: str = ""        # 与 Go 侧同一凭据（建议用 RAM 子账号，只授该 bucket 写权限）
+    OSS_PUBLIC_BASE_URL: str = ""          # bucket 公网域名（与 Go 的 PUBLIC_BASE_URL 同值）
+    OSS_MAX_BYTES: int = 10485760          # 单文件上限（与 Go 的 MAX_UPLOAD_BYTES 同值，默认 10MB）
+    OSS_TIMEOUT: float = 30.0              # 下载临时图 / 上传 OSS 的单次超时（秒）
+
     # 允许的Origins（CORS配置）
     ALLOWED_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3001"]
 

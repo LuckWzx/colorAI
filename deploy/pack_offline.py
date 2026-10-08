@@ -69,6 +69,11 @@
    只是换了个命令而已。它能证明的只有「名字/版本在本地目录里都找得到」，
    **不能**证明「Linux 上够用」。权威校验只有本脚本的 `check_wheels`（硬编码 Linux 标记）。
 
+4) 🔴 **个别纯 Python 包在 PyPI 只发 sdist、不发 wheel**（实测 2026-10：`oss2`、`crcmod`）
+   → `pip download --only-binary=:all:` 对它们直接报 "from versions: none"，**中止整个流程**。
+   本脚本用 `pip wheel` 本机构建 any-wheel（py3-none-any，Linux 容器可直接安装）处理，
+   见 `SDIST_ONLY_BUILD`；全量下载时这几行会先从临时 requirements 中滤掉。
+
 密码来源沿用 `upload_backend`：`--password` → `$COLORAI_SSH_PASS` → `deploy/.sshpass` → 交互输入。
 """
 
@@ -76,6 +81,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import struct
 import subprocess
@@ -105,6 +111,15 @@ DEFAULT_WHEELS_DIR = Path("D:/tmp/colorai-wheels")
 # ⚠️ 必须用**默认 PyPI 源**。实测清华源在 `pip download` 下会报
 #    `Could not find a version that satisfies the requirement ... (from versions: none)`。
 DEFAULT_PIP_INDEX = "https://pypi.org/simple"
+
+# ---------------------------------------------------------------- sdist-only 包
+#
+# 有些纯 Python 包在 PyPI **只发 sdist、不发 wheel**（实测 2026-10：oss2 2.19.1、crcmod 1.7）。
+# `pip download --only-binary=:all:` 对它们直接报 "from versions: none" 并**中止整个流程**。
+# 处理：用 `pip wheel` 在本地构建出 any-wheel（py3-none-any，Linux 容器可直接安装）放进
+# wheels 目录，并在全量下载时把这几个包从 requirements 里滤掉
+#（它们的依赖会被之后的「按 Linux 标记补漏」自动补齐）。
+SDIST_ONLY_BUILD = ["oss2", "crcmod"]
 
 # 目标平台：服务器是 Ubuntu 22.04 x86_64，镜像 `python:3.11-slim`（Debian bookworm）。
 # 多列几个 manylinux 标签，兼容老包（如 httptools 只有 manylinux1）。
@@ -313,25 +328,83 @@ def pip_download(args_list: list[str], desc: str) -> bool:
     return True
 
 
+def _filtered_requirements_file() -> Path:
+    """生成一份去掉 sdist-only 包行的临时 requirements（写系统临时目录，不碰仓库文件）。
+
+    全量 `pip download -r` 只要遇到一个找不到 wheel 的包就会中止，
+    所以先把 SDIST_ONLY_BUILD 里的行滤掉；它们的 wheel 由 step_build_pure_wheels 提供。
+    """
+    skip = {n.lower().replace("_", "-") for n in SDIST_ONLY_BUILD}
+    kept: list[str] = []
+    for line in REQ_FILE.read_text(encoding="utf-8").splitlines():
+        bare = line.split("#")[0].strip()
+        name = re.split(r"[<>=!\[;\s]", bare, maxsplit=1)[0] if bare else ""
+        if name.lower().replace("_", "-") in skip:
+            continue
+        kept.append(line)
+
+    tmp = Path(tempfile.gettempdir()) / "colorai-requirements-offline.txt"
+    tmp.write_text("\n".join(kept) + "\n", encoding="utf-8")
+    return tmp
+
+
+def step_build_pure_wheels(wheels_dir: Path) -> bool:
+    """为 sdist-only 包本机构建 any-wheel（已存在则跳过）。见 SDIST_ONLY_BUILD 注释。"""
+    todo = [
+        n for n in SDIST_ONLY_BUILD
+        if not list(wheels_dir.glob(f"{n.replace('-', '_')}-*.whl"))
+    ]
+    if not todo:
+        log(f"\n→ sdist-only 包 wheel 已就绪：{', '.join(SDIST_ONLY_BUILD)}")
+        return True
+
+    cmd = pip_base_cmd() + [
+        "wheel", *todo,
+        "--no-deps",
+        "-w", str(wheels_dir),
+        "--index-url", DEFAULT_PIP_INDEX,
+    ]
+    log(f"\n→ 本机构建 sdist-only 包的 wheel：{', '.join(todo)}")
+    log("  $ " + " ".join(cmd))
+    if subprocess.call(cmd) != 0:
+        log("  ✗ pip wheel 构建失败")
+        return False
+
+    ok = True
+    for n in todo:
+        found = list(wheels_dir.glob(f"{n.replace('-', '_')}-*.whl"))
+        if not found:
+            log(f"  ✗ {n}：构建后目录里仍没有 wheel")
+            ok = False
+        else:
+            log(f"  ✓ {found[0].name}")
+    return ok
+
+
 def step_download_wheels(wheels_dir: Path) -> bool:
     """下载全套 wheel，并自动补齐 Windows 标记导致的漏包。"""
     wheels_dir.mkdir(parents=True, exist_ok=True)
 
+    # sdist-only 包先本机构建，全量下载用过滤后的 requirements（否则 oss2 会让下载直接中止）
+    if not step_build_pure_wheels(wheels_dir):
+        return False
     ok = pip_download(
         [
-            "-r", str(REQ_FILE),
+            "-r", str(_filtered_requirements_file()),
             "-d", str(wheels_dir),
             *PLATFORM_ARGS,
             "--index-url", DEFAULT_PIP_INDEX,
         ],
-        "下载 requirements.txt 的全部 linux wheel",
+        "下载 requirements.txt 的全部 linux wheel（已滤掉 sdist-only 包，见上）",
     )
     if not ok:
         return False
 
     # 🔴 关键补丁：Windows 上求值标记会漏掉 Linux 专属依赖（实测：uvloop）。
-    #    这里按 Linux 标记查一遍，缺什么单独补下什么。最多补 3 轮（补包的包还可能缺依赖）。
-    for attempt in range(1, 4):
+    #    这里按 Linux 标记查一遍，缺什么单独补下什么。最多补 5 轮 ——
+    #    oss2 的依赖链较深（oss2 → aliyun-sdk-core → cryptography → cffi → pycparser，
+    #    实测要 4 轮才收敛），轮数上限要留够。
+    for attempt in range(1, 6):
         missing, _ = check_wheels(wheels_dir, REQ_FILE)
         if not missing:
             break
