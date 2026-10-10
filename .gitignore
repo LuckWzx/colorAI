@@ -51,6 +51,9 @@ go-backend/data/
 # === 工具测试产物 ===
 go-backend/tool-test-output/
 
+# === 镜像导出产物（本机 docker save 的 tar.gz，数百 MB，勿入库）===
+images/
+
 # === 部署脚本的 SSH 密码（绝不能进版本库）===
 .sshpass
 
